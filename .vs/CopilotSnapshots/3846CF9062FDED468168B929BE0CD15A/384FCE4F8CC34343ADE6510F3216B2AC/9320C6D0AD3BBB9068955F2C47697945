@@ -1,0 +1,141 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="FoodStreetAudioGuide.LanguageSelectionPage"
+             BackgroundColor="#F7F8FB"
+             Shell.NavBarIsVisible="False">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="22,20,22,14" Spacing="14">
+            <Grid ColumnDefinitions="Auto,*" VerticalOptions="Center">
+                <Label Text="←" FontSize="22" TextColor="#212738" VerticalOptions="Center"/>
+                <Label Grid.Column="1"
+                       Text="Select Your Language"
+                       HorizontalOptions="Center"
+                       FontSize="30"
+                       FontAttributes="Bold"
+                       TextColor="#212738" />
+            </Grid>
+
+            <Border Padding="0"
+                    BackgroundColor="#EFA658"
+                    Stroke="#EFA658"
+                    StrokeThickness="0">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="30" />
+                </Border.StrokeShape>
+                <Grid HeightRequest="140" Padding="20">
+                    <Label Text="🌐"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center"
+                           FontSize="46"
+                           Margin="0,-28,0,0" />
+                    <Label Text="StreetFeast Global"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center"
+                           FontSize="18"
+                           FontAttributes="Bold"
+                           TextColor="White"
+                           Margin="0,36,0,0" />
+                </Grid>
+            </Border>
+
+            <Label Text="Recommended"
+                   FontSize="24"
+                   FontAttributes="Bold"
+                   TextColor="#212738" />
+
+            <Border BackgroundColor="White" Stroke="#EF8F2A" StrokeThickness="2" Padding="16,12">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="28" />
+                </Border.StrokeShape>
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                    <Label Text="⚑" FontSize="22" TextColor="#EF8F2A" VerticalOptions="Center"/>
+                    <VerticalStackLayout Grid.Column="1" Spacing="0">
+                        <Label Text="English" FontSize="26" FontAttributes="Bold" TextColor="#212738"/>
+                        <Label Text="United States / UK" FontSize="16" TextColor="#7D8795"/>
+                    </VerticalStackLayout>
+                    <Grid Grid.Column="2" WidthRequest="20" HeightRequest="20" VerticalOptions="Center">
+                        <Ellipse Fill="#EF8F2A" Stroke="#EF8F2A"/>
+                        <Ellipse Fill="White" WidthRequest="8" HeightRequest="8" HorizontalOptions="Center" VerticalOptions="Center"/>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Border BackgroundColor="#F1F4F8" Stroke="#D9DEE8" Padding="16,12">
+                <Border.StrokeShape><RoundRectangle CornerRadius="28" /></Border.StrokeShape>
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                    <Label Text="⚑" FontSize="22" TextColor="#5F6877" VerticalOptions="Center"/>
+                    <VerticalStackLayout Grid.Column="1" Spacing="0">
+                        <Label Text="Tiếng Việt (Vietnamese)" FontSize="24" FontAttributes="Bold" TextColor="#212738"/>
+                        <Label Text="Vietnam" FontSize="16" TextColor="#7D8795"/>
+                    </VerticalStackLayout>
+                    <Ellipse Grid.Column="2" WidthRequest="20" HeightRequest="20" Stroke="#BBC3D1" Fill="Transparent" VerticalOptions="Center"/>
+                </Grid>
+            </Border>
+
+            <Border BackgroundColor="#F1F4F8" Stroke="#D9DEE8" Padding="16,12">
+                <Border.StrokeShape><RoundRectangle CornerRadius="28" /></Border.StrokeShape>
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                    <Label Text="⚑" FontSize="22" TextColor="#5F6877" VerticalOptions="Center"/>
+                    <VerticalStackLayout Grid.Column="1" Spacing="0">
+                        <Label Text="中文 (Chinese)" FontSize="24" FontAttributes="Bold" TextColor="#212738"/>
+                        <Label Text="Mainland / Taiwan / HK" FontSize="16" TextColor="#7D8795"/>
+                    </VerticalStackLayout>
+                    <Ellipse Grid.Column="2" WidthRequest="20" HeightRequest="20" Stroke="#BBC3D1" Fill="Transparent" VerticalOptions="Center"/>
+                </Grid>
+            </Border>
+
+            <Border BackgroundColor="#F1F4F8" Stroke="#D9DEE8" Padding="16,12">
+                <Border.StrokeShape><RoundRectangle CornerRadius="28" /></Border.StrokeShape>
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                    <Label Text="⚑" FontSize="22" TextColor="#5F6877" VerticalOptions="Center"/>
+                    <VerticalStackLayout Grid.Column="1" Spacing="0">
+                        <Label Text="日本語 (Japanese)" FontSize="24" FontAttributes="Bold" TextColor="#212738"/>
+                        <Label Text="Japan" FontSize="16" TextColor="#7D8795"/>
+                    </VerticalStackLayout>
+                    <Ellipse Grid.Column="2" WidthRequest="20" HeightRequest="20" Stroke="#BBC3D1" Fill="Transparent" VerticalOptions="Center"/>
+                </Grid>
+            </Border>
+
+            <Border BackgroundColor="#F1F4F8" Stroke="#D9DEE8" Padding="16,12">
+                <Border.StrokeShape><RoundRectangle CornerRadius="28" /></Border.StrokeShape>
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                    <Label Text="⚑" FontSize="22" TextColor="#5F6877" VerticalOptions="Center"/>
+                    <VerticalStackLayout Grid.Column="1" Spacing="0">
+                        <Label Text="한국어 (Korean)" FontSize="24" FontAttributes="Bold" TextColor="#212738"/>
+                        <Label Text="South Korea" FontSize="16" TextColor="#7D8795"/>
+                    </VerticalStackLayout>
+                    <Ellipse Grid.Column="2" WidthRequest="20" HeightRequest="20" Stroke="#BBC3D1" Fill="Transparent" VerticalOptions="Center"/>
+                </Grid>
+            </Border>
+
+            <Border BackgroundColor="#F1F4F8" Stroke="#D9DEE8" Padding="16,12">
+                <Border.StrokeShape><RoundRectangle CornerRadius="28" /></Border.StrokeShape>
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                    <Label Text="⚑" FontSize="22" TextColor="#5F6877" VerticalOptions="Center"/>
+                    <VerticalStackLayout Grid.Column="1" Spacing="0">
+                        <Label Text="Español (Spanish)" FontSize="24" FontAttributes="Bold" TextColor="#212738"/>
+                        <Label Text="Spain / Latin America" FontSize="16" TextColor="#7D8795"/>
+                    </VerticalStackLayout>
+                    <Ellipse Grid.Column="2" WidthRequest="20" HeightRequest="20" Stroke="#BBC3D1" Fill="Transparent" VerticalOptions="Center"/>
+                </Grid>
+            </Border>
+
+            <Button Text="Continue"
+                    Clicked="OnContinueClicked"
+                    BackgroundColor="#EF8F2A"
+                    TextColor="White"
+                    FontAttributes="Bold"
+                    FontSize="30"
+                    CornerRadius="24"
+                    HeightRequest="66"
+                    Margin="0,6,0,0" />
+
+            <Label Text="You can change this anytime in settings"
+                   HorizontalOptions="Center"
+                   TextColor="#9AA3B2"
+                   FontSize="14"/>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

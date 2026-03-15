@@ -1,0 +1,51 @@
+﻿namespace FoodStreetAudioGuide
+{
+    public partial class LoadingPage : ContentPage
+    {
+        private readonly string[] _statusMessages =
+        {
+            "• Connecting to local vendors...",
+            "• Mapping nearby food stalls...",
+            "• Preparing audio guides..."
+        };
+
+        private bool _isLoaded;
+
+        public LoadingPage()
+        {
+            InitializeComponent();
+        }
+
+        protected override async void OnAppearing()
+        {
+            base.OnAppearing();
+
+            if (_isLoaded)
+            {
+                return;
+            }
+
+            _isLoaded = true;
+
+            await RunLoadingAnimationAsync();
+
+            var window = Application.Current?.Windows.FirstOrDefault();
+            if (window is not null)
+            {
+                window.Page = new NavigationPage(new LanguageSelectionPage());
+            }
+        }
+
+        private async Task RunLoadingAnimationAsync()
+        {
+            for (var percent = 0; percent <= 100; percent += 5)
+            {
+                LoadingProgressBar.Progress = percent / 100.0;
+                ProgressTextLabel.Text = $"{percent}%";
+                StatusLabel.Text = _statusMessages[(percent / 35) % _statusMessages.Length];
+
+                await Task.Delay(90);
+            }
+        }
+    }
+}

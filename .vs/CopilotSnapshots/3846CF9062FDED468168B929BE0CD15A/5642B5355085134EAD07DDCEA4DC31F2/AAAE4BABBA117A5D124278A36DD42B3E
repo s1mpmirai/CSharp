@@ -1,0 +1,88 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="FoodStreetAudioGuide.LoadingPage"
+             NavigationPage.HasNavigationBar="False"
+             BackgroundColor="#050505">
+
+    <Grid>
+        <Grid.Background>
+            <LinearGradientBrush EndPoint="0,1">
+                <GradientStop Color="#061A2B" Offset="0.0" />
+                <GradientStop Color="#0A0A0A" Offset="0.55" />
+                <GradientStop Color="#020202" Offset="1.0" />
+            </LinearGradientBrush>
+        </Grid.Background>
+
+        <VerticalStackLayout VerticalOptions="Center" Padding="30,0" Spacing="20">
+            <Border WidthRequest="110"
+                    HeightRequest="110"
+                    HorizontalOptions="Center"
+                    BackgroundColor="#EE932A"
+                    Stroke="#6C5CE7"
+                    StrokeThickness="3">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="55" />
+                </Border.StrokeShape>
+                <Label Text="🍴"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"
+                       FontSize="50" />
+            </Border>
+
+            <VerticalStackLayout Spacing="0">
+                <Label Text="StreetFeast"
+                       FontSize="54"
+                       FontAttributes="Bold"
+                       TextColor="White"
+                       HorizontalOptions="Center" />
+                <Label Text="AUDIO GUIDE TO STREET FOOD"
+                       FontSize="24"
+                       FontAttributes="Bold"
+                       TextColor="#F09A31"
+                       HorizontalOptions="Center" />
+            </VerticalStackLayout>
+
+            <Border Padding="18,14"
+                    Stroke="#5A5A5A"
+                    BackgroundColor="#442B2B2B"
+                    StrokeThickness="1">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="18" />
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="PREPARING YOUR TOUR"
+                           FontSize="12"
+                           FontAttributes="Bold"
+                           TextColor="#AAB1BB" />
+
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label x:Name="LoadingTextLabel"
+                               Text="Loading delicious experiences..."
+                               TextColor="White"
+                               FontSize="20" />
+                        <Label x:Name="ProgressTextLabel"
+                               Grid.Column="1"
+                               Text="0%"
+                               FontSize="22"
+                               FontAttributes="Bold"
+                               TextColor="#F09A31"
+                               VerticalOptions="End" />
+                    </Grid>
+
+                    <ProgressBar x:Name="LoadingProgressBar"
+                                 Progress="0"
+                                 ProgressColor="#F09A31"
+                                 BackgroundColor="#5C5C5C"
+                                 HeightRequest="8" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Label x:Name="StatusLabel"
+                   Text="• Connecting to local vendors..."
+                   FontSize="18"
+                   TextColor="#ACB2BC"
+                   HorizontalOptions="Center" />
+        </VerticalStackLayout>
+    </Grid>
+</ContentPage>

@@ -18,7 +18,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FoodStreetAudioGuide")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0+2004a9286fd1cd5b44487c973352d4bf44185843")]
 [assembly: System.Reflection.AssemblyProductAttribute("FoodStreetAudioGuide")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FoodStreetAudioGuide")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\code\\LapTrinhC#\\Project_Real\\FoodStreetAudioGuide\\FoodStreetAudioGuide\\FoodStreetAudioGuide.csproj": {}
+    "C:\\Users\\hp\\source\\repos\\s1mpmirai\\CSharp\\FoodStreetAudioGuide.csproj": {}
   },
   "projects": {
-    "D:\\code\\LapTrinhC#\\Project_Real\\FoodStreetAudioGuide\\FoodStreetAudioGuide\\FoodStreetAudioGuide.csproj": {
+    "C:\\Users\\hp\\source\\repos\\s1mpmirai\\CSharp\\FoodStreetAudioGuide.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\code\\LapTrinhC#\\Project_Real\\FoodStreetAudioGuide\\FoodStreetAudioGuide\\FoodStreetAudioGuide.csproj",
+        "projectUniqueName": "C:\\Users\\hp\\source\\repos\\s1mpmirai\\CSharp\\FoodStreetAudioGuide.csproj",
         "projectName": "FoodStreetAudioGuide",
-        "projectPath": "D:\\code\\LapTrinhC#\\Project_Real\\FoodStreetAudioGuide\\FoodStreetAudioGuide\\FoodStreetAudioGuide.csproj",
+        "projectPath": "C:\\Users\\hp\\source\\repos\\s1mpmirai\\CSharp\\FoodStreetAudioGuide.csproj",
         "packagesPath": "C:\\Users\\hp\\.nuget\\packages\\",
-        "outputPath": "D:\\code\\LapTrinhC#\\Project_Real\\FoodStreetAudioGuide\\FoodStreetAudioGuide\\obj\\",
+        "outputPath": "C:\\Users\\hp\\source\\repos\\s1mpmirai\\CSharp\\obj\\",
         "projectStyle": "PackageReference",
         "crossTargeting": true,
         "fallbackFolders": [

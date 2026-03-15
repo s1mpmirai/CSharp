@@ -1,0 +1,15 @@
+﻿namespace FoodStreetAudioGuide
+{
+    public partial class LanguageSelectionPage : ContentPage
+    {
+        public LanguageSelectionPage()
+        {
+            InitializeComponent();
+        }
+
+        private void OnContinueClicked(object sender, EventArgs e)
+        {
+            Application.Current!.MainPage = new MainPage();
+        }
+    }
+}
