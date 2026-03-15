@@ -1,26 +1,16 @@
-﻿using Microsoft.Maui.Controls.Maps;
-using Microsoft.Maui.Maps;
-
-namespace FoodStreetAudioGuide
+﻿namespace FoodStreetAudioGuide
 {
     public partial class MainPage : ContentPage
     {
+        public Command BackCommand { get; }
+
         public MainPage(string selectedLanguage = "Tiếng Việt")
         {
+            BackCommand = new Command(async () => await NavigateBackAsync());
+
             InitializeComponent();
-
+            BindingContext = this;
             ApplyLanguage(selectedLanguage);
-
-            var (pinLabel, pinAddress) = GetMapTexts(selectedLanguage);
-
-            var pin = new Pin
-            {
-                Label = pinLabel,
-                Location = new Location(10.7684, 106.6803),
-                Address = pinAddress
-            };
-
-            map.Pins.Add(pin);
         }
 
         private void ApplyLanguage(string selectedLanguage)
@@ -28,98 +18,91 @@ namespace FoodStreetAudioGuide
             switch (selectedLanguage)
             {
                 case "English":
-                    Title = "Food Street";
-                    NearbyStallsLabel.Text = "Nearby stalls";
-                    StallsCollectionView.ItemsSource = new[]
-                    {
-                        "1. Huynh Hoa Banh Mi - 50m away 🔊",
-                        "2. Nho Snail Stall - 120m away",
-                        "3. Y Phuong Thai Dessert - 200m away",
-                        "4. Ba Ghien Broken Rice - 350m away"
-                    };
+                    PageTitleLabel.Text = "Stall List";
+                    SearchHintLabel.Text = "Search food stalls, cuisines...";
+                    NearbyFilterLabel.Text = "Nearby";
+                    OpenNowFilterLabel.Text = "Open Now";
+                    TopRatedFilterLabel.Text = "Top Rated";
+                    Under200FilterLabel.Text = "Under 200m";
+                    ExploreTabLabel.Text = "EXPLORES";
+                    MapTabLabel.Text = "MAP";
+                    SavedTabLabel.Text = "SAVED";
+
                     break;
                 case "中文 (Chinese)":
-                    Title = "美食街";
-                    NearbyStallsLabel.Text = "附近摊位";
-                    StallsCollectionView.ItemsSource = new[]
-                    {
-                        "1. Huynh Hoa 法棍 - 距离 50 米 🔊",
-                        "2. Nho 螺蛳摊 - 距离 120 米",
-                        "3. Y Phuong 泰式甜品 - 距离 200 米",
-                        "4. Ba Ghien 碎米饭 - 距离 350 米"
-                    };
+                    PageTitleLabel.Text = "摊位列表";
+                    SearchHintLabel.Text = "搜索美食摊位、菜系...";
+                    NearbyFilterLabel.Text = "附近";
+                    OpenNowFilterLabel.Text = "营业中";
+                    TopRatedFilterLabel.Text = "高评分";
+                    Under200FilterLabel.Text = "200米内";
+                    ExploreTabLabel.Text = "探索";
+                    MapTabLabel.Text = "地图";
+                    SavedTabLabel.Text = "收藏";
+
                     break;
                 case "日本語 (Japanese)":
-                    Title = "フードストリート";
-                    NearbyStallsLabel.Text = "近くの屋台";
-                    StallsCollectionView.ItemsSource = new[]
-                    {
-                        "1. Huynh Hoa バインミー - 50m先 🔊",
-                        "2. Nho スネイル店 - 120m先",
-                        "3. Y Phuong タイ風デザート - 200m先",
-                        "4. Ba Ghien コムタム - 350m先"
-                    };
+                    PageTitleLabel.Text = "屋台リスト";
+                    SearchHintLabel.Text = "屋台や料理を検索...";
+                    NearbyFilterLabel.Text = "近い順";
+                    OpenNowFilterLabel.Text = "営業中";
+                    TopRatedFilterLabel.Text = "高評価";
+                    Under200FilterLabel.Text = "200m以内";
+                    ExploreTabLabel.Text = "探索";
+                    MapTabLabel.Text = "地図";
+                    SavedTabLabel.Text = "保存";
+
                     break;
                 case "한국어 (Korean)":
-                    Title = "푸드 스트리트";
-                    NearbyStallsLabel.Text = "주변 매장";
-                    StallsCollectionView.ItemsSource = new[]
-                    {
-                        "1. Huynh Hoa 반미 - 50m 거리 🔊",
-                        "2. Nho 달팽이 가게 - 120m 거리",
-                        "3. Y Phuong 타이 디저트 - 200m 거리",
-                        "4. Ba Ghien 껌땀 - 350m 거리"
-                    };
-                    break;
-                case "Español (Spanish)":
-                    Title = "Calle de Comida";
-                    NearbyStallsLabel.Text = "Puestos cercanos";
-                    StallsCollectionView.ItemsSource = new[]
-                    {
-                        "1. Bánh mì Huỳnh Hoa - A 50 m 🔊",
-                        "2. Puesto de caracoles Nhớ - A 120 m",
-                        "3. Postre tailandés Ý Phương - A 200 m",
-                        "4. Cơm tấm Ba Ghiền - A 350 m"
-                    };
+                    PageTitleLabel.Text = "매장 목록";
+                    SearchHintLabel.Text = "음식 매장, 요리를 검색...";
+                    NearbyFilterLabel.Text = "가까운 순";
+                    OpenNowFilterLabel.Text = "영업 중";
+                    TopRatedFilterLabel.Text = "평점 순";
+                    Under200FilterLabel.Text = "200m 이내";
+                    ExploreTabLabel.Text = "탐색";
+                    MapTabLabel.Text = "지도";
+                    SavedTabLabel.Text = "저장";
                     break;
                 default:
-                    Title = "Phố Ẩm Thực";
-                    NearbyStallsLabel.Text = "Gian hàng quanh bạn";
-                    StallsCollectionView.ItemsSource = new[]
-                    {
-                        "1. Bánh Mì Huỳnh Hoa - Cách 50m 🔊",
-                        "2. Quán Ốc Nhớ - Cách 120m",
-                        "3. Chè Thái Ý Phương - Cách 200m",
-                        "4. Cơm Tấm Ba Ghiền - Cách 350m"
-                    };
+                    PageTitleLabel.Text = "Danh sách quầy";
+                    SearchHintLabel.Text = "Tìm quầy ăn, món ăn...";
+                    NearbyFilterLabel.Text = "Gần đây";
+                    OpenNowFilterLabel.Text = "Đang mở";
+                    TopRatedFilterLabel.Text = "Đánh giá cao";
+                    Under200FilterLabel.Text = "Dưới 200m";
+                    ExploreTabLabel.Text = "KHÁM PHÁ";
+                    MapTabLabel.Text = "BẢN ĐỒ";
+                    SavedTabLabel.Text = "ĐÃ LƯU";
+
                     break;
             }
-        }
 
-        private static (string Label, string Address) GetMapTexts(string selectedLanguage)
-        {
-            return selectedLanguage switch
+            StallsCollectionView.ItemsSource = new[]
             {
-                "English" => ("Banh Mi Stall", "Playing audio clip..."),
-                "中文 (Chinese)" => ("法棍摊位", "正在播放语音..."),
-                "日本語 (Japanese)" => ("バインミー屋台", "音声を再生中..."),
-                "한국어 (Korean)" => ("반미 가게", "오디오 재생 중..."),
-                "Español (Spanish)" => ("Puesto de bánh mì", "Reproduciendo audio..."),
-                _ => ("Gian hàng Bánh Mì", "Đang phát đoạn ghi âm...")
+                new StallItem("50m", "Gourmet Ramen", "4.8", "(120)", "Japanese"),
+                new StallItem("120m", "Spicy Tacos", "4.5", "(85)", "Mexican"),
+                new StallItem("210m", "Neon Pizza", "4.9", "(214)", "Italian"),
+                new StallItem("350m", "Zen Bowls", "4.2", "(56)", "Healthy"),
+                new StallItem("480m", "The Burger Joint", "4.6", "(310)", "American")
             };
         }
 
-        protected override async void OnAppearing()
+        private async Task NavigateBackAsync()
         {
-            base.OnAppearing();
-            await RequestLocationPermissionAsync();
+            if (Navigation.NavigationStack.Count > 1)
+            {
+                await Navigation.PopAsync();
+                return;
+            }
+
+            var window = Application.Current?.Windows.FirstOrDefault();
+            if (window is not null)
+            {
+                window.Page = new NavigationPage(new LanguageSelectionPage());
+            }
         }
 
-        private static async Task RequestLocationPermissionAsync()
-        {
-            var status = await Permissions.CheckStatusAsync<Permissions.LocationWhenInUse>();
-            if (status != PermissionStatus.Granted)
-                await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
-        }
+        private sealed record StallItem(string DistanceText, string Name, string Rating, string Reviews, string Cuisine);
     }
 }

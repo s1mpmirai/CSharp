@@ -4,11 +4,13 @@ namespace FoodStreetAudioGuide
 {
     public partial class LanguageSelectionPage : ContentPage
     {
-        private string _selectedLanguage = "English";
+        private const string SelectedLanguagePreferenceKey = "SelectedLanguage";
+        private string _selectedLanguage;
 
         public LanguageSelectionPage()
         {
             InitializeComponent();
+            _selectedLanguage = Preferences.Get(SelectedLanguagePreferenceKey, "English");
             UpdateSelectionUi();
         }
 
@@ -23,6 +25,8 @@ namespace FoodStreetAudioGuide
 
         private void OnContinueClicked(object sender, EventArgs e)
         {
+            Preferences.Set(SelectedLanguagePreferenceKey, _selectedLanguage);
+
             var window = Application.Current?.Windows.FirstOrDefault();
             if (window is not null)
             {

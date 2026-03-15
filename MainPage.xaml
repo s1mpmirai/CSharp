@@ -1,31 +1,193 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:maps="http://schemas.microsoft.com/dotnet/2021/maui/maps"
              x:Class="FoodStreetAudioGuide.MainPage"
-             Title="Phố Ẩm Thực">
+             Shell.NavBarIsVisible="False"
+             BackgroundColor="#F6F6F6">
 
-    <Grid RowDefinitions="5*, 5*">
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Padding="16,14,16,0" RowSpacing="12">
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" VerticalOptions="Center">
+            <Label Text="←"
+                   FontSize="24"
+                   TextColor="#1E2433"
+                   VerticalOptions="Center">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding BackCommand}" />
+                </Label.GestureRecognizers>
+            </Label>
+            <Label x:Name="PageTitleLabel"
+                   Grid.Column="1"
+                   Text="Stall List"
+                   HorizontalOptions="Center"
+                   FontAttributes="Bold"
+                   FontSize="18"
+                   TextColor="#1E2433" />
+            <Label Grid.Column="2"
+                   Text="⚚"
+                   FontSize="20"
+                   TextColor="#1E2433"
+                   VerticalOptions="Center"
+                   HorizontalOptions="End" />
+        </Grid>
 
-        <maps:Map x:Name="map" Grid.Row="0" Margin="10" IsShowingUser="True">
-        </maps:Map>
+        <Border Grid.Row="1"
+                BackgroundColor="#EFE9E3"
+                StrokeThickness="0"
+                Padding="14,10">
+            <Border.StrokeShape>
+                <RoundRectangle CornerRadius="24" />
+            </Border.StrokeShape>
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                <Label Text="🔍" FontSize="18" TextColor="#EF8F2A" VerticalOptions="Center" />
+                <Label x:Name="SearchHintLabel"
+                       Grid.Column="1"
+                       Text="Search food stalls, cuisines..."
+                       FontSize="18"
+                       TextColor="#7D8795"
+                       VerticalOptions="Center" />
+            </Grid>
+        </Border>
 
-        <VerticalStackLayout Grid.Row="1" Margin="10,0,10,10">
-            <Label x:Name="NearbyStallsLabel" Text="Gian hàng quanh bạn" FontSize="18" FontAttributes="Bold" Margin="0,0,0,10" />
+        <ScrollView Grid.Row="2" Orientation="Horizontal" HorizontalScrollBarVisibility="Never">
+            <HorizontalStackLayout Spacing="10">
+                <Border BackgroundColor="#EF9A30" Stroke="#EF9A30" Padding="14,8">
+                    <Border.StrokeShape><RoundRectangle CornerRadius="18" /></Border.StrokeShape>
+                    <Label x:Name="NearbyFilterLabel" Text="Nearby" TextColor="White" FontAttributes="Bold" FontSize="14" />
+                </Border>
+                <Border BackgroundColor="#EFE9E3" Stroke="#D4CDC6" Padding="14,8">
+                    <Border.StrokeShape><RoundRectangle CornerRadius="18" /></Border.StrokeShape>
+                    <Label x:Name="OpenNowFilterLabel" Text="Open Now" TextColor="#4A5464" FontAttributes="Bold" FontSize="14" />
+                </Border>
+                <Border BackgroundColor="#EFE9E3" Stroke="#D4CDC6" Padding="14,8">
+                    <Border.StrokeShape><RoundRectangle CornerRadius="18" /></Border.StrokeShape>
+                    <Label x:Name="TopRatedFilterLabel" Text="Top Rated" TextColor="#4A5464" FontAttributes="Bold" FontSize="14" />
+                </Border>
+                <Border BackgroundColor="#EFE9E3" Stroke="#D4CDC6" Padding="14,8">
+                    <Border.StrokeShape><RoundRectangle CornerRadius="18" /></Border.StrokeShape>
+                    <Label x:Name="Under200FilterLabel" Text="Under 200m" TextColor="#4A5464" FontAttributes="Bold" FontSize="14" />
+                </Border>
+            </HorizontalStackLayout>
+        </ScrollView>
 
-            <CollectionView x:Name="StallsCollectionView">
-                <CollectionView.ItemTemplate>
-                    <DataTemplate>
-                        <Border Margin="0,0,0,10" Padding="15" BackgroundColor="#F8F9FA" StrokeThickness="1" Stroke="#DEE2E6">
-                            <Border.StrokeShape>
-                                <RoundRectangle CornerRadius="10"/>
-                            </Border.StrokeShape>
-                            <Label Text="{Binding .}" FontSize="16" TextColor="#333"/>
-                        </Border>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
-        </VerticalStackLayout>
+        <CollectionView Grid.Row="3" x:Name="StallsCollectionView" SelectionMode="None">
+            <CollectionView.ItemsLayout>
+                <LinearItemsLayout Orientation="Vertical" ItemSpacing="12" />
+            </CollectionView.ItemsLayout>
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Border BackgroundColor="#FBFBFB"
+                            Stroke="#E8E1DB"
+                            StrokeThickness="1"
+                            Padding="12,12">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="28" />
+                        </Border.StrokeShape>
+                        <Grid ColumnDefinitions="62,1,66,*" ColumnSpacing="10">
+                            <VerticalStackLayout VerticalOptions="Center" Spacing="0">
+                                <Label Text="{Binding DistanceText}" TextColor="#EF8F2A" FontSize="16" FontAttributes="Bold" HorizontalTextAlignment="Center" />
+                                <Label Text="AWAY" TextColor="#8490A0" FontSize="10" FontAttributes="Bold" HorizontalTextAlignment="Center" />
+                            </VerticalStackLayout>
 
+                            <BoxView Grid.Column="1" WidthRequest="1" HeightRequest="44" Color="#ECE7E2" VerticalOptions="Center" />
+
+                            <Border Grid.Column="2"
+                                    WidthRequest="62"
+                                    HeightRequest="62"
+                                    BackgroundColor="#E7ECEF"
+                                    StrokeThickness="0"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center">
+                                <Border.StrokeShape>
+                                    <RoundRectangle CornerRadius="31" />
+                                </Border.StrokeShape>
+                                <Image Source="dotnet_bot.png" Aspect="AspectFill" />
+                            </Border>
+
+                            <VerticalStackLayout Grid.Column="3" VerticalOptions="Center" Spacing="3">
+                                <Label Text="{Binding Name}" FontSize="16" FontAttributes="Bold" TextColor="#1F2738" LineBreakMode="TailTruncation" />
+                                <HorizontalStackLayout Spacing="6">
+                                    <Label Text="★" FontSize="14" TextColor="#F1A33A" VerticalOptions="Center" />
+                                    <Label Text="{Binding Rating}" FontSize="14" FontAttributes="Bold" TextColor="#2D3544" VerticalOptions="Center" />
+                                    <Label Text="{Binding Reviews}" FontSize="14" TextColor="#8B95A4" VerticalOptions="Center" />
+                                    <Label Text="•" FontSize="14" TextColor="#C1C9D4" VerticalOptions="Center" />
+                                    <Label Text="{Binding Cuisine}" FontSize="14" TextColor="#8B95A4" VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+                            </VerticalStackLayout>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <Grid Grid.Row="4" Margin="-16,0,-16,0" HeightRequest="96">
+            <Border VerticalOptions="End"
+                    Padding="32,12,32,10"
+                    Stroke="#E9D8C8"
+                    StrokeThickness="1"
+                    BackgroundColor="White"
+                    HeightRequest="72">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="0" />
+                </Border.StrokeShape>
+                <Grid ColumnDefinitions="*,*,*" VerticalOptions="Center">
+                    <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                        <Label Text="🍴" FontSize="20" HorizontalTextAlignment="Center" TextColor="#EF8F2A" />
+                        <Label x:Name="ExploreTabLabel" Text="EXPLORES" FontSize="9" FontAttributes="Bold" TextColor="#EF8F2A" HorizontalTextAlignment="Center" />
+                    </VerticalStackLayout>
+
+                    <Grid Grid.Column="1" />
+
+                    <VerticalStackLayout Grid.Column="2" Spacing="2" HorizontalOptions="Center">
+                        <Image WidthRequest="20"
+                               HeightRequest="20"
+                               HorizontalOptions="Center">
+                            <Image.Source>
+                                <FontImageSource Glyph="&#9829;"
+                                                 
+                                                 Size="20" />
+                            </Image.Source>
+                        </Image>
+                        <Label x:Name="SavedTabLabel" Text="SAVED" FontSize="9" FontAttributes="Bold" TextColor="#95A5BE" HorizontalTextAlignment="Center" />
+                    </VerticalStackLayout>
+                </Grid>
+            </Border>
+
+            <Border WidthRequest="68"
+                    HeightRequest="68"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Start"
+                    TranslationY="-4"
+                    BackgroundColor="White"
+                    Stroke="#FFFFFF"
+                    StrokeThickness="0"
+                    ZIndex="5">
+                <Border.Shadow>
+                    <Shadow Brush="#2BE39A3A"
+                            Offset="0,9"
+                            Radius="10"
+                            Opacity="2" />
+                </Border.Shadow>
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="34" />
+                </Border.StrokeShape>
+                <Grid Padding="5">
+                    <Border BackgroundColor="#EF9A30"
+                            Stroke="#EF9A30"
+                            StrokeThickness="0">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="29" />
+                        </Border.StrokeShape>
+                        <Grid>
+                            <Image Source="map.png"
+                                   WidthRequest="24"
+                                   HeightRequest="24"
+                                   HorizontalOptions="Center"
+                                   VerticalOptions="Center" />
+                            <Label x:Name="MapTabLabel" Text="MAP" IsVisible="False" />
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </ContentPage>
