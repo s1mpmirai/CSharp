@@ -164,8 +164,8 @@
                 <Border.Shadow>
                     <Shadow Brush="#2BE39A3A"
                             Offset="0,9"
-                            Radius="10"
-                            Opacity="2" />
+                            Radius="8"
+                            Opacity="1.5" />
                 </Border.Shadow>
                 <Border.StrokeShape>
                     <RoundRectangle CornerRadius="34" />
