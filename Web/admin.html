@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý gian hàng</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin:0; background:#f5f7fb; color:#243041; font-family:"Segoe UI",sans-serif; }
+        .shell { padding:20px; display:grid; gap:20px; }
+        .topbar,.panel { background:#fff; border-radius:18px; padding:20px; box-shadow:0 12px 28px rgba(0,0,0,.06); }
+        .topbar { display:flex; justify-content:space-between; align-items:center; }
+        .layout { display:grid; grid-template-columns:1.2fr .95fr; gap:20px; }
+        .group { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+        .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        input, textarea, select { width:100%; border:1px solid #dfe5ec; border-radius:12px; padding:12px 14px; font:inherit; background:#fff; }
+        textarea { min-height:110px; resize:vertical; }
+        #map { width:100%; height:560px; border-radius:14px; border:1px solid #dfe5ec; }
+        .search-row { display:grid; grid-template-columns:1fr 86px; gap:8px; }
+        .btn { border:none; border-radius:12px; padding:12px 14px; font:inherit; font-weight:700; cursor:pointer; }
+        .btn-primary { background:#ef8f2a; color:#fff; }
+        .btn-ghost { background:#eef2f7; color:#243041; }
+        .preview { border:1px dashed #dfe5ec; border-radius:14px; min-height:180px; display:grid; place-items:center; background:#fafbfd; overflow:hidden; }
+        .preview img { max-width:100%; max-height:220px; display:none; object-fit:cover; }
+        .status { display:none; padding:12px 14px; border-radius:12px; font-size:14px; margin-bottom:12px; }
+        .status.show.ok { display:block; background:#ecf8ef; border:1px solid #caead0; color:#24663b; }
+        .status.show.err { display:block; background:#fff0f0; border:1px solid #f2cbcb; color:#9a2d2d; }
+        @media (max-width:1000px){ .layout{grid-template-columns:1fr;} #map{height:420px;} }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <div class="topbar">
+            <div>
+                <h1 id="pageTitle" style="margin:0;">Đăng ký gian hàng</h1>
+                <div id="welcome" style="color:#6f7b8c;margin-top:4px;"></div>
+            </div>
+            <button class="btn btn-ghost" onclick="logout()">Đăng xuất</button>
+        </div>
+
+        <div class="layout">
+            <section class="panel">
+                <h2 style="margin-top:0;">Bản đồ vị trí</h2>
+                <p style="color:#6f7b8c;">Click lên bản đồ hoặc tìm địa chỉ để đặt vị trí cho gian hàng.</p>
+                <div id="map"></div>
+            </section>
+
+            <section class="panel">
+                <div id="statusBox" class="status"></div>
+
+                <form id="stallForm">
+                    <div class="group">
+                        <label for="name">Tên gian hàng</label>
+                        <input id="name" type="text">
+                    </div>
+
+                    <div class="group">
+                        <label for="category_id">Danh mục</label>
+                        <select id="category_id"></select>
+                    </div>
+
+                    <div class="group">
+                        <label for="image_file">Ảnh gian hàng</label>
+                        <input id="image_file" type="file" accept="image/*">
+                        <div class="preview">
+                            <span id="preview_text">Ảnh xem trước sẽ hiện ở đây</span>
+                            <img id="img_preview" alt="Preview">
+                        </div>
+                    </div>
+
+                    <div class="group">
+                        <label for="address_search">Tìm địa chỉ</label>
+                        <div class="search-row">
+                            <input id="address_search" type="text">
+                            <button class="btn btn-ghost" type="button" onclick="geocode()">Tìm</button>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="group">
+                            <label for="lat">Vĩ độ</label>
+                            <input id="lat" type="text" readonly>
+                        </div>
+                        <div class="group">
+                            <label for="lng">Kinh độ</label>
+                            <input id="lng" type="text" readonly>
+                        </div>
+                    </div>
+
+                    <div class="group">
+                        <label for="opening_hours">Giờ mở cửa</label>
+                        <input id="opening_hours" type="text">
+                    </div>
+
+                    <div id="editOnlyBlock" style="display:none;">
+                        <div class="group">
+                            <label for="is_open">Trạng thái mở cửa</label>
+                            <select id="is_open">
+                                <option value="true">Đang mở</option>
+                                <option value="false">Đang đóng</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="group">
+                        <label for="script_vi">Script tiếng Việt cho TTS</label>
+                        <textarea id="script_vi"></textarea>
+                    </div>
+
+                    <button id="saveButton" class="btn btn-primary" type="submit">Lưu vào hệ thống</button>
+                </form>
+            </section>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let marker = null;
+        let mode = "create";
+        const map = L.map("map").setView([10.7626, 106.7045], 15);
+
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "&copy; OpenStreetMap contributors"
+        }).addTo(map);
+
+        document.getElementById("image_file").addEventListener("change", previewImage);
+        document.getElementById("stallForm").addEventListener("submit", saveStall);
+        map.on("click", e => updateMarker(e.latlng.lat, e.latlng.lng));
+
+        async function api(path, options = {}) {
+            const res = await fetch(path, { ...options, credentials: "include" });
+            const body = await safeJson(res);
+            if (res.status === 401 || res.status === 403) {
+                location.href = "/login";
+                return null;
+            }
+            if (!res.ok) throw new Error(body?.detail || "Request failed");
+            return body;
+        }
+
+        async function safeJson(response) {
+            try { return await response.json(); } catch { return null; }
+        }
+
+        async function bootstrap() {
+            const me = await api("/auth/me");
+            if (!me || me.user.role !== "stall_owner") return;
+            document.getElementById("welcome").textContent = `Xin chào ${me.user.full_name || me.user.username}`;
+
+            const categories = await api("/categories");
+            document.getElementById("category_id").innerHTML = categories.map(item => `<option value="${item.id}">${item.name}</option>`).join("");
+
+            const owner = await api("/owner/stall");
+            if (owner?.stall) {
+                mode = "edit";
+                fillForm(owner.stall);
+                document.getElementById("pageTitle").textContent = "Gửi yêu cầu cập nhật gian hàng";
+                document.getElementById("saveButton").textContent = "Gửi yêu cầu duyệt";
+                document.getElementById("editOnlyBlock").style.display = "block";
+            }
+        }
+
+        function fillForm(stall) {
+            document.getElementById("name").value = stall.name || "";
+            document.getElementById("category_id").value = String(stall.category_id || "");
+            document.getElementById("lat").value = Number(stall.lat).toFixed(6);
+            document.getElementById("lng").value = Number(stall.lng).toFixed(6);
+            document.getElementById("opening_hours").value = stall.opening_hours || "";
+            document.getElementById("script_vi").value = stall.script_vi || "";
+            document.getElementById("is_open").value = String(Boolean(stall.is_open));
+            updateMarker(stall.lat, stall.lng);
+            if (stall.image_url) {
+                document.getElementById("img_preview").src = stall.image_url;
+                document.getElementById("img_preview").style.display = "block";
+                document.getElementById("preview_text").style.display = "none";
+            }
+        }
+
+        function previewImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function () {
+                document.getElementById("img_preview").src = reader.result;
+                document.getElementById("img_preview").style.display = "block";
+                document.getElementById("preview_text").style.display = "none";
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function geocode() {
+            const address = document.getElementById("address_search").value.trim();
+            if (!address) return showStatus("Nhập địa chỉ trước khi tìm.", true);
+
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ", Vietnam")}&limit=1`);
+                const data = await res.json();
+                if (!data.length) return showStatus("Không tìm thấy địa chỉ.", true);
+                updateMarker(Number(data[0].lat), Number(data[0].lon));
+                map.setView([data[0].lat, data[0].lon], 17);
+            } catch {
+                showStatus("Không thể tìm địa chỉ.", true);
+            }
+        }
+
+        function updateMarker(lat, lng) {
+            if (marker) map.removeLayer(marker);
+            marker = L.marker([lat, lng]).addTo(map);
+            document.getElementById("lat").value = Number(lat).toFixed(6);
+            document.getElementById("lng").value = Number(lng).toFixed(6);
+        }
+
+        async function saveStall(event) {
+            event.preventDefault();
+
+            const formData = new FormData();
+            formData.append("name", document.getElementById("name").value.trim());
+            formData.append("category_id", document.getElementById("category_id").value);
+            formData.append("lat", document.getElementById("lat").value.trim());
+            formData.append("lng", document.getElementById("lng").value.trim());
+            formData.append("opening_hours", document.getElementById("opening_hours").value.trim());
+            formData.append("script_vi", document.getElementById("script_vi").value.trim());
+
+            if (mode === "edit") {
+                formData.append("is_open", document.getElementById("is_open").value);
+            }
+
+            const file = document.getElementById("image_file").files[0];
+            if (file) formData.append("image", file);
+
+            try {
+                const path = mode === "create" ? "/owner/stall" : "/owner/stall-update-request";
+                await api(path, { method: "POST", body: formData });
+                showStatus(mode === "create" ? "Tạo gian hàng thành công." : "Đã gửi yêu cầu cập nhật để admin duyệt.");
+            } catch (error) {
+                showStatus(error.message, true);
+            }
+        }
+
+        function showStatus(message, isError = false) {
+            const box = document.getElementById("statusBox");
+            box.textContent = message;
+            box.className = `status show ${isError ? "err" : "ok"}`;
+        }
+
+        async function logout() {
+            await fetch("/auth/logout", { method: "POST", credentials: "include" });
+            location.href = "/login";
+        }
+
+        bootstrap();
+    </script>
+</body>
+</html>
