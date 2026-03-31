@@ -1,5 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Name="MainPageRoot"
              x:Class="FoodStreetAudioGuide.MainPage"
@@ -106,11 +107,27 @@
                             </Border>
 
                             <VerticalStackLayout Grid.Column="3" VerticalOptions="Center" Spacing="3">
-                                <Label Text="{Binding Name}"
-                                       FontSize="16"
-                                       FontAttributes="Bold"
-                                       TextColor="#1F2738"
-                                       LineBreakMode="TailTruncation" />
+                                <HorizontalStackLayout Spacing="6">
+                                    <Label Text="{Binding Name}"
+                                           FontSize="16"
+                                           FontAttributes="Bold"
+                                           TextColor="#1F2738"
+                                           LineBreakMode="TailTruncation"
+                                           HorizontalOptions="StartAndExpand" />
+                                    <Border IsVisible="{Binding HasOfflineAudio}"
+                                            BackgroundColor="#ECF8EF"
+                                            StrokeThickness="0"
+                                            Padding="8,3"
+                                            VerticalOptions="Center">
+                                        <Border.StrokeShape>
+                                            <RoundRectangle CornerRadius="10" />
+                                        </Border.StrokeShape>
+                                        <Label Text="Offline"
+                                               FontSize="10"
+                                               FontAttributes="Bold"
+                                               TextColor="#2E8F52" />
+                                    </Border>
+                                </HorizontalStackLayout>
 
                                 <HorizontalStackLayout Spacing="6">
                                     <Label Text="★" FontSize="14" TextColor="#F1A33A" VerticalOptions="Center" />
@@ -149,11 +166,18 @@
                         <Image WidthRequest="20"
                                HeightRequest="20"
                                HorizontalOptions="Center">
+                            <Image.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnSavedTapped" />
+                            </Image.GestureRecognizers>
                             <Image.Source>
                                 <FontImageSource Glyph="&#9829;" Size="20" />
                             </Image.Source>
                         </Image>
-                        <Label x:Name="SavedTabLabel" Text="SAVED" FontSize="9" FontAttributes="Bold" TextColor="#95A5BE" HorizontalTextAlignment="Center" />
+                        <Label x:Name="SavedTabLabel" Text="SAVED" FontSize="9" FontAttributes="Bold" TextColor="#95A5BE" HorizontalTextAlignment="Center">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnSavedTapped" />
+                            </Label.GestureRecognizers>
+                        </Label>
                     </VerticalStackLayout>
                 </Grid>
             </Border>
@@ -195,5 +219,149 @@
                 </Grid>
             </Border>
         </Grid>
+
+        <Grid x:Name="ScriptPopupOverlay"
+              Grid.RowSpan="4"
+              IsVisible="False"
+              BackgroundColor="#80000000"
+              ZIndex="20">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnPopupBackdropTapped" />
+            </Grid.GestureRecognizers>
+
+            <Border Margin="20"
+                    Padding="20"
+                    VerticalOptions="Center"
+                    HorizontalOptions="Center"
+                    MaximumWidthRequest="420"
+                    BackgroundColor="White"
+                    Stroke="#E8E1DB"
+                    StrokeThickness="1">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnPopupCardTapped" />
+                </Border.GestureRecognizers>
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="28" />
+                </Border.StrokeShape>
+
+                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto,Auto" RowSpacing="14">
+                    <Label x:Name="ScriptPopupHeaderLabel"
+                           Text="Stall Introduction"
+                           FontSize="14"
+                           FontAttributes="Bold"
+                           TextColor="#EF8F2A" />
+
+                    <Label x:Name="ScriptPopupTitleLabel"
+                           Grid.Row="1"
+                           FontSize="22"
+                           FontAttributes="Bold"
+                           TextColor="#1F2738" />
+
+                    <Grid Grid.Row="2" ColumnDefinitions="96,*" ColumnSpacing="14">
+                        <Border WidthRequest="96"
+                                HeightRequest="96"
+                                BackgroundColor="#E7ECEF"
+                                StrokeThickness="0"
+                                HorizontalOptions="Start"
+                                VerticalOptions="Start">
+                            <Border.StrokeShape>
+                                <RoundRectangle CornerRadius="20" />
+                            </Border.StrokeShape>
+                            <Image x:Name="ScriptPopupImage"
+                                   Aspect="AspectFill" />
+                        </Border>
+
+                        <VerticalStackLayout Grid.Column="1" Spacing="8">
+                            <Label x:Name="ScriptPopupCuisineLabel"
+                                   FontSize="15"
+                                   FontAttributes="Bold"
+                                   TextColor="#1F2738" />
+
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                <Label Text="📍" FontSize="14" />
+                                <Label x:Name="ScriptPopupDistanceLabel"
+                                       Grid.Column="1"
+                                       FontSize="14"
+                                       TextColor="#607086" />
+                            </Grid>
+
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                <Label Text="★" FontSize="14" TextColor="#F1A33A" />
+                                <Label x:Name="ScriptPopupRatingLabel"
+                                       Grid.Column="1"
+                                       FontSize="14"
+                                       TextColor="#607086" />
+                            </Grid>
+
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                <Label Text="💬" FontSize="14" />
+                                <Label x:Name="ScriptPopupReviewsLabel"
+                                       Grid.Column="1"
+                                       FontSize="14"
+                                       TextColor="#607086" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <VerticalStackLayout Grid.Row="3" Spacing="8">
+                        <Label x:Name="ScriptPopupSpecialtiesHeaderLabel"
+                               FontSize="13"
+                               FontAttributes="Bold"
+                               TextColor="#8490A0" />
+
+                        <VerticalStackLayout x:Name="ScriptPopupSpecialtiesContainer"
+                                             Spacing="6" />
+                    </VerticalStackLayout>
+
+                    <Label Grid.Row="4"
+                           Text="Script"
+                           FontSize="13"
+                           FontAttributes="Bold"
+                           TextColor="#8490A0" />
+
+                    <ScrollView Grid.Row="5" MaximumHeightRequest="220">
+                        <Label x:Name="ScriptPopupContentLabel"
+                               FontSize="16"
+                               LineHeight="1.4"
+                               TextColor="#425066" />
+                    </ScrollView>
+
+                    <Button x:Name="ScriptPopupCloseButton"
+                            Grid.Row="6"
+                            Text="Close"
+                            Clicked="OnClosePopupClicked"
+                            CornerRadius="18"
+                            HeightRequest="48"
+                            BackgroundColor="#EF8F2A"
+                            TextColor="White"
+                            FontAttributes="Bold" />
+
+                    <Grid Grid.Row="7" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <Label x:Name="ScriptPopupAudioStatusLabel"
+                               VerticalOptions="Center"
+                               FontSize="13"
+                               FontAttributes="Bold"
+                               TextColor="#607086" />
+
+                        <Button x:Name="ScriptPopupDownloadButton"
+                                Grid.Column="1"
+                                Clicked="OnDownloadAudioClicked"
+                                CornerRadius="16"
+                                HeightRequest="40"
+                                Padding="14,8"
+                                BackgroundColor="#F6EFE7"
+                                TextColor="#C8741F"
+                                FontAttributes="Bold" />
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <toolkit:MediaElement x:Name="ScriptAudioPlayer"
+                              Grid.RowSpan="4"
+                              IsVisible="False"
+                              HeightRequest="1"
+                              WidthRequest="1"
+                              ShouldAutoPlay="False" />
     </Grid>
 </ContentPage>

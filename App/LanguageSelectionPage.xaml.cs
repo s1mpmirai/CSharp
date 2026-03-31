@@ -7,13 +7,15 @@ namespace FoodStreetAudioGuide
         private const string SelectedLanguagePreferenceKey = "SelectedLanguage";
 
         private readonly StallService _stallService;
+        private readonly AudioCacheService _audioCacheService;
         private string _selectedLanguage;
 
-        public LanguageSelectionPage(StallService stallService)
+        public LanguageSelectionPage(StallService stallService, AudioCacheService audioCacheService)
         {
             InitializeComponent();
 
             _stallService = stallService;
+            _audioCacheService = audioCacheService;
             _selectedLanguage = Preferences.Get(SelectedLanguagePreferenceKey, AppText.English);
 
             ApplyPageText();
@@ -39,7 +41,7 @@ namespace FoodStreetAudioGuide
             var window = Application.Current?.Windows.FirstOrDefault();
             if (window is not null)
             {
-                window.Page = new NavigationPage(new MainPage(_stallService, _selectedLanguage));
+                window.Page = new NavigationPage(new MainPage(_stallService, _audioCacheService, _selectedLanguage));
             }
         }
 

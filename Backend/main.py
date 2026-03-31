@@ -1,15 +1,17 @@
-from fastapi import FastAPI, Depends, File, UploadFile, Form, HTTPException, Request
+﻿from fastapi import FastAPI, Depends, File, UploadFile, Form, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel
-from sqlalchemy import Column, Integer, String, Float, Text, ForeignKey, Boolean, DateTime, BigInteger, Numeric, create_engine, func
+from sqlalchemy import Column, Integer, String, Float, Text, ForeignKey, Boolean, DateTime, BigInteger, Numeric, LargeBinary, create_engine, func, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship, joinedload
 from fastapi.middleware.cors import CORSMiddleware
 from geopy.distance import geodesic
 from deep_translator import GoogleTranslator
+from gtts import gTTS
 from datetime import datetime, timedelta
 from typing import Optional
+from io import BytesIO
 import os
 import shutil
 import uuid
@@ -17,6 +19,7 @@ import hashlib
 import hmac
 import base64
 import json
+import secrets
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:password123@db:5432/food_street_db")
@@ -25,6 +28,11 @@ SESSION_COOKIE = "sf_session"
 WEB_DIR = os.path.abspath(os.getenv("WEB_DIR", os.path.join(BASE_DIR, "..", "Web")))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 TOKEN_HOURS = 12
+PBKDF2_ITERATIONS = int(os.getenv("PBKDF2_ITERATIONS", "390000"))
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
+SEED_DEFAULT_ADMIN = os.getenv("SEED_DEFAULT_ADMIN", "true").lower() == "true"
+CORS_ORIGINS = [item.strip() for item in os.getenv("CORS_ORIGINS", "*").split(",") if item.strip()]
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -94,6 +102,10 @@ class Stall(Base):
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
     image_url = Column(Text)
+    specialty_1 = Column(Text)
+    specialty_2 = Column(Text)
+    specialty_3 = Column(Text)
+    poi_radius_m = Column(Float, nullable=False, default=30)
     opening_hours = Column(String(255))
     is_open = Column(Boolean, nullable=False, default=True)
     is_active = Column(Boolean, nullable=False, default=True)
@@ -151,6 +163,18 @@ class ListeningLog(Base):
     listened_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class StallAudioAsset(Base):
+    __tablename__ = "stall_audio_assets"
+    id = Column(Integer, primary_key=True, index=True)
+    stall_id = Column(Integer, ForeignKey("stalls.id", ondelete="CASCADE"), nullable=False, index=True)
+    language_id = Column(Integer, ForeignKey("languages.id"), nullable=False, index=True)
+    script_hash = Column(String(64), nullable=False)
+    mime_type = Column(String(120), nullable=False, default="audio/mpeg")
+    audio_data = Column(LargeBinary, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class StallUpdateRequest(Base):
     __tablename__ = "stall_update_requests"
     id = Column(Integer, primary_key=True, index=True)
@@ -160,6 +184,10 @@ class StallUpdateRequest(Base):
     name = Column(String(200), nullable=False)
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
+    specialty_1 = Column(Text)
+    specialty_2 = Column(Text)
+    specialty_3 = Column(Text)
+    poi_radius_m = Column(Float, nullable=False, default=30)
     opening_hours = Column(String(255))
     is_open = Column(Boolean, nullable=False, default=True)
     script_vi = Column(Text, nullable=False)
@@ -176,8 +204,33 @@ class StallUpdateRequest(Base):
 
 Base.metadata.create_all(bind=engine)
 
+
+def ensure_schema_columns():
+    statements = [
+        "ALTER TABLE stalls ADD COLUMN IF NOT EXISTS specialty_1 TEXT",
+        "ALTER TABLE stalls ADD COLUMN IF NOT EXISTS specialty_2 TEXT",
+        "ALTER TABLE stalls ADD COLUMN IF NOT EXISTS specialty_3 TEXT",
+        "ALTER TABLE stalls ADD COLUMN IF NOT EXISTS poi_radius_m DOUBLE PRECISION DEFAULT 30",
+        "ALTER TABLE stall_update_requests ADD COLUMN IF NOT EXISTS specialty_1 TEXT",
+        "ALTER TABLE stall_update_requests ADD COLUMN IF NOT EXISTS specialty_2 TEXT",
+        "ALTER TABLE stall_update_requests ADD COLUMN IF NOT EXISTS specialty_3 TEXT",
+        "ALTER TABLE stall_update_requests ADD COLUMN IF NOT EXISTS poi_radius_m DOUBLE PRECISION DEFAULT 30",
+    ]
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+
+
+ensure_schema_columns()
+
 app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS or ["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=True,
+)
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
@@ -192,29 +245,39 @@ def get_db():
 
 
 def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+    salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), PBKDF2_ITERATIONS)
+    encoded = base64.urlsafe_b64encode(digest).decode("utf-8").rstrip("=")
+    return f"pbkdf2_sha256${PBKDF2_ITERATIONS}${salt}${encoded}"
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    return hash_password(password) == password_hash
+    if password_hash.startswith("pbkdf2_sha256$"):
+        try:
+            _, iterations, salt, encoded_hash = password_hash.split("$", 3)
+            digest = hashlib.pbkdf2_hmac(
+                "sha256",
+                password.encode("utf-8"),
+                salt.encode("utf-8"),
+                int(iterations)
+            )
+            expected = base64.urlsafe_b64encode(digest).decode("utf-8").rstrip("=")
+            return hmac.compare_digest(expected, encoded_hash)
+        except (TypeError, ValueError):
+            return False
+
+    legacy_hash = hashlib.sha256(password.encode("utf-8")).hexdigest()
+    return hmac.compare_digest(legacy_hash, password_hash)
+
+
+def needs_password_rehash(password_hash: str) -> bool:
+    return not password_hash.startswith("pbkdf2_sha256$")
 
 
 def encode_token(data: dict) -> str:
     payload = base64.urlsafe_b64encode(json.dumps(data).encode("utf-8")).decode("utf-8").rstrip("=")
     signature = hmac.new(APP_SECRET.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
     return f"{payload}.{signature}"
-
-
-def decode_token(token: str) -> dict:
-    payload, signature = token.split(".", 1)
-    expected = hmac.new(APP_SECRET.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(signature, expected):
-        raise HTTPException(status_code=401, detail="Phiên đăng nhập không hợp lệ")
-    padding = "=" * (-len(payload) % 4)
-    data = json.loads(base64.urlsafe_b64decode((payload + padding).encode("utf-8")).decode("utf-8"))
-    if data.get("exp", 0) < int(datetime.utcnow().timestamp()):
-        raise HTTPException(status_code=401, detail="Phiên đăng nhập đã hết hạn")
-    return data
 
 
 def create_session_cookie(user: User) -> str:
@@ -236,18 +299,6 @@ def get_current_user_from_request(request: Request, db: Session) -> Optional[Use
     return db.query(User).options(joinedload(User.role)).filter(User.id == data["uid"], User.is_active == True).first()
 
 
-def require_auth_page(request: Request, db: Session) -> User:
-    user = get_current_user_from_request(request, db)
-    if not user:
-        raise HTTPException(status_code=401, detail="Bạn cần đăng nhập")
-    return user
-
-
-def require_role(user: User, role_name: str):
-    if not user.role or user.role.name != role_name:
-        raise HTTPException(status_code=403, detail="Không có quyền truy cập")
-
-
 def translate_text(text: str, lang_code: str) -> str:
     try:
         return GoogleTranslator(source="vi", target=lang_code).translate(text)
@@ -257,6 +308,37 @@ def translate_text(text: str, lang_code: str) -> str:
 
 def get_language_map(db: Session) -> dict[str, Language]:
     return {item.code: item for item in db.query(Language).filter(Language.is_active == True).all()}
+
+
+def serialize_owner_stall_for_request(request: Request, stall: Stall) -> dict:
+    payload = serialize_owner_stall(stall)
+    if stall.image_url:
+        payload["image_url"] = str(request.base_url).rstrip("/") + f"/uploads/{stall.image_url}"
+    return payload
+
+
+def decode_token(token: str) -> dict:
+    payload, signature = token.split('.', 1)
+    expected = hmac.new(APP_SECRET.encode('utf-8'), payload.encode('utf-8'), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(signature, expected):
+        raise HTTPException(status_code=401, detail='Phiên đăng nhập không hợp lệ')
+    padding = '=' * (-len(payload) % 4)
+    data = json.loads(base64.urlsafe_b64decode((payload + padding).encode('utf-8')).decode('utf-8'))
+    if data.get('exp', 0) < int(datetime.utcnow().timestamp()):
+        raise HTTPException(status_code=401, detail='Phiên đăng nhập đã hết hạn')
+    return data
+
+
+def require_auth_page(request: Request, db: Session) -> User:
+    user = get_current_user_from_request(request, db)
+    if not user:
+        raise HTTPException(status_code=401, detail='Bạn cần đăng nhập')
+    return user
+
+
+def require_role(user: User, role_name: str):
+    if not user.role or user.role.name != role_name:
+        raise HTTPException(status_code=403, detail='Không có quyền truy cập')
 
 
 def build_translations(base_title: str, base_script_vi: str) -> dict[str, dict[str, str]]:
@@ -319,6 +401,59 @@ def translations_to_dict(stall: Stall) -> dict[str, str]:
     return output
 
 
+def normalize_specialty_values(*values: Optional[str]) -> list[str]:
+    items = []
+    for value in values:
+        cleaned = (value or "").strip()
+        if cleaned:
+            items.append(cleaned)
+    return items[:3]
+
+
+def require_specialties(*values: Optional[str]) -> tuple[str, str, str]:
+    items = normalize_specialty_values(*values)
+    if len(items) != 3:
+        raise HTTPException(status_code=400, detail="Vui lòng nhập đủ 3 món đặc sản")
+    return items[0], items[1], items[2]
+
+
+def require_poi_radius(value: Optional[float]) -> float:
+    radius = float(value or 0)
+    if radius <= 0:
+        raise HTTPException(status_code=400, detail="Vui lòng nhập bán kính POI lớn hơn 0")
+    return radius
+
+
+def serialize_specialties(source) -> list[str]:
+    return normalize_specialty_values(
+        getattr(source, "specialty_1", ""),
+        getattr(source, "specialty_2", ""),
+        getattr(source, "specialty_3", "")
+    )
+
+
+def map_tts_language(language_code: str) -> str:
+    return {
+        "vi": "vi",
+        "en": "en",
+        "ja": "ja",
+        "ko": "ko",
+        "zh-CN": "zh-CN",
+    }.get(language_code, "vi")
+
+
+def generate_audio_bytes(script_text: str, language_code: str) -> bytes:
+    audio_buffer = BytesIO()
+    tts = gTTS(text=script_text, lang=map_tts_language(language_code))
+    tts.write_to_fp(audio_buffer)
+    return audio_buffer.getvalue()
+
+
+def get_script_hash(script_text: str, language_code: str) -> str:
+    content = f"{language_code}:{script_text}".encode("utf-8")
+    return hashlib.sha256(content).hexdigest()
+
+
 def serialize_user(user: User) -> dict:
     return {
         "id": user.id,
@@ -330,6 +465,13 @@ def serialize_user(user: User) -> dict:
     }
 
 
+def serialize_admin_user(request: Request, user: User, stall: Optional[Stall] = None) -> dict:
+    payload = serialize_user(user)
+    payload["stall_name"] = stall.name if stall else ""
+    payload["stall"] = serialize_owner_stall_for_request(request, stall) if stall else None
+    return payload
+
+
 def serialize_owner_stall(stall: Stall) -> dict:
     return {
         "id": stall.id,
@@ -337,11 +479,76 @@ def serialize_owner_stall(stall: Stall) -> dict:
         "category_id": stall.category_id,
         "lat": stall.latitude,
         "lng": stall.longitude,
+        "specialties": serialize_specialties(stall),
+        "poi_radius_m": stall.poi_radius_m or 30,
         "opening_hours": stall.opening_hours or "",
         "is_open": stall.is_open,
         "script_vi": translations_to_dict(stall).get("vi", ""),
         "image_url": f"/uploads/{stall.image_url}" if stall.image_url else ""
     }
+
+
+def normalize_reference_data():
+    db = SessionLocal()
+    try:
+        role_descriptions = {
+            "super_admin": "Quản trị hệ thống",
+            "stall_owner": "Chủ gian hàng",
+        }
+        for role_name, description in role_descriptions.items():
+            role = db.query(Role).filter(Role.name == role_name).first()
+            if role and role.description != description:
+                role.description = description
+                role.updated_at = datetime.utcnow()
+
+        languages = {
+            "vi": ("Vietnamese", "Tiếng Việt", "vi-VN", 1),
+            "en": ("English", "English", "en-US", 2),
+            "zh-CN": ("Chinese", "中文", "zh-CN", 3),
+            "ja": ("Japanese", "日本語", "ja-JP", 4),
+            "ko": ("Korean", "한국어", "ko-KR", 5),
+        }
+        for code, (name, native_name, locale_code, sort_order) in languages.items():
+            item = db.query(Language).filter(Language.code == code).first()
+            if item:
+                item.name = name
+                item.native_name = native_name
+                item.locale_code = locale_code
+                item.sort_order = sort_order
+                item.updated_at = datetime.utcnow()
+
+        categories = {
+            "cat-1": "Hải sản",
+            "cat-2": "Đồ nướng",
+            "cat-3": "Món nước",
+            "cat-4": "Ăn vặt",
+            "cat-5": "Tráng miệng",
+        }
+        for slug, name in categories.items():
+            item = db.query(Category).filter(Category.slug == slug).first()
+            if item and item.name != name:
+                item.name = name
+                item.updated_at = datetime.utcnow()
+
+        if SEED_DEFAULT_ADMIN:
+            admin_role = db.query(Role).filter(Role.name == "super_admin").first()
+            admin_user = db.query(User).filter(User.username == "admin").first()
+            if admin_role and not admin_user:
+                db.add(User(
+                    role_id=admin_role.id,
+                    username="admin",
+                    password_hash=hash_password(DEFAULT_ADMIN_PASSWORD),
+                    full_name="Quản trị hệ thống",
+                    email="admin@streetfeast.local",
+                    is_active=True
+                ))
+            elif admin_user and needs_password_rehash(admin_user.password_hash):
+                admin_user.password_hash = hash_password(DEFAULT_ADMIN_PASSWORD)
+                admin_user.updated_at = datetime.utcnow()
+
+        db.commit()
+    finally:
+        db.close()
 
 
 def ensure_seed_data():
@@ -373,11 +580,11 @@ def ensure_seed_data():
         db.commit()
 
         admin_role = db.query(Role).filter(Role.name == "super_admin").first()
-        if admin_role and not db.query(User).filter(User.username == "admin").first():
+        if SEED_DEFAULT_ADMIN and admin_role and not db.query(User).filter(User.username == "admin").first():
             db.add(User(
                 role_id=admin_role.id,
                 username="admin",
-                password_hash=hash_password("admin123"),
+                password_hash=hash_password(DEFAULT_ADMIN_PASSWORD),
                 full_name="Quản trị hệ thống",
                 email="admin@streetfeast.local",
                 is_active=True
@@ -387,7 +594,61 @@ def ensure_seed_data():
         db.close()
 
 
+def repair_reference_data_clean():
+    db = SessionLocal()
+    try:
+        role_descriptions = {
+            "super_admin": "Quản trị hệ thống",
+            "stall_owner": "Chủ gian hàng",
+        }
+        for role_name, description in role_descriptions.items():
+            role = db.query(Role).filter(Role.name == role_name).first()
+            if role:
+                role.description = description
+                role.updated_at = datetime.utcnow()
+
+        languages = {
+            "vi": ("Vietnamese", "Tiếng Việt", "vi-VN", 1),
+            "en": ("English", "English", "en-US", 2),
+            "zh-CN": ("Chinese", "中文", "zh-CN", 3),
+            "ja": ("Japanese", "日本語", "ja-JP", 4),
+            "ko": ("Korean", "한국어", "ko-KR", 5),
+        }
+        for code, (name, native_name, locale_code, sort_order) in languages.items():
+            item = db.query(Language).filter(Language.code == code).first()
+            if item:
+                item.name = name
+                item.native_name = native_name
+                item.locale_code = locale_code
+                item.sort_order = sort_order
+                item.updated_at = datetime.utcnow()
+
+        categories = {
+            "cat-1": "Hải sản",
+            "cat-2": "Đồ nướng",
+            "cat-3": "Món nước",
+            "cat-4": "Ăn vặt",
+            "cat-5": "Tráng miệng",
+        }
+        for slug, name in categories.items():
+            item = db.query(Category).filter(Category.slug == slug).first()
+            if item:
+                item.name = name
+                item.updated_at = datetime.utcnow()
+
+        admin_user = db.query(User).filter(User.username == "admin").first()
+        if admin_user:
+            admin_user.full_name = "Quản trị hệ thống"
+            admin_user.updated_at = datetime.utcnow()
+
+        db.commit()
+    finally:
+        db.close()
+
+
 ensure_seed_data()
+normalize_reference_data()
+repair_reference_data_clean()
 
 
 class LoginRequest(BaseModel):
@@ -433,7 +694,9 @@ def login_page():
 def owner_page(request: Request, db: Session = Depends(get_db)):
     user = require_auth_page(request, db)
     require_role(user, "stall_owner")
-    return FileResponse(os.path.join(WEB_DIR, "admin.html"))
+    stall = get_owner_stall(db, user.id)
+    page = "owner-dashboard.html" if stall else "admin.html"
+    return FileResponse(os.path.join(WEB_DIR, page))
 
 
 @app.get("/superadmin")
@@ -449,12 +712,19 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     if not user or not user.is_active or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Tên đăng nhập hoặc mật khẩu không đúng")
 
+    if needs_password_rehash(user.password_hash):
+        user.password_hash = hash_password(payload.password)
+        user.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(user)
+
     response = JSONResponse({"user": serialize_user(user)})
     response.set_cookie(
         key=SESSION_COOKIE,
         value=create_session_cookie(user),
         httponly=True,
         samesite="lax",
+        secure=COOKIE_SECURE,
         max_age=TOKEN_HOURS * 3600
     )
     return response
@@ -463,7 +733,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 @app.post("/auth/logout")
 def logout():
     response = JSONResponse({"status": "success"})
-    response.delete_cookie(SESSION_COOKIE)
+    response.delete_cookie(SESSION_COOKIE, samesite="lax", secure=COOKIE_SECURE)
     return response
 
 
@@ -486,7 +756,7 @@ def owner_stall(request: Request, db: Session = Depends(get_db)):
     user = require_auth_page(request, db)
     require_role(user, "stall_owner")
     stall = get_owner_stall(db, user.id)
-    return {"stall": serialize_owner_stall(stall) if stall else None}
+    return {"stall": serialize_owner_stall_for_request(request, stall) if stall else None}
 
 
 @app.post("/owner/stall")
@@ -496,6 +766,10 @@ async def owner_create_stall(
     lat: float = Form(...),
     lng: float = Form(...),
     category_id: int = Form(...),
+    specialty_1: str = Form(...),
+    specialty_2: str = Form(...),
+    specialty_3: str = Form(...),
+    poi_radius_m: float = Form(...),
     script_vi: str = Form(...),
     opening_hours: str = Form(""),
     image: UploadFile = File(None),
@@ -506,6 +780,9 @@ async def owner_create_stall(
 
     if get_owner_stall(db, user.id):
         raise HTTPException(status_code=400, detail="Bạn đã có gian hàng, hãy dùng chức năng cập nhật")
+
+    specialty_1, specialty_2, specialty_3 = require_specialties(specialty_1, specialty_2, specialty_3)
+    poi_radius_m = require_poi_radius(poi_radius_m)
 
     filename = ""
     if image:
@@ -520,6 +797,10 @@ async def owner_create_stall(
         latitude=lat,
         longitude=lng,
         image_url=filename,
+        specialty_1=specialty_1,
+        specialty_2=specialty_2,
+        specialty_3=specialty_3,
+        poi_radius_m=poi_radius_m,
         opening_hours=opening_hours,
         is_open=True,
         is_active=True,
@@ -541,6 +822,10 @@ async def owner_update_request(
     lat: float = Form(...),
     lng: float = Form(...),
     category_id: int = Form(...),
+    specialty_1: str = Form(...),
+    specialty_2: str = Form(...),
+    specialty_3: str = Form(...),
+    poi_radius_m: float = Form(...),
     script_vi: str = Form(...),
     opening_hours: str = Form(""),
     is_open: bool = Form(True),
@@ -553,6 +838,9 @@ async def owner_update_request(
     stall = get_owner_stall(db, user.id)
     if not stall:
         raise HTTPException(status_code=404, detail="Bạn chưa có gian hàng")
+
+    specialty_1, specialty_2, specialty_3 = require_specialties(specialty_1, specialty_2, specialty_3)
+    poi_radius_m = require_poi_radius(poi_radius_m)
 
     filename = stall.image_url
     if image:
@@ -573,6 +861,10 @@ async def owner_update_request(
         pending.name = name
         pending.latitude = lat
         pending.longitude = lng
+        pending.specialty_1 = specialty_1
+        pending.specialty_2 = specialty_2
+        pending.specialty_3 = specialty_3
+        pending.poi_radius_m = poi_radius_m
         pending.opening_hours = opening_hours
         pending.is_open = is_open
         pending.script_vi = script_vi
@@ -586,6 +878,10 @@ async def owner_update_request(
             name=name,
             latitude=lat,
             longitude=lng,
+            specialty_1=specialty_1,
+            specialty_2=specialty_2,
+            specialty_3=specialty_3,
+            poi_radius_m=poi_radius_m,
             opening_hours=opening_hours,
             is_open=is_open,
             script_vi=script_vi,
@@ -620,6 +916,20 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
         .all()
     )
 
+    heat_rows = (
+        db.query(
+            Stall.id,
+            Stall.name,
+            Stall.latitude,
+            Stall.longitude,
+            func.count(ListeningLog.id).label("listens")
+        )
+        .outerjoin(ListeningLog, ListeningLog.stall_id == Stall.id)
+        .filter(Stall.is_deleted == False)
+        .group_by(Stall.id)
+        .all()
+    )
+
     return {
         "metrics": {
             "total_stalls": total_stalls,
@@ -628,7 +938,18 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
             "total_listens": total_listens,
             "pending_updates": pending_updates
         },
-        "top_stalls": [{"name": row[0], "listens": row[1]} for row in top_rows]
+        "top_stalls": [{"name": row[0], "listens": row[1]} for row in top_rows],
+        "heatmap_points": [
+            {
+                "stall_id": row.id,
+                "name": row.name,
+                "lat": row.latitude,
+                "lng": row.longitude,
+                "listens": int(row.listens or 0)
+            }
+            for row in heat_rows
+            if int(row.listens or 0) > 0
+        ]
     }
 
 
@@ -646,16 +967,13 @@ def admin_users(request: Request, db: Session = Depends(get_db)):
         .all()
     )
     owner_stalls = {
-        stall.created_by_user_id: stall.name
+        stall.created_by_user_id: stall
         for stall in db.query(Stall).filter(Stall.is_deleted == False).all()
         if stall.created_by_user_id
     }
     return {
         "users": [
-            {
-                **serialize_user(item),
-                "stall_name": owner_stalls.get(item.id)
-            }
+            serialize_admin_user(request, item, owner_stalls.get(item.id))
             for item in users
         ]
     }
@@ -716,6 +1034,97 @@ def admin_update_user(user_id: int, payload: UpdateUserRequest, request: Request
     db.commit()
     db.refresh(target_user)
     return {"status": "success", "user": serialize_user(target_user)}
+
+
+@app.post("/admin/users/{user_id}/manage")
+async def admin_manage_user(
+    user_id: int,
+    request: Request,
+    full_name: str = Form(...),
+    username: str = Form(...),
+    email: str = Form(""),
+    password: str = Form(""),
+    stall_name: str = Form(""),
+    category_id: Optional[int] = Form(None),
+    lat: Optional[float] = Form(None),
+    lng: Optional[float] = Form(None),
+    specialty_1: str = Form(""),
+    specialty_2: str = Form(""),
+    specialty_3: str = Form(""),
+    poi_radius_m: Optional[float] = Form(None),
+    script_vi: str = Form(""),
+    opening_hours: str = Form(""),
+    is_open: bool = Form(True),
+    image: UploadFile = File(None),
+    db: Session = Depends(get_db)
+):
+    user = require_auth_page(request, db)
+    require_role(user, "super_admin")
+
+    target_user = db.query(User).options(joinedload(User.role)).filter(User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
+
+    same_username = db.query(User).filter(User.username == username, User.id != user_id).first()
+    if same_username:
+        raise HTTPException(status_code=400, detail="Tên đăng nhập đã tồn tại")
+
+    normalized_email = email.strip() or None
+    if normalized_email:
+        same_email = db.query(User).filter(User.email == normalized_email, User.id != user_id).first()
+        if same_email:
+            raise HTTPException(status_code=400, detail="Email đã tồn tại")
+
+    target_user.full_name = full_name.strip()
+    target_user.username = username.strip()
+    target_user.email = normalized_email
+    target_user.updated_at = datetime.utcnow()
+
+    if password.strip():
+        target_user.password_hash = hash_password(password.strip())
+
+    stall = None
+    if target_user.role and target_user.role.name == "stall_owner":
+        stall = get_owner_stall(db, target_user.id)
+        if stall:
+            clean_name = stall_name.strip()
+            clean_script = script_vi.strip()
+            if not clean_name:
+                raise HTTPException(status_code=400, detail="Vui lòng nhập tên gian hàng")
+            if category_id is None:
+                raise HTTPException(status_code=400, detail="Vui lòng chọn danh mục")
+            if lat is None or lng is None:
+                raise HTTPException(status_code=400, detail="Vui lòng nhập đầy đủ tọa độ")
+            if not clean_script:
+                raise HTTPException(status_code=400, detail="Vui lòng nhập script tiếng Việt")
+
+            specialty_1, specialty_2, specialty_3 = require_specialties(specialty_1, specialty_2, specialty_3)
+            poi_radius_m = require_poi_radius(poi_radius_m)
+
+            filename = stall.image_url
+            if image and image.filename:
+                ext = os.path.splitext(image.filename)[1]
+                filename = f"{uuid.uuid4()}{ext}"
+                with open(os.path.join(UPLOAD_DIR, filename), "wb") as buffer:
+                    shutil.copyfileobj(image.file, buffer)
+
+            stall.name = clean_name
+            stall.category_id = category_id
+            stall.latitude = lat
+            stall.longitude = lng
+            stall.specialty_1 = specialty_1
+            stall.specialty_2 = specialty_2
+            stall.specialty_3 = specialty_3
+            stall.poi_radius_m = poi_radius_m
+            stall.opening_hours = opening_hours.strip()
+            stall.is_open = is_open
+            stall.image_url = filename
+            stall.updated_at = datetime.utcnow()
+            upsert_stall_translations(db, stall, clean_name, clean_script)
+
+    db.commit()
+    db.refresh(target_user)
+    return {"status": "success", "user": serialize_admin_user(request, target_user, stall)}
 
 
 @app.patch("/admin/users/{user_id}/hide")
@@ -790,6 +1199,8 @@ def admin_update_requests(request: Request, db: Session = Depends(get_db)):
                 "stall_id": row.stall_id,
                 "stall_name": row.stall.name if row.stall else "",
                 "name": row.name,
+                "specialties": serialize_specialties(row),
+                "poi_radius_m": row.poi_radius_m or 30,
                 "opening_hours": row.opening_hours or "",
                 "is_open": row.is_open,
                 "script_vi": row.script_vi,
@@ -817,6 +1228,10 @@ def approve_update(request_id: int, request: Request, db: Session = Depends(get_
     stall.name = row.name
     stall.latitude = row.latitude
     stall.longitude = row.longitude
+    stall.specialty_1 = row.specialty_1
+    stall.specialty_2 = row.specialty_2
+    stall.specialty_3 = row.specialty_3
+    stall.poi_radius_m = row.poi_radius_m or 30
     stall.opening_hours = row.opening_hours
     stall.is_open = row.is_open
     stall.image_url = row.image_url
@@ -854,7 +1269,7 @@ def reject_update(
 
 
 @app.post("/nearby")
-def get_nearby(location: UserLocation, db: Session = Depends(get_db)):
+def get_nearby(location: UserLocation, request: Request, db: Session = Depends(get_db)):
     stalls = (
         db.query(Stall)
         .options(joinedload(Stall.category), joinedload(Stall.translations).joinedload(StallTranslation.language))
@@ -863,18 +1278,22 @@ def get_nearby(location: UserLocation, db: Session = Depends(get_db)):
     )
 
     results = []
-    base_img_url = "http://10.0.2.2:8000/uploads/"
     for stall in stalls:
         dist = geodesic((location.lat, location.lng), (stall.latitude, stall.longitude)).kilometers
         results.append({
+            "Id": stall.id,
             "Name": stall.name,
             "DistanceText": f"{round(dist, 2)}km",
             "Distance": dist,
+            "Lat": stall.latitude,
+            "Lng": stall.longitude,
             "Rating": str(stall.rating_avg),
             "Reviews": f"({stall.reviews_count})",
             "Cuisine": stall.category.name if stall.category else "",
+            "Specialties": serialize_specialties(stall),
+            "PoiRadiusMeters": stall.poi_radius_m or 30,
             "Translations": translations_to_dict(stall),
-            "ImageUrl": f"{base_img_url}{stall.image_url}" if stall.image_url else ""
+            "ImageUrl": str(request.base_url).rstrip("/") + f"/uploads/{stall.image_url}" if stall.image_url else ""
         })
 
     return sorted(results, key=lambda item: item["Distance"])[:10]
@@ -906,3 +1325,75 @@ def create_listening_log(
     ))
     db.commit()
     return {"status": "success"}
+
+
+@app.get("/audio/stalls/{stall_id}")
+def get_stall_audio(
+    stall_id: int,
+    language_code: str,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    if not language_code:
+        raise HTTPException(status_code=400, detail="Thiếu ngôn ngữ audio")
+
+    stall = (
+        db.query(Stall)
+        .options(joinedload(Stall.translations).joinedload(StallTranslation.language))
+        .filter(Stall.id == stall_id, Stall.is_deleted == False, Stall.is_active == True)
+        .first()
+    )
+    if not stall:
+        raise HTTPException(status_code=404, detail="Không tìm thấy gian hàng")
+
+    language = db.query(Language).filter(Language.code == language_code, Language.is_active == True).first()
+    if not language:
+        raise HTTPException(status_code=404, detail="Không tìm thấy ngôn ngữ")
+
+    script_text = translations_to_dict(stall).get(language_code)
+    if not script_text and "-" in language_code:
+        script_text = translations_to_dict(stall).get(language_code.split("-", 1)[0])
+    if not script_text:
+        raise HTTPException(status_code=404, detail="Không có script cho ngôn ngữ này")
+
+    script_hash = get_script_hash(script_text, language_code)
+    asset = (
+        db.query(StallAudioAsset)
+        .filter(StallAudioAsset.stall_id == stall.id, StallAudioAsset.language_id == language.id)
+        .first()
+    )
+
+    if not asset or asset.script_hash != script_hash:
+        try:
+            audio_bytes = generate_audio_bytes(script_text, language_code)
+        except Exception as ex:
+            raise HTTPException(status_code=503, detail=f"Không thể tạo audio lúc này: {ex}")
+
+        if asset:
+            asset.script_hash = script_hash
+            asset.audio_data = audio_bytes
+            asset.mime_type = "audio/mpeg"
+            asset.updated_at = datetime.utcnow()
+        else:
+            asset = StallAudioAsset(
+                stall_id=stall.id,
+                language_id=language.id,
+                script_hash=script_hash,
+                audio_data=audio_bytes,
+                mime_type="audio/mpeg"
+            )
+            db.add(asset)
+        db.commit()
+        db.refresh(asset)
+
+    return Response(
+        content=asset.audio_data,
+        media_type=asset.mime_type,
+        headers={
+            "Content-Disposition": f'inline; filename="stall-{stall.id}-{language_code}.mp3"',
+            "Cache-Control": "public, max-age=86400"
+        }
+    )
+
+
+

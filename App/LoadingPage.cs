@@ -5,21 +5,22 @@ namespace FoodStreetAudioGuide
         private readonly ProgressBar _loadingProgressBar;
         private readonly Label _progressTextLabel;
         private readonly Label _statusLabel;
-        private readonly StallService _stallService; // Thêm để giữ Service
+        private readonly StallService _stallService;
+        private readonly AudioCacheService _audioCacheService;
         private readonly string[] _statusMessages =
         {
-            "• Connecting to local vendors...",
-            "• Mapping nearby food stalls...",
-            "• Preparing audio guides..."
+            "Connecting to local vendors...",
+            "Mapping nearby food stalls...",
+            "Preparing audio guides..."
         };
 
         private bool _isLoaded;
         private CancellationTokenSource? _loadingCts;
 
-        // Cập nhật Constructor để nhận StallService
-        public LoadingPage(StallService stallService)
+        public LoadingPage(StallService stallService, AudioCacheService audioCacheService)
         {
             _stallService = stallService;
+            _audioCacheService = audioCacheService;
             NavigationPage.SetHasNavigationBar(this, false);
             BackgroundColor = Color.FromArgb("#0B0B0F");
 
@@ -170,8 +171,7 @@ namespace FoodStreetAudioGuide
             var window = Application.Current?.Windows.FirstOrDefault();
             if (window is not null)
             {
-                // TRUYỀN _stallService sang trang tiếp theo
-                window.Page = new NavigationPage(new LanguageSelectionPage(_stallService));
+                window.Page = new NavigationPage(new LanguageSelectionPage(_stallService, _audioCacheService));
             }
         }
 
