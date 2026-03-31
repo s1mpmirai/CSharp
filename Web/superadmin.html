@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quản trị hệ thống</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root {
             --bg: #f5f7fb;
@@ -76,9 +77,17 @@
         .mini-table td:last-child, .mini-table th:last-child { width: 220px; }
         .action-group { display: flex; gap: 8px; flex-wrap: wrap; }
         dialog { border: none; border-radius: 18px; padding: 0; width: min(480px, calc(100vw - 32px)); box-shadow: 0 20px 40px rgba(0,0,0,.22); }
+        dialog.dialog-wide { width: min(820px, calc(100vw - 32px)); }
         dialog::backdrop { background: rgba(15, 23, 35, .45); }
         .dialog-body { padding: 22px; }
         .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .full-span { grid-column: 1 / -1; }
+        .section-title { margin: 18px 0 12px; font-size: 16px; font-weight: 700; }
+        .section-note { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+        .image-preview { width: 100%; max-height: 220px; object-fit: cover; border-radius: 14px; border: 1px solid var(--line); background: #f3f6fa; }
+        #heatmap { width: 100%; height: 380px; border-radius: 16px; border: 1px solid var(--line); overflow: hidden; }
+        .map-caption { margin-top: 10px; color: var(--muted); font-size: 14px; }
         @media (max-width: 1180px) {
             .shell, .shell.sidebar-open { grid-template-columns: 1fr; }
             .metric-grid, .two-col { grid-template-columns: 1fr; }
@@ -86,6 +95,7 @@
             .brand p { opacity: 1 !important; max-height: 40px !important; margin-top: 8px !important; }
             .brand h1, .shell:not(.sidebar-open) .brand h1 { font-size: 24px; }
             .shell:not(.sidebar-open) .brand h1::before { content: none; }
+            .form-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -160,6 +170,15 @@
                         </table>
                     </div>
                 </div>
+
+                <div class="panel" style="margin-top:20px;">
+                    <div class="panel-header">
+                        <h3>Heatmap lượt nghe</h3>
+                        <span id="heatmapHint" style="color:var(--muted);font-size:14px;">Chưa có dữ liệu nghe</span>
+                    </div>
+                    <div id="heatmap"></div>
+                    <div class="map-caption">Điểm nóng hơn tương ứng với gian hàng có nhiều lượt nghe hơn.</div>
+                </div>
             </section>
 
             <section id="view-danh-sach-nguoi-dung" class="view">
@@ -193,6 +212,8 @@
                             <tr>
                                 <th>Gian hàng</th>
                                 <th>Tên mới</th>
+                                <th>3 món đặc sản</th>
+                                <th>Bán kính POI</th>
                                 <th>Giờ mở cửa</th>
                                 <th>Trạng thái mở</th>
                                 <th>Thao tác</th>
@@ -222,15 +243,39 @@
         </div>
     </dialog>
 
-    <dialog id="editUserDialog">
+    <dialog id="editUserDialog" class="dialog-wide">
         <div class="dialog-body">
-            <h3 style="margin-top:0;">Sửa người dùng</h3>
+            <h3 style="margin-top:0;">Sửa chủ gian hàng</h3>
             <form id="editUserForm">
                 <input id="edit_user_id" type="hidden">
-                <div class="group"><label for="edit_full_name">Họ tên</label><input id="edit_full_name" type="text"></div>
-                <div class="group"><label for="edit_username">Tên đăng nhập</label><input id="edit_username" type="text"></div>
-                <div class="group"><label for="edit_email">Email</label><input id="edit_email" type="email"></div>
-                <div class="group"><label for="edit_password">Mật khẩu mới</label><input id="edit_password" type="password" placeholder="Để trống nếu không đổi"></div>
+                <div class="section-title">Thông tin tài khoản</div>
+                <div class="form-grid">
+                    <div class="group"><label for="edit_full_name">Họ tên</label><input id="edit_full_name" type="text"></div>
+                    <div class="group"><label for="edit_username">Tên đăng nhập</label><input id="edit_username" type="text"></div>
+                    <div class="group"><label for="edit_email">Email</label><input id="edit_email" type="email"></div>
+                    <div class="group"><label for="edit_password">Mật khẩu mới</label><input id="edit_password" type="password" placeholder="Để trống nếu không đổi"></div>
+                </div>
+
+                <div class="section-title">Thông tin gian hàng</div>
+                <p id="editStallEmpty" class="section-note" style="display:none;">Người dùng này chưa có gian hàng để chỉnh sửa trực tiếp.</p>
+                <div id="editStallSection" class="form-grid">
+                    <div class="group full-span"><label for="edit_stall_name">Tên gian hàng</label><input id="edit_stall_name" type="text"></div>
+                    <div class="group"><label for="edit_category_id">Danh mục</label><select id="edit_category_id"></select></div>
+                    <div class="group"><label for="edit_is_open">Trạng thái mở cửa</label><select id="edit_is_open"><option value="true">Đang mở</option><option value="false">Đang đóng</option></select></div>
+                    <div class="group"><label for="edit_lat">Vĩ độ</label><input id="edit_lat" type="number" step="any"></div>
+                    <div class="group"><label for="edit_lng">Kinh độ</label><input id="edit_lng" type="number" step="any"></div>
+                    <div class="group full-span"><label for="edit_poi_radius_m">Bán kính tự phát POI (m)</label><input id="edit_poi_radius_m" type="number" min="1" step="1"></div>
+                    <div class="group full-span"><label for="edit_opening_hours">Giờ mở cửa</label><input id="edit_opening_hours" type="text"></div>
+                    <div class="group"><label for="edit_specialty_1">Món đặc sản 1</label><input id="edit_specialty_1" type="text"></div>
+                    <div class="group"><label for="edit_specialty_2">Món đặc sản 2</label><input id="edit_specialty_2" type="text"></div>
+                    <div class="group full-span"><label for="edit_specialty_3">Món đặc sản 3</label><input id="edit_specialty_3" type="text"></div>
+                    <div class="group full-span"><label for="edit_script_vi">Script tiếng Việt</label><textarea id="edit_script_vi" rows="5"></textarea></div>
+                    <div class="group full-span"><label for="edit_image_file">Ảnh gian hàng mới</label><input id="edit_image_file" type="file" accept="image/*"></div>
+                    <div class="group full-span">
+                        <label>Ảnh hiện tại</label>
+                        <img id="edit_image_preview" class="image-preview" alt="Ảnh gian hàng" style="display:none;">
+                    </div>
+                </div>
                 <div class="dialog-actions">
                     <button class="btn btn-ghost" type="button" onclick="closeEditUserModal()">Đóng</button>
                     <button class="btn btn-primary" type="submit">Lưu thay đổi</button>
@@ -240,6 +285,8 @@
         </div>
     </dialog>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
     <script>
         const shell = document.getElementById("shell");
         const sidebar = document.getElementById("sidebar");
@@ -247,9 +294,14 @@
         const editUserDialog = document.getElementById("editUserDialog");
         let collapseTimer = null;
         let cachedUsers = [];
+        let cachedCategories = [];
+        let heatmapMap = null;
+        let heatLayer = null;
+        let heatMarkers = null;
 
         document.getElementById("createOwnerForm").addEventListener("submit", createOwner);
         document.getElementById("editUserForm").addEventListener("submit", updateUser);
+        document.getElementById("edit_image_file").addEventListener("change", previewEditImage);
 
         sidebar.addEventListener("mouseenter", openSidebar);
         sidebar.addEventListener("mouseleave", scheduleSidebarClose);
@@ -280,6 +332,9 @@
             document.querySelectorAll(".nav-button").forEach(item => item.classList.remove("active"));
             const target = button || document.querySelector(`.nav-button[data-view="${viewName}"]`);
             if (target) target.classList.add("active");
+            if (viewName === "tong-quan" && heatmapMap) {
+                setTimeout(() => heatmapMap.invalidateSize(), 120);
+            }
         }
 
         function openCreateOwnerModal() {
@@ -299,6 +354,52 @@
             document.getElementById("edit_username").value = user.username || "";
             document.getElementById("edit_email").value = user.email || "";
             document.getElementById("edit_password").value = "";
+            document.getElementById("edit_image_file").value = "";
+
+            const stall = user.stall;
+            const stallSection = document.getElementById("editStallSection");
+            const emptyState = document.getElementById("editStallEmpty");
+            const preview = document.getElementById("edit_image_preview");
+
+            if (stall) {
+                stallSection.style.display = "grid";
+                emptyState.style.display = "none";
+                document.getElementById("edit_stall_name").value = stall.name || "";
+                renderEditCategoryOptions(stall.category_id || "");
+                document.getElementById("edit_is_open").value = String(Boolean(stall.is_open));
+                document.getElementById("edit_lat").value = stall.lat ?? "";
+                document.getElementById("edit_lng").value = stall.lng ?? "";
+                document.getElementById("edit_poi_radius_m").value = Math.round(stall.poi_radius_m || 30);
+                document.getElementById("edit_opening_hours").value = stall.opening_hours || "";
+                const specialties = Array.isArray(stall.specialties) ? stall.specialties : [];
+                document.getElementById("edit_specialty_1").value = specialties[0] || "";
+                document.getElementById("edit_specialty_2").value = specialties[1] || "";
+                document.getElementById("edit_specialty_3").value = specialties[2] || "";
+                document.getElementById("edit_script_vi").value = stall.script_vi || "";
+                if (stall.image_url) {
+                    preview.src = stall.image_url;
+                    preview.style.display = "block";
+                } else {
+                    preview.removeAttribute("src");
+                    preview.style.display = "none";
+                }
+            } else {
+                stallSection.style.display = "none";
+                emptyState.style.display = "block";
+                renderEditCategoryOptions();
+                document.getElementById("edit_stall_name").value = "";
+                document.getElementById("edit_is_open").value = "true";
+                document.getElementById("edit_lat").value = "";
+                document.getElementById("edit_lng").value = "";
+                document.getElementById("edit_poi_radius_m").value = "30";
+                document.getElementById("edit_opening_hours").value = "";
+                document.getElementById("edit_specialty_1").value = "";
+                document.getElementById("edit_specialty_2").value = "";
+                document.getElementById("edit_specialty_3").value = "";
+                document.getElementById("edit_script_vi").value = "";
+                preview.removeAttribute("src");
+                preview.style.display = "none";
+            }
             editUserDialog.showModal();
         }
 
@@ -320,7 +421,69 @@
             const me = await api("/auth/me");
             if (!me || me.user.role !== "super_admin") return;
             document.getElementById("welcome").textContent = `Xin chào ${me.user.full_name || me.user.username}`;
+            cachedCategories = await api("/categories") || [];
+            renderEditCategoryOptions();
             await loadAllData();
+        }
+
+        function renderEditCategoryOptions(selectedValue = "") {
+            const select = document.getElementById("edit_category_id");
+            select.innerHTML = cachedCategories.map(item => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("");
+            if (selectedValue !== "") select.value = String(selectedValue);
+        }
+
+        function ensureHeatmap() {
+            if (heatmapMap) return;
+            heatmapMap = L.map("heatmap").setView([10.7626, 106.7045], 13);
+            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                attribution: "&copy; OpenStreetMap contributors"
+            }).addTo(heatmapMap);
+            heatMarkers = L.layerGroup().addTo(heatmapMap);
+        }
+
+        function renderHeatmap(points) {
+            ensureHeatmap();
+
+            if (heatLayer) {
+                heatmapMap.removeLayer(heatLayer);
+                heatLayer = null;
+            }
+            heatMarkers.clearLayers();
+
+            if (!Array.isArray(points) || !points.length) {
+                document.getElementById("heatmapHint").textContent = "Chưa có dữ liệu nghe";
+                heatmapMap.setView([10.7626, 106.7045], 13);
+                return;
+            }
+
+            const maxListens = Math.max(...points.map(item => item.listens || 0), 1);
+            const heatPoints = points.map(item => [
+                item.lat,
+                item.lng,
+                Math.max(0.2, (item.listens || 0) / maxListens)
+            ]);
+
+            heatLayer = L.heatLayer(heatPoints, {
+                radius: 28,
+                blur: 24,
+                maxZoom: 17
+            }).addTo(heatmapMap);
+
+            points.forEach(item => {
+                L.circleMarker([item.lat, item.lng], {
+                    radius: 6,
+                    color: "#b45309",
+                    weight: 1,
+                    fillColor: "#f59e0b",
+                    fillOpacity: 0.9
+                })
+                    .bindPopup(`<strong>${escapeHtml(item.name)}</strong><br>Lượt nghe: ${item.listens}`)
+                    .addTo(heatMarkers);
+            });
+
+            const bounds = L.latLngBounds(points.map(item => [item.lat, item.lng]));
+            heatmapMap.fitBounds(bounds, { padding: [24, 24] });
+            document.getElementById("heatmapHint").textContent = `${points.length} gian hàng có dữ liệu nghe`;
         }
 
         async function loadAllData() {
@@ -339,6 +502,7 @@
             document.getElementById("summaryActive").textContent = data.metrics.active_stalls;
             document.getElementById("pendingBadge").textContent = data.metrics.pending_updates;
             document.getElementById("topBody").innerHTML = data.top_stalls.map(item => `<tr><td>${escapeHtml(item.name)}</td><td>${item.listens}</td></tr>`).join("") || `<tr><td colspan="2">Chưa có dữ liệu nghe</td></tr>`;
+            renderHeatmap(data.heatmap_points || []);
         }
 
         async function loadUsers() {
@@ -361,7 +525,7 @@
 
         async function loadRequests() {
             const data = await api("/admin/update-requests");
-            document.getElementById("requestsBody").innerHTML = data.items.map(item => `<tr><td>${escapeHtml(item.stall_name)}</td><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.opening_hours || "")}</td><td>${item.is_open ? "Đang mở" : "Đang đóng"}</td><td><div class="action-group"><button class="btn btn-ok btn-small" type="button" onclick="approveRequest(${item.id})">Duyệt</button><button class="btn btn-no btn-small" type="button" onclick="rejectRequest(${item.id})">Từ chối</button></div></td></tr>`).join("") || `<tr><td colspan="5">Hiện chưa có yêu cầu chờ duyệt</td></tr>`;
+            document.getElementById("requestsBody").innerHTML = data.items.map(item => `<tr><td>${escapeHtml(item.stall_name)}</td><td>${escapeHtml(item.name)}</td><td>${formatSpecialties(item.specialties)}</td><td>${Math.round(item.poi_radius_m || 0)}m</td><td>${escapeHtml(item.opening_hours || "")}</td><td>${item.is_open ? "Đang mở" : "Đang đóng"}</td><td><div class="action-group"><button class="btn btn-ok btn-small" type="button" onclick="approveRequest(${item.id})">Duyệt</button><button class="btn btn-no btn-small" type="button" onclick="rejectRequest(${item.id})">Từ chối</button></div></td></tr>`).join("") || `<tr><td colspan="7">Hiện chưa có yêu cầu chờ duyệt</td></tr>`;
         }
 
         async function createOwner(event) {
@@ -388,22 +552,55 @@
         async function updateUser(event) {
             event.preventDefault();
             const userId = document.getElementById("edit_user_id").value;
-            const payload = {
-                full_name: document.getElementById("edit_full_name").value.trim(),
-                username: document.getElementById("edit_username").value.trim(),
-                email: document.getElementById("edit_email").value.trim() || null,
-                password: document.getElementById("edit_password").value.trim() || null
-            };
-            if (!payload.full_name || !payload.username) return showStatus("editStatus", "Nhập đủ họ tên và tên đăng nhập.", true);
+            const fullName = document.getElementById("edit_full_name").value.trim();
+            const username = document.getElementById("edit_username").value.trim();
+            const stallVisible = document.getElementById("editStallSection").style.display !== "none";
+            if (!fullName || !username) return showStatus("editStatus", "Nhập đủ họ tên và tên đăng nhập.", true);
+            if (stallVisible) {
+                if (!document.getElementById("edit_stall_name").value.trim()) return showStatus("editStatus", "Nhập tên gian hàng.", true);
+                if (!document.getElementById("edit_lat").value.trim() || !document.getElementById("edit_lng").value.trim()) return showStatus("editStatus", "Nhập đầy đủ tọa độ gian hàng.", true);
+                if (!document.getElementById("edit_poi_radius_m").value.trim() || Number(document.getElementById("edit_poi_radius_m").value) <= 0) return showStatus("editStatus", "Nhập bán kính POI lớn hơn 0.", true);
+                if (!document.getElementById("edit_specialty_1").value.trim() || !document.getElementById("edit_specialty_2").value.trim() || !document.getElementById("edit_specialty_3").value.trim()) return showStatus("editStatus", "Nhập đủ 3 món đặc sản.", true);
+                if (!document.getElementById("edit_script_vi").value.trim()) return showStatus("editStatus", "Nhập script tiếng Việt.", true);
+            }
+
+            const formData = new FormData();
+            formData.append("full_name", fullName);
+            formData.append("username", username);
+            formData.append("email", document.getElementById("edit_email").value.trim());
+            formData.append("password", document.getElementById("edit_password").value.trim());
+            if (stallVisible) {
+                formData.append("stall_name", document.getElementById("edit_stall_name").value.trim());
+                formData.append("category_id", document.getElementById("edit_category_id").value);
+                formData.append("lat", document.getElementById("edit_lat").value.trim());
+                formData.append("lng", document.getElementById("edit_lng").value.trim());
+                formData.append("poi_radius_m", document.getElementById("edit_poi_radius_m").value.trim());
+                formData.append("opening_hours", document.getElementById("edit_opening_hours").value.trim());
+                formData.append("is_open", document.getElementById("edit_is_open").value);
+                formData.append("specialty_1", document.getElementById("edit_specialty_1").value.trim());
+                formData.append("specialty_2", document.getElementById("edit_specialty_2").value.trim());
+                formData.append("specialty_3", document.getElementById("edit_specialty_3").value.trim());
+                formData.append("script_vi", document.getElementById("edit_script_vi").value.trim());
+                const imageFile = document.getElementById("edit_image_file").files[0];
+                if (imageFile) formData.append("image", imageFile);
+            }
 
             try {
-                await api(`/admin/users/${userId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-                showStatus("editStatus", "Cập nhật người dùng thành công.");
+                await api(`/admin/users/${userId}/manage`, { method: "POST", body: formData });
+                showStatus("editStatus", "Cập nhật chủ gian hàng thành công.");
                 await loadAllData();
                 setTimeout(() => closeEditUserModal(), 500);
             } catch (error) {
                 showStatus("editStatus", error.message, true);
             }
+        }
+
+        function previewEditImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const preview = document.getElementById("edit_image_preview");
+            preview.src = URL.createObjectURL(file);
+            preview.style.display = "block";
         }
 
         async function hideUser(id, displayName) {
@@ -421,11 +618,15 @@
         }
 
         async function approveRequest(id) {
+            const confirmed = confirm("Bạn có muốn duyệt yêu cầu này không?");
+            if (!confirmed) return;
             await api(`/admin/update-requests/${id}/approve`, { method: "POST" });
             await loadAllData();
         }
 
         async function rejectRequest(id) {
+            const confirmed = confirm("Bạn có muốn từ chối yêu cầu này không?");
+            if (!confirmed) return;
             const note = prompt("Lý do từ chối:", "") || "";
             const form = new FormData();
             form.append("admin_note", note);
@@ -450,6 +651,11 @@
 
         function escapeJs(text) {
             return String(text ?? "").replaceAll("\\", "\\\\").replaceAll("'", "\\'");
+        }
+
+        function formatSpecialties(items) {
+            if (!Array.isArray(items) || !items.length) return "";
+            return items.map(item => escapeHtml(item)).join("<br>");
         }
 
         bootstrap();
