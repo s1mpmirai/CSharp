@@ -45,12 +45,19 @@ namespace FoodStreetAudioGuide
             return stalls ?? new List<StallItem>();
         }
 
-        public async Task<string> SaveImageAsync(int stallId, string originalUrl, byte[] bytes)
+        public async Task<string> SaveImageAsync(int stallId, string originalUrl, byte[] bytes, string variant = "full")
         {
             var extension = GetImageExtension(originalUrl);
-            var filePath = Path.Combine(_imagesDirectory, $"stall-{stallId}{extension}");
+            var filePath = Path.Combine(_imagesDirectory, $"stall-{stallId}-{variant}{extension}");
             await File.WriteAllBytesAsync(filePath, bytes);
             return filePath;
+        }
+
+        public string? TryGetCachedImagePath(int stallId, string originalUrl, string variant = "full")
+        {
+            var extension = GetImageExtension(originalUrl);
+            var filePath = Path.Combine(_imagesDirectory, $"stall-{stallId}-{variant}{extension}");
+            return File.Exists(filePath) ? filePath : null;
         }
 
         public async Task<List<PendingListeningLog>> LoadPendingListeningLogsAsync()

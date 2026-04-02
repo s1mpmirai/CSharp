@@ -2,6 +2,8 @@ namespace FoodStreetAudioGuide
 {
     internal static class ApiSettings
     {
+        private const string DefaultLanBaseUrl = "http://192.168.1.165:8000";
+
         public static string GetBaseUrl()
         {
             var overrideUrl = Environment.GetEnvironmentVariable("FOODSTREET_API_BASE_URL");
@@ -10,9 +12,7 @@ namespace FoodStreetAudioGuide
                 return overrideUrl.TrimEnd('/');
             }
 
-            return DeviceInfo.Platform == DevicePlatform.Android
-                ? "http://10.0.2.2:8000"
-                : "http://localhost:8000";
+            return DefaultLanBaseUrl;
         }
     }
 }

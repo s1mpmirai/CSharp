@@ -6,3 +6,4 @@ geopy
 deep-translator
 python-multipart
 gTTS
+Pillow

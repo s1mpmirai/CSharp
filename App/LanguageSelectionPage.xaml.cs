@@ -34,14 +34,19 @@ namespace FoodStreetAudioGuide
             UpdateSelectionUi();
         }
 
-        private void OnContinueClicked(object sender, EventArgs e)
+        private async void OnContinueClicked(object sender, EventArgs e)
         {
             Preferences.Set(SelectedLanguagePreferenceKey, _selectedLanguage);
-
-            var window = Application.Current?.Windows.FirstOrDefault();
-            if (window is not null)
+            ContinueButton.IsEnabled = false;
+            ContinueButton.Opacity = 0.7;
+            try
             {
-                window.Page = new NavigationPage(new MainPage(_stallService, _audioCacheService, _selectedLanguage));
+                await Navigation.PushAsync(new MainPage(_stallService, _audioCacheService, _selectedLanguage), false);
+            }
+            finally
+            {
+                ContinueButton.IsEnabled = true;
+                ContinueButton.Opacity = 1;
             }
         }
 

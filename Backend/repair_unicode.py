@@ -2,7 +2,7 @@
 import os
 from sqlalchemy import create_engine, text
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:password123@db:5432/food_street_db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:password123@localhost:5432/food_street_db")
 engine = create_engine(DATABASE_URL)
 
 owner_specs = {
