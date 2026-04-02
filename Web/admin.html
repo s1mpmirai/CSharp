@@ -6,26 +6,152 @@
     <title>Tạo gian hàng</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin:0; background:#f5f7fb; color:#243041; font-family:"Segoe UI",sans-serif; }
-        .shell { padding:20px; display:grid; gap:20px; }
-        .topbar,.panel { background:#fff; border-radius:18px; padding:20px; box-shadow:0 12px 28px rgba(0,0,0,.06); }
-        .topbar { display:flex; justify-content:space-between; align-items:center; }
-        .layout { display:grid; grid-template-columns:1.2fr .95fr; gap:20px; }
-        .group { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
-        .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-        input, textarea, select { width:100%; border:1px solid #dfe5ec; border-radius:12px; padding:12px 14px; font:inherit; background:#fff; }
-        textarea { min-height:110px; resize:vertical; }
-        #map { width:100%; height:560px; border-radius:14px; border:1px solid #dfe5ec; }
-        .search-row { display:grid; grid-template-columns:1fr 86px; gap:8px; }
-        .btn { border:none; border-radius:12px; padding:12px 14px; font:inherit; font-weight:700; cursor:pointer; }
-        .btn-primary { background:#ef8f2a; color:#fff; }
-        .btn-ghost { background:#eef2f7; color:#243041; }
-        .preview { border:1px dashed #dfe5ec; border-radius:14px; min-height:180px; display:grid; place-items:center; background:#fafbfd; overflow:hidden; }
-        .preview img { max-width:100%; max-height:220px; display:none; object-fit:cover; }
-        .status { display:none; padding:12px 14px; border-radius:12px; font-size:14px; margin-bottom:12px; }
-        .status.show.ok { display:block; background:#ecf8ef; border:1px solid #caead0; color:#24663b; }
-        .status.show.err { display:block; background:#fff0f0; border:1px solid #f2cbcb; color:#9a2d2d; }
-        @media (max-width:1000px){ .layout{grid-template-columns:1fr;} #map{height:420px;} }
+        body {
+            margin: 0;
+            background: #f5f7fb;
+            color: #243041;
+            font-family: "Segoe UI",sans-serif;
+        }
+
+        .shell {
+            padding: 20px;
+            display: grid;
+            gap: 20px;
+        }
+
+        .topbar, .panel {
+            background: #fff;
+            border-radius: 18px;
+            padding: 20px;
+            box-shadow: 0 12px 28px rgba(0,0,0,.06);
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 1.2fr .95fr;
+            gap: 20px;
+        }
+
+        .group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 14px;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            border: 1px solid #dfe5ec;
+            border-radius: 12px;
+            padding: 12px 14px;
+            font: inherit;
+            background: #fff;
+        }
+
+        textarea {
+            min-height: 110px;
+            resize: vertical;
+        }
+
+        #map {
+            width: 100%;
+            height: 560px;
+            border-radius: 14px;
+            border: 1px solid #dfe5ec;
+        }
+
+        .search-row {
+            display: grid;
+            grid-template-columns: 1fr 86px 160px;
+            gap: 8px;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 12px;
+            padding: 12px 14px;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: #ef8f2a;
+            color: #fff;
+        }
+
+        .btn-ghost {
+            background: #eef2f7;
+            color: #243041;
+        }
+
+        .gps-note {
+            color: #6f7b8c;
+            font-size: 13px;
+            margin-top: 6px;
+            min-height: 18px;
+        }
+
+        .preview {
+            border: 1px dashed #dfe5ec;
+            border-radius: 14px;
+            min-height: 180px;
+            display: grid;
+            place-items: center;
+            background: #fafbfd;
+            overflow: hidden;
+        }
+
+            .preview img {
+                max-width: 100%;
+                max-height: 220px;
+                display: none;
+                object-fit: cover;
+            }
+
+        .status {
+            display: none;
+            padding: 12px 14px;
+            border-radius: 12px;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+            .status.show.ok {
+                display: block;
+                background: #ecf8ef;
+                border: 1px solid #caead0;
+                color: #24663b;
+            }
+
+            .status.show.err {
+                display: block;
+                background: #fff0f0;
+                border: 1px solid #f2cbcb;
+                color: #9a2d2d;
+            }
+
+        @media (max-width:1000px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            #map {
+                height: 420px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -73,7 +199,9 @@
                         <div class="search-row">
                             <input id="address_search" type="text">
                             <button class="btn btn-ghost" type="button" onclick="geocode()">Tìm</button>
+                            <button class="btn btn-ghost" type="button" onclick="captureCurrentLocation()">Lấy vị trí hiện tại</button>
                         </div>
+                        <div id="gps_accuracy" class="gps-note"></div>
                     </div>
 
                     <div class="row">
@@ -88,13 +216,18 @@
                     </div>
 
                     <div class="group">
-                        <label for="opening_hours">Giờ mở cửa</label>
-                        <input id="opening_hours" type="text">
+                        <label for="opening_time">Giờ mở</label>
+                        <input id="opening_time" type="time">
+                    </div>
+
+                    <div class="group">
+                        <label for="closing_time">Giờ đóng</label>
+                        <input id="closing_time" type="time">
                     </div>
 
                     <div class="group">
                         <label for="poi_radius_m">Bán kính tự phát POI (m)</label>
-                        <input id="poi_radius_m" type="number" min="1" step="1" value="30">
+                        <input id="poi_radius_m" type="number" min="10" step="1" value="30">
                     </div>
 
                     <div class="group">
@@ -185,8 +318,10 @@
             document.getElementById("category_id").value = String(stall.category_id || "");
             document.getElementById("lat").value = Number(stall.lat).toFixed(6);
             document.getElementById("lng").value = Number(stall.lng).toFixed(6);
-            document.getElementById("opening_hours").value = stall.opening_hours || "";
+            document.getElementById("opening_time").value = stall.opening_time || "";
+            document.getElementById("closing_time").value = stall.closing_time || "";
             document.getElementById("poi_radius_m").value = Math.round(stall.poi_radius_m || 30);
+            setGpsAccuracy("");
             const specialties = Array.isArray(stall.specialties) ? stall.specialties : [];
             document.getElementById("specialty_1").value = specialties[0] || "";
             document.getElementById("specialty_2").value = specialties[1] || "";
@@ -223,9 +358,29 @@
                 if (!data.length) return showStatus("Không tìm thấy địa chỉ.", true);
                 updateMarker(Number(data[0].lat), Number(data[0].lon));
                 map.setView([data[0].lat, data[0].lon], 17);
+                setGpsAccuracy("");
             } catch {
                 showStatus("Không thể tìm địa chỉ.", true);
             }
+        }
+
+        async function captureCurrentLocation() {
+            if (!navigator.geolocation) {
+                showStatus("Trình duyệt không hỗ trợ lấy GPS hiện tại.", true);
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                position => {
+                    const { latitude, longitude, accuracy } = position.coords;
+                    updateMarker(latitude, longitude);
+                    map.setView([latitude, longitude], 18);
+                    setGpsAccuracy(`Độ chính xác GPS hiện tại: khoảng ${Math.round(accuracy)}m`);
+                    showStatus("Đã lấy vị trí hiện tại.");
+                },
+                () => showStatus("Không thể lấy vị trí hiện tại. Hãy bật quyền vị trí trên trình duyệt.", true),
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
         }
 
         function updateMarker(lat, lng) {
@@ -235,11 +390,16 @@
             document.getElementById("lng").value = Number(lng).toFixed(6);
         }
 
+        function setGpsAccuracy(message) {
+            document.getElementById("gps_accuracy").textContent = message;
+        }
+
         async function saveStall(event) {
             event.preventDefault();
             if (!document.getElementById("name").value.trim()) return showStatus("Nhập tên gian hàng.", true);
             if (!document.getElementById("lat").value.trim() || !document.getElementById("lng").value.trim()) return showStatus("Chọn vị trí trên bản đồ trước khi lưu.", true);
-            if (!document.getElementById("poi_radius_m").value.trim() || Number(document.getElementById("poi_radius_m").value) <= 0) return showStatus("Nhập bán kính POI lớn hơn 0.", true);
+            if (!document.getElementById("opening_time").value || !document.getElementById("closing_time").value) return showStatus("Nhập đầy đủ giờ mở và giờ đóng.", true);
+            if (!document.getElementById("poi_radius_m").value.trim() || Number(document.getElementById("poi_radius_m").value) < 10) return showStatus("Nhập bán kính POI tối thiểu 10m.", true);
             if (!document.getElementById("specialty_1").value.trim() || !document.getElementById("specialty_2").value.trim() || !document.getElementById("specialty_3").value.trim()) return showStatus("Nhập đủ 3 món đặc sản.", true);
             if (!document.getElementById("script_vi").value.trim()) return showStatus("Nhập script tiếng Việt cho TTS.", true);
 
@@ -248,7 +408,8 @@
             formData.append("category_id", document.getElementById("category_id").value);
             formData.append("lat", document.getElementById("lat").value.trim());
             formData.append("lng", document.getElementById("lng").value.trim());
-            formData.append("opening_hours", document.getElementById("opening_hours").value.trim());
+            formData.append("opening_time", document.getElementById("opening_time").value);
+            formData.append("closing_time", document.getElementById("closing_time").value);
             formData.append("poi_radius_m", document.getElementById("poi_radius_m").value.trim());
             formData.append("specialty_1", document.getElementById("specialty_1").value.trim());
             formData.append("specialty_2", document.getElementById("specialty_2").value.trim());
@@ -266,6 +427,9 @@
                 const path = mode === "create" ? "/owner/stall" : "/owner/stall-update-request";
                 await api(path, { method: "POST", body: formData });
                 showStatus(mode === "create" ? "Tạo gian hàng thành công." : "Đã gửi yêu cầu cập nhật để admin duyệt.");
+                if (mode === "create") {
+                    setTimeout(() => { location.href = "/owner"; }, 600);
+                }
             } catch (error) {
                 showStatus(error.message, true);
             }
