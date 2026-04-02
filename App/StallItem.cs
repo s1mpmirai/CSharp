@@ -7,6 +7,10 @@
         string Rating,
         string Reviews,
         string Cuisine,
+        string CategorySlug = "",
+        string OpeningHours = "",
+        string OpeningTime = "",
+        string ClosingTime = "",
         double Distance = 0,
         double Lat = 0,
         double Lng = 0,
@@ -14,9 +18,26 @@
         bool HasOfflineAudio = false,
         List<string>? Specialties = null,
         Dictionary<string, string>? Translations = null,
+        FormattedString? HighlightedName = null,
+        FormattedString? HighlightedCuisine = null,
+        string ThumbnailUrl = "",
         string ImageUrl = ""
     )
     {
+        public string GetDisplayHours()
+        {
+            if (!string.IsNullOrWhiteSpace(OpeningHours))
+            {
+                return OpeningHours;
+            }
+
+            var values = new[] { OpeningTime, ClosingTime }
+                .Where(item => !string.IsNullOrWhiteSpace(item))
+                .ToArray();
+
+            return values.Length == 2 ? $"{values[0]} - {values[1]}" : string.Empty;
+        }
+
         public string GetScript(string languageCode)
         {
             if (Translations is null || string.IsNullOrWhiteSpace(languageCode))
@@ -51,6 +72,12 @@
             }
 
             return BuildFallbackSpecialties();
+        }
+
+        public StallItem WithLocalizedCuisine(string languageCode)
+        {
+            var localizedCuisine = CategoryLocalizer.Localize(CategorySlug, languageCode, Cuisine);
+            return this with { Cuisine = localizedCuisine };
         }
 
         private IReadOnlyList<string> BuildFallbackSpecialties()

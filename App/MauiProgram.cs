@@ -10,7 +10,6 @@ public static class MauiProgram
         builder
             .UseMauiApp<App>()
             .UseMauiCommunityToolkit()
-            .UseMauiCommunityToolkitMediaElement()
             .UseMauiMaps()
             .ConfigureFonts(fonts =>
             {

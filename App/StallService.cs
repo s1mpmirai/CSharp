@@ -8,6 +8,7 @@ namespace FoodStreetAudioGuide
     {
         private readonly HttpClient _httpClient;
         private readonly OfflineCacheService _offlineCache;
+        public event Action<IReadOnlyList<StallItem>>? ImageCacheUpdated;
 
         public StallService(HttpClient httpClient, OfflineCacheService offlineCache)
         {
@@ -23,10 +24,11 @@ namespace FoodStreetAudioGuide
 
                 if (response.IsSuccessStatusCode)
                 {
-                    var result = await response.Content.ReadFromJsonAsync<List<StallItem>>();
-                    var stalls = await CacheImagesAsync(result ?? new List<StallItem>());
+                    var sourceStalls = await response.Content.ReadFromJsonAsync<List<StallItem>>() ?? new List<StallItem>();
+                    var stalls = NormalizeStalls(sourceStalls);
                     await _offlineCache.SaveStallsAsync(stalls);
-                    await FlushPendingListeningLogsAsync();
+                    _ = Task.Run(() => PrimeImageCacheAsync(sourceStalls));
+                    _ = Task.Run(FlushPendingListeningLogsAsync);
                     return stalls;
                 }
 
@@ -42,6 +44,59 @@ namespace FoodStreetAudioGuide
             }
 
             return await _offlineCache.LoadStallsAsync();
+        }
+
+        public Task<List<StallItem>> LoadCachedStallsAsync()
+        {
+            return _offlineCache.LoadStallsAsync();
+        }
+
+        public async Task<List<StallItem>> SearchStallsAsync(
+            string query,
+            double? lat = null,
+            double? lng = null,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return new List<StallItem>();
+            }
+
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync(
+                    "search",
+                    new
+                    {
+                        query,
+                        lat,
+                        lng,
+                        limit = 20
+                    },
+                    cancellationToken);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var sourceStalls = await response.Content.ReadFromJsonAsync<List<StallItem>>(cancellationToken: cancellationToken) ?? new List<StallItem>();
+                    return NormalizeStalls(sourceStalls);
+                }
+
+                Debug.WriteLine($"--- SEARCH API Tra ve loi: {response.StatusCode}");
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (HttpRequestException ex)
+            {
+                Debug.WriteLine(@"--- LOI TIM KIEM KET NOI: " + ex.Message);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(@"--- LOI TIM KIEM HE THONG: " + ex.Message);
+            }
+
+            return new List<StallItem>();
         }
 
         public async Task LogListeningAsync(int stallId, string languageCode, int durationSeconds)
@@ -67,32 +122,86 @@ namespace FoodStreetAudioGuide
             }
         }
 
-        private async Task<List<StallItem>> CacheImagesAsync(List<StallItem> stalls)
+        private List<StallItem> NormalizeStalls(List<StallItem> stalls)
         {
-            var cached = new List<StallItem>(stalls.Count);
+            var normalized = new List<StallItem>(stalls.Count);
 
             foreach (var stall in stalls)
             {
                 if (string.IsNullOrWhiteSpace(stall.ImageUrl))
                 {
-                    cached.Add(stall);
+                    normalized.Add(stall);
                     continue;
                 }
 
-                try
+                var absoluteUrl = BuildAbsoluteUrl(stall.ImageUrl);
+                var thumbnailUrl = string.IsNullOrWhiteSpace(stall.ThumbnailUrl)
+                    ? absoluteUrl
+                    : BuildAbsoluteUrl(stall.ThumbnailUrl);
+                var cachedThumbnailPath = _offlineCache.TryGetCachedImagePath(stall.Id, thumbnailUrl, "thumb");
+                var cachedFullPath = _offlineCache.TryGetCachedImagePath(stall.Id, absoluteUrl, "full");
+
+                normalized.Add(stall with
                 {
-                    var bytes = await _httpClient.GetByteArrayAsync(stall.ImageUrl);
-                    var localPath = await _offlineCache.SaveImageAsync(stall.Id, stall.ImageUrl, bytes);
-                    cached.Add(stall with { ImageUrl = localPath });
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine(@"--- LOI CACHE ANH: " + ex.Message);
-                    cached.Add(stall);
-                }
+                    ThumbnailUrl = cachedThumbnailPath ?? thumbnailUrl,
+                    ImageUrl = cachedFullPath ?? absoluteUrl
+                });
             }
 
-            return cached;
+            return normalized;
+        }
+
+        private async Task PrimeImageCacheAsync(List<StallItem> stalls)
+        {
+            var changed = 0;
+
+            var tasks = stalls
+                .Where(stall => stall.Id > 0 && !string.IsNullOrWhiteSpace(stall.ImageUrl))
+                .Select(async stall =>
+                {
+                    var thumbnailUrl = string.IsNullOrWhiteSpace(stall.ThumbnailUrl)
+                        ? BuildAbsoluteUrl(stall.ImageUrl)
+                        : BuildAbsoluteUrl(stall.ThumbnailUrl);
+
+                    try
+                    {
+                        if (_offlineCache.TryGetCachedImagePath(stall.Id, thumbnailUrl, "thumb") is null)
+                        {
+                            var thumbnailBytes = await _httpClient.GetByteArrayAsync(thumbnailUrl);
+                            await _offlineCache.SaveImageAsync(stall.Id, thumbnailUrl, thumbnailBytes, "thumb");
+                            Interlocked.Exchange(ref changed, 1);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine(@"--- LOI CACHE ANH: " + ex.Message);
+                    }
+                })
+                .ToArray();
+
+            await Task.WhenAll(tasks);
+
+            if (changed == 1)
+            {
+                var refreshed = NormalizeStalls(stalls);
+                await _offlineCache.SaveStallsAsync(refreshed);
+                ImageCacheUpdated?.Invoke(refreshed);
+            }
+        }
+
+        private string BuildAbsoluteUrl(string imageUrl)
+        {
+            if (Uri.TryCreate(imageUrl, UriKind.Absolute, out _))
+            {
+                return imageUrl;
+            }
+
+            if (_httpClient.BaseAddress is null)
+            {
+                return imageUrl;
+            }
+
+            return new Uri(_httpClient.BaseAddress, imageUrl.TrimStart('/')).ToString();
         }
 
         private async Task QueueListeningLogAsync(int stallId, string languageCode, int durationSeconds)

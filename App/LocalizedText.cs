@@ -22,6 +22,7 @@
         public string PopupDistanceLabel { get; init; } = string.Empty;
         public string PopupRatingLabel { get; init; } = string.Empty;
         public string PopupReviewsLabel { get; init; } = string.Empty;
+        public string PopupHoursLabel { get; init; } = string.Empty;
         public string PopupSpecialtiesLabel { get; init; } = string.Empty;
         public string AudioReadyLabel { get; init; } = string.Empty;
         public string AudioNotReadyLabel { get; init; } = string.Empty;

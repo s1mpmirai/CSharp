@@ -12,6 +12,7 @@ from gtts import gTTS
 from datetime import datetime, timedelta
 from typing import Optional
 from io import BytesIO
+from PIL import Image
 import os
 import shutil
 import uuid
@@ -20,13 +21,15 @@ import hmac
 import base64
 import json
 import secrets
+import unicodedata
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:password123@db:5432/food_street_db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:password123@localhost:5432/food_street_db")
 APP_SECRET = os.getenv("APP_SECRET", "streetfeast-secret-key")
 SESSION_COOKIE = "sf_session"
 WEB_DIR = os.path.abspath(os.getenv("WEB_DIR", os.path.join(BASE_DIR, "..", "Web")))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+THUMBNAIL_MAX_SIZE = int(os.getenv("THUMBNAIL_MAX_SIZE", "160"))
 TOKEN_HOURS = 12
 PBKDF2_ITERATIONS = int(os.getenv("PBKDF2_ITERATIONS", "390000"))
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
@@ -45,6 +48,7 @@ SUPPORTED_TRANSLATIONS = {
     "ja": "ja",
     "zh-CN": "zh-CN",
 }
+AUDIO_PROFILE_VERSION = "gtts-v2"
 
 
 class Role(Base):
@@ -233,7 +237,6 @@ app.add_middleware(
 )
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 
 def get_db():
@@ -242,6 +245,42 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def web_file_response(filename: str) -> FileResponse:
+    response = FileResponse(os.path.join(WEB_DIR, filename))
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+
+def build_upload_url(request: Request, filename: str) -> str:
+    return str(request.base_url).rstrip("/") + f"/uploads/{filename}"
+
+
+def build_thumbnail_url(request: Request, filename: str) -> str:
+    return str(request.base_url).rstrip("/") + f"/thumbnails/{filename}"
+
+
+@app.get("/thumbnails/{filename}")
+def get_upload_thumbnail(filename: str):
+    file_path = os.path.join(UPLOAD_DIR, filename)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Không tìm thấy ảnh")
+
+    try:
+        with Image.open(file_path) as image:
+            image = image.convert("RGB")
+            image.thumbnail((THUMBNAIL_MAX_SIZE, THUMBNAIL_MAX_SIZE))
+            buffer = BytesIO()
+            image.save(buffer, format="JPEG", quality=80, optimize=True)
+            return Response(content=buffer.getvalue(), media_type="image/jpeg")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Không thể tạo thumbnail")
+
+
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 
 def hash_password(password: str) -> str:
@@ -419,9 +458,37 @@ def require_specialties(*values: Optional[str]) -> tuple[str, str, str]:
 
 def require_poi_radius(value: Optional[float]) -> float:
     radius = float(value or 0)
-    if radius <= 0:
-        raise HTTPException(status_code=400, detail="Vui lòng nhập bán kính POI lớn hơn 0")
+    if radius < 10:
+        raise HTTPException(status_code=400, detail="Vui lòng nhập bán kính POI tối thiểu 10m")
     return radius
+
+
+def normalize_time_value(value: Optional[str]) -> str:
+    cleaned = (value or "").strip()
+    if not cleaned:
+        return ""
+    if not re.fullmatch(r"\d{2}:\d{2}", cleaned):
+        raise HTTPException(status_code=400, detail="Vui lòng nhập giờ theo định dạng HH:MM")
+    return cleaned
+
+
+def build_opening_hours(opening_time: Optional[str], closing_time: Optional[str]) -> str:
+    open_value = normalize_time_value(opening_time)
+    close_value = normalize_time_value(closing_time)
+    if not open_value or not close_value:
+        raise HTTPException(status_code=400, detail="Vui lòng nhập đầy đủ giờ mở và giờ đóng")
+    return f"{open_value} - {close_value}"
+
+
+def split_opening_hours(opening_hours: Optional[str]) -> tuple[str, str]:
+    raw = (opening_hours or "").strip()
+    if not raw:
+        return "", ""
+    normalized = raw.replace("–", "-").replace("—", "-")
+    parts = [part.strip() for part in normalized.split("-") if part.strip()]
+    if len(parts) >= 2:
+        return parts[0], parts[1]
+    return raw, ""
 
 
 def serialize_specialties(source) -> list[str]:
@@ -430,6 +497,71 @@ def serialize_specialties(source) -> list[str]:
         getattr(source, "specialty_2", ""),
         getattr(source, "specialty_3", "")
     )
+
+
+def normalize_search_text(value: Optional[str]) -> str:
+    raw = (value or "").strip().lower()
+    if not raw:
+        return ""
+    normalized = unicodedata.normalize("NFD", raw)
+    without_marks = "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
+    return without_marks.replace("đ", "d")
+
+
+def split_search_terms(value: Optional[str]) -> list[str]:
+    return [item for item in normalize_search_text(value).split() if item]
+
+
+def serialize_stall_card(stall: Stall, request: Request, distance_km: float) -> dict:
+    opening_time, closing_time = split_opening_hours(stall.opening_hours)
+    return {
+        "Id": stall.id,
+        "Name": stall.name,
+        "DistanceText": f"{round(distance_km, 2)}km",
+        "Distance": distance_km,
+        "Lat": stall.latitude,
+        "Lng": stall.longitude,
+        "Rating": str(stall.rating_avg),
+        "Reviews": f"({stall.reviews_count})",
+        "Cuisine": stall.category.name if stall.category else "",
+        "CategorySlug": stall.category.slug if stall.category else "",
+        "OpeningHours": stall.opening_hours or "",
+        "OpeningTime": opening_time,
+        "ClosingTime": closing_time,
+        "Specialties": serialize_specialties(stall),
+        "PoiRadiusMeters": stall.poi_radius_m or 30,
+        "Translations": translations_to_dict(stall),
+        "ImageUrl": build_upload_url(request, stall.image_url) if stall.image_url else "",
+        "ThumbnailUrl": build_thumbnail_url(request, stall.image_url) if stall.image_url else ""
+    }
+
+
+def compute_search_score(stall: Stall, query_terms: list[str]) -> int:
+    if not query_terms:
+        return 0
+
+    name = normalize_search_text(stall.name)
+    category_name = normalize_search_text(stall.category.name if stall.category else "")
+    category_slug = normalize_search_text(stall.category.slug if stall.category else "")
+    specialties = [normalize_search_text(item) for item in serialize_specialties(stall)]
+
+    score = 0
+    for term in query_terms:
+        matched = False
+        if term in name:
+            score += 120 if name.startswith(term) else 90
+            matched = True
+        elif any(term in item for item in specialties):
+            score += 80
+            matched = True
+        elif term in category_name or term in category_slug:
+            score += 50
+            matched = True
+
+        if not matched:
+            return 0
+
+    return score
 
 
 def map_tts_language(language_code: str) -> str:
@@ -450,7 +582,7 @@ def generate_audio_bytes(script_text: str, language_code: str) -> bytes:
 
 
 def get_script_hash(script_text: str, language_code: str) -> str:
-    content = f"{language_code}:{script_text}".encode("utf-8")
+    content = f"{AUDIO_PROFILE_VERSION}:{language_code}:{script_text}".encode("utf-8")
     return hashlib.sha256(content).hexdigest()
 
 
@@ -473,6 +605,7 @@ def serialize_admin_user(request: Request, user: User, stall: Optional[Stall] = 
 
 
 def serialize_owner_stall(stall: Stall) -> dict:
+    opening_time, closing_time = split_opening_hours(stall.opening_hours)
     return {
         "id": stall.id,
         "name": stall.name,
@@ -482,9 +615,113 @@ def serialize_owner_stall(stall: Stall) -> dict:
         "specialties": serialize_specialties(stall),
         "poi_radius_m": stall.poi_radius_m or 30,
         "opening_hours": stall.opening_hours or "",
+        "opening_time": opening_time,
+        "closing_time": closing_time,
         "is_open": stall.is_open,
         "script_vi": translations_to_dict(stall).get("vi", ""),
         "image_url": f"/uploads/{stall.image_url}" if stall.image_url else ""
+    }
+
+
+def get_stall_script_vi(stall: Optional[Stall]) -> str:
+    if not stall:
+        return ""
+    return translations_to_dict(stall).get("vi", "")
+
+
+def serialize_stall_for_compare(request: Request, stall: Optional[Stall]) -> dict:
+    if not stall:
+        return {}
+    opening_time, closing_time = split_opening_hours(stall.opening_hours)
+
+    image_url = ""
+    if stall.image_url:
+        image_url = str(request.base_url).rstrip("/") + f"/uploads/{stall.image_url}"
+
+    return {
+        "name": stall.name or "",
+        "category_id": stall.category_id,
+        "category_name": stall.category.name if getattr(stall, "category", None) else "",
+        "lat": stall.latitude,
+        "lng": stall.longitude,
+        "opening_hours": stall.opening_hours or "",
+        "opening_time": opening_time,
+        "closing_time": closing_time,
+        "is_open": bool(stall.is_open),
+        "poi_radius_m": stall.poi_radius_m or 30,
+        "specialties": serialize_specialties(stall),
+        "script_vi": get_stall_script_vi(stall),
+        "image_url": image_url,
+    }
+
+
+def serialize_update_request_new_values(request: Request, row: StallUpdateRequest) -> dict:
+    opening_time, closing_time = split_opening_hours(row.opening_hours)
+    image_url = ""
+    if row.image_url:
+        image_url = str(request.base_url).rstrip("/") + f"/uploads/{row.image_url}"
+
+    return {
+        "name": row.name or "",
+        "category_id": row.category_id,
+        "category_name": row.category.name if getattr(row, "category", None) else "",
+        "lat": row.latitude,
+        "lng": row.longitude,
+        "opening_hours": row.opening_hours or "",
+        "opening_time": opening_time,
+        "closing_time": closing_time,
+        "is_open": bool(row.is_open),
+        "poi_radius_m": row.poi_radius_m or 30,
+        "specialties": serialize_specialties(row),
+        "script_vi": row.script_vi or "",
+        "image_url": image_url,
+    }
+
+
+def build_request_field_changes(current_values: dict, requested_values: dict) -> list[dict]:
+    field_specs = [
+        ("name", "Tên gian hàng"),
+        ("category_name", "Danh mục"),
+        ("lat", "Vĩ độ"),
+        ("lng", "Kinh độ"),
+        ("opening_time", "Giờ mở"),
+        ("closing_time", "Giờ đóng"),
+        ("is_open", "Trạng thái mở cửa"),
+        ("poi_radius_m", "Bán kính tự phát POI"),
+        ("specialties", "3 món đặc sản"),
+        ("script_vi", "Script tiếng Việt"),
+        ("image_url", "Ảnh gian hàng"),
+    ]
+
+    changes = []
+    for key, label in field_specs:
+        old_value = current_values.get(key)
+        new_value = requested_values.get(key)
+        changed = old_value != new_value
+        changes.append({
+            "key": key,
+            "label": label,
+            "old_value": old_value,
+            "new_value": new_value,
+            "changed": changed,
+        })
+    return changes
+
+
+def serialize_update_request_detail(request: Request, row: StallUpdateRequest) -> dict:
+    current_values = serialize_stall_for_compare(request, row.stall)
+    requested_values = serialize_update_request_new_values(request, row)
+    return {
+        "id": row.id,
+        "stall_id": row.stall_id,
+        "stall_name": row.stall.name if row.stall else "",
+        "status": row.status,
+        "admin_note": row.admin_note or "",
+        "submitted_at": row.submitted_at.isoformat() if row.submitted_at else None,
+        "reviewed_at": row.reviewed_at.isoformat() if row.reviewed_at else None,
+        "current_values": current_values,
+        "requested_values": requested_values,
+        "field_changes": build_request_field_changes(current_values, requested_values),
     }
 
 
@@ -675,6 +912,13 @@ class UserLocation(BaseModel):
     lng: float
 
 
+class SearchRequest(BaseModel):
+    query: str
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    limit: int = 20
+
+
 @app.get("/")
 def root(request: Request, db: Session = Depends(get_db)):
     user = get_current_user_from_request(request, db)
@@ -687,7 +931,7 @@ def root(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/login")
 def login_page():
-    return FileResponse(os.path.join(WEB_DIR, "login.html"))
+    return web_file_response("login.html")
 
 
 @app.get("/owner")
@@ -695,15 +939,15 @@ def owner_page(request: Request, db: Session = Depends(get_db)):
     user = require_auth_page(request, db)
     require_role(user, "stall_owner")
     stall = get_owner_stall(db, user.id)
-    page = "owner-dashboard.html" if stall else "admin.html"
-    return FileResponse(os.path.join(WEB_DIR, page))
+    page = "owner-hub.html" if stall else "admin.html"
+    return web_file_response(page)
 
 
 @app.get("/superadmin")
 def superadmin_page(request: Request, db: Session = Depends(get_db)):
     user = require_auth_page(request, db)
     require_role(user, "super_admin")
-    return FileResponse(os.path.join(WEB_DIR, "superadmin.html"))
+    return web_file_response("superadmin.html")
 
 
 @app.post("/auth/login")
@@ -759,6 +1003,101 @@ def owner_stall(request: Request, db: Session = Depends(get_db)):
     return {"stall": serialize_owner_stall_for_request(request, stall) if stall else None}
 
 
+@app.get("/owner/dashboard")
+def owner_dashboard(request: Request, db: Session = Depends(get_db)):
+    user = require_auth_page(request, db)
+    require_role(user, "stall_owner")
+
+    stall = get_owner_stall(db, user.id)
+    if not stall:
+        return {"stall": None, "metrics": {}, "latest_request": None}
+
+    now = datetime.utcnow()
+    last_7_days = now - timedelta(days=7)
+    last_30_days = now - timedelta(days=30)
+
+    total_listens = db.query(func.count(ListeningLog.id)).filter(ListeningLog.stall_id == stall.id).scalar() or 0
+    listens_7_days = (
+        db.query(func.count(ListeningLog.id))
+        .filter(ListeningLog.stall_id == stall.id, ListeningLog.listened_at >= last_7_days)
+        .scalar() or 0
+    )
+    listens_30_days = (
+        db.query(func.count(ListeningLog.id))
+        .filter(ListeningLog.stall_id == stall.id, ListeningLog.listened_at >= last_30_days)
+        .scalar() or 0
+    )
+    pending_requests = (
+        db.query(func.count(StallUpdateRequest.id))
+        .filter(StallUpdateRequest.stall_id == stall.id, StallUpdateRequest.status == "pending")
+        .scalar() or 0
+    )
+    rejected_requests = (
+        db.query(func.count(StallUpdateRequest.id))
+        .filter(StallUpdateRequest.stall_id == stall.id, StallUpdateRequest.status == "rejected")
+        .scalar() or 0
+    )
+
+    latest_row = (
+        db.query(StallUpdateRequest)
+        .options(joinedload(StallUpdateRequest.stall).joinedload(Stall.category), joinedload(StallUpdateRequest.category))
+        .filter(StallUpdateRequest.stall_id == stall.id)
+        .order_by(StallUpdateRequest.submitted_at.desc(), StallUpdateRequest.id.desc())
+        .first()
+    )
+
+    trend_rows = (
+        db.query(func.date(ListeningLog.listened_at).label("day"), func.count(ListeningLog.id).label("count"))
+        .filter(ListeningLog.stall_id == stall.id, ListeningLog.listened_at >= last_7_days)
+        .group_by(func.date(ListeningLog.listened_at))
+        .order_by(func.date(ListeningLog.listened_at).asc())
+        .all()
+    )
+    trend_map = {str(row.day): int(row.count or 0) for row in trend_rows}
+    listens_trend = []
+    for offset in range(6, -1, -1):
+        day = (now - timedelta(days=offset)).date()
+        listens_trend.append({
+            "date": day.isoformat(),
+            "label": day.strftime("%d/%m"),
+            "count": trend_map.get(day.isoformat(), 0),
+        })
+
+    return {
+        "stall": serialize_owner_stall_for_request(request, stall),
+        "metrics": {
+            "total_listens": int(total_listens),
+            "listens_7_days": int(listens_7_days),
+            "listens_30_days": int(listens_30_days),
+            "pending_requests": int(pending_requests),
+            "rejected_requests": int(rejected_requests),
+        },
+        "listens_trend": listens_trend,
+        "latest_request": serialize_update_request_detail(request, latest_row) if latest_row else None,
+    }
+
+
+@app.get("/owner/update-requests")
+def owner_update_requests(request: Request, db: Session = Depends(get_db)):
+    user = require_auth_page(request, db)
+    require_role(user, "stall_owner")
+
+    stall = get_owner_stall(db, user.id)
+    if not stall:
+        return {"items": []}
+
+    rows = (
+        db.query(StallUpdateRequest)
+        .options(joinedload(StallUpdateRequest.stall).joinedload(Stall.category), joinedload(StallUpdateRequest.category))
+        .filter(StallUpdateRequest.stall_id == stall.id)
+        .order_by(StallUpdateRequest.submitted_at.desc(), StallUpdateRequest.id.desc())
+        .limit(10)
+        .all()
+    )
+
+    return {"items": [serialize_update_request_detail(request, row) for row in rows]}
+
+
 @app.post("/owner/stall")
 async def owner_create_stall(
     request: Request,
@@ -771,7 +1110,8 @@ async def owner_create_stall(
     specialty_3: str = Form(...),
     poi_radius_m: float = Form(...),
     script_vi: str = Form(...),
-    opening_hours: str = Form(""),
+    opening_time: str = Form(...),
+    closing_time: str = Form(...),
     image: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
@@ -783,6 +1123,7 @@ async def owner_create_stall(
 
     specialty_1, specialty_2, specialty_3 = require_specialties(specialty_1, specialty_2, specialty_3)
     poi_radius_m = require_poi_radius(poi_radius_m)
+    opening_hours = build_opening_hours(opening_time, closing_time)
 
     filename = ""
     if image:
@@ -827,7 +1168,8 @@ async def owner_update_request(
     specialty_3: str = Form(...),
     poi_radius_m: float = Form(...),
     script_vi: str = Form(...),
-    opening_hours: str = Form(""),
+    opening_time: str = Form(...),
+    closing_time: str = Form(...),
     is_open: bool = Form(True),
     image: UploadFile = File(None),
     db: Session = Depends(get_db)
@@ -841,6 +1183,7 @@ async def owner_update_request(
 
     specialty_1, specialty_2, specialty_3 = require_specialties(specialty_1, specialty_2, specialty_3)
     poi_radius_m = require_poi_radius(poi_radius_m)
+    opening_hours = build_opening_hours(opening_time, closing_time)
 
     filename = stall.image_url
     if image:
@@ -966,17 +1309,25 @@ def admin_users(request: Request, db: Session = Depends(get_db)):
         .order_by(User.id.asc())
         .all()
     )
-    owner_stalls = {
-        stall.created_by_user_id: stall
-        for stall in db.query(Stall).filter(Stall.is_deleted == False).all()
-        if stall.created_by_user_id
-    }
     return {
         "users": [
-            serialize_admin_user(request, item, owner_stalls.get(item.id))
+            serialize_admin_user(request, item, get_owner_stall(db, item.id))
             for item in users
         ]
     }
+
+
+@app.get("/admin/users/{user_id}")
+def admin_user_detail(user_id: int, request: Request, db: Session = Depends(get_db)):
+    user = require_auth_page(request, db)
+    require_role(user, "super_admin")
+
+    target_user = db.query(User).options(joinedload(User.role)).filter(User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
+
+    stall = get_owner_stall(db, target_user.id) if target_user.role and target_user.role.name == "stall_owner" else None
+    return {"user": serialize_admin_user(request, target_user, stall)}
 
 
 @app.post("/admin/users")
@@ -1053,7 +1404,8 @@ async def admin_manage_user(
     specialty_3: str = Form(""),
     poi_radius_m: Optional[float] = Form(None),
     script_vi: str = Form(""),
-    opening_hours: str = Form(""),
+    opening_time: str = Form(""),
+    closing_time: str = Form(""),
     is_open: bool = Form(True),
     image: UploadFile = File(None),
     db: Session = Depends(get_db)
@@ -1100,6 +1452,7 @@ async def admin_manage_user(
 
             specialty_1, specialty_2, specialty_3 = require_specialties(specialty_1, specialty_2, specialty_3)
             poi_radius_m = require_poi_radius(poi_radius_m)
+            opening_hours = build_opening_hours(opening_time, closing_time)
 
             filename = stall.image_url
             if image and image.filename:
@@ -1116,7 +1469,7 @@ async def admin_manage_user(
             stall.specialty_2 = specialty_2
             stall.specialty_3 = specialty_3
             stall.poi_radius_m = poi_radius_m
-            stall.opening_hours = opening_hours.strip()
+            stall.opening_hours = opening_hours
             stall.is_open = is_open
             stall.image_url = filename
             stall.updated_at = datetime.utcnow()
@@ -1186,7 +1539,7 @@ def admin_update_requests(request: Request, db: Session = Depends(get_db)):
 
     rows = (
         db.query(StallUpdateRequest)
-        .options(joinedload(StallUpdateRequest.stall))
+        .options(joinedload(StallUpdateRequest.stall).joinedload(Stall.category), joinedload(StallUpdateRequest.category))
         .filter(StallUpdateRequest.status == "pending")
         .order_by(StallUpdateRequest.submitted_at.asc())
         .all()
@@ -1204,11 +1557,32 @@ def admin_update_requests(request: Request, db: Session = Depends(get_db)):
                 "opening_hours": row.opening_hours or "",
                 "is_open": row.is_open,
                 "script_vi": row.script_vi,
-                "submitted_at": row.submitted_at.isoformat()
+                "submitted_at": row.submitted_at.isoformat(),
+                "has_changes": any(item["changed"] for item in build_request_field_changes(
+                    serialize_stall_for_compare(request, row.stall),
+                    serialize_update_request_new_values(request, row)
+                ))
             }
             for row in rows
         ]
     }
+
+
+@app.get("/admin/update-requests/{request_id}")
+def admin_update_request_detail(request_id: int, request: Request, db: Session = Depends(get_db)):
+    user = require_auth_page(request, db)
+    require_role(user, "super_admin")
+
+    row = (
+        db.query(StallUpdateRequest)
+        .options(joinedload(StallUpdateRequest.stall).joinedload(Stall.category), joinedload(StallUpdateRequest.category))
+        .filter(StallUpdateRequest.id == request_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Không tìm thấy yêu cầu")
+
+    return {"item": serialize_update_request_detail(request, row)}
 
 
 @app.post("/admin/update-requests/{request_id}/approve")
@@ -1280,23 +1654,40 @@ def get_nearby(location: UserLocation, request: Request, db: Session = Depends(g
     results = []
     for stall in stalls:
         dist = geodesic((location.lat, location.lng), (stall.latitude, stall.longitude)).kilometers
-        results.append({
-            "Id": stall.id,
-            "Name": stall.name,
-            "DistanceText": f"{round(dist, 2)}km",
-            "Distance": dist,
-            "Lat": stall.latitude,
-            "Lng": stall.longitude,
-            "Rating": str(stall.rating_avg),
-            "Reviews": f"({stall.reviews_count})",
-            "Cuisine": stall.category.name if stall.category else "",
-            "Specialties": serialize_specialties(stall),
-            "PoiRadiusMeters": stall.poi_radius_m or 30,
-            "Translations": translations_to_dict(stall),
-            "ImageUrl": str(request.base_url).rstrip("/") + f"/uploads/{stall.image_url}" if stall.image_url else ""
-        })
+        results.append(serialize_stall_card(stall, request, dist))
 
     return sorted(results, key=lambda item: item["Distance"])[:10]
+
+
+@app.post("/search")
+def search_stalls(payload: SearchRequest, request: Request, db: Session = Depends(get_db)):
+    query_terms = split_search_terms(payload.query)
+    if not query_terms:
+        return []
+
+    stalls = (
+        db.query(Stall)
+        .options(joinedload(Stall.category), joinedload(Stall.translations).joinedload(StallTranslation.language))
+        .filter(Stall.is_active == True, Stall.is_deleted == False)
+        .all()
+    )
+
+    user_point = None
+    if payload.lat is not None and payload.lng is not None:
+        user_point = (payload.lat, payload.lng)
+
+    ranked = []
+    for stall in stalls:
+        score = compute_search_score(stall, query_terms)
+        if score <= 0:
+            continue
+
+        distance_km = geodesic(user_point, (stall.latitude, stall.longitude)).kilometers if user_point else 9999
+        ranked.append((score, distance_km, serialize_stall_card(stall, request, distance_km)))
+
+    ranked.sort(key=lambda item: (-item[0], item[1], item[2]["Name"]))
+    limit = min(max(payload.limit, 1), 50)
+    return [item[2] for item in ranked[:limit]]
 
 
 @app.post("/logs/listening")
@@ -1391,7 +1782,8 @@ def get_stall_audio(
         media_type=asset.mime_type,
         headers={
             "Content-Disposition": f'inline; filename="stall-{stall.id}-{language_code}.mp3"',
-            "Cache-Control": "public, max-age=86400"
+            "Cache-Control": "public, max-age=86400",
+            "X-Audio-Profile-Version": AUDIO_PROFILE_VERSION
         }
     )
 
