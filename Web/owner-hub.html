@@ -863,7 +863,127 @@
         </div>
     </dialog>
 
-   
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let marker = null;
+        let dashboardPayload = null;
+        const shell = document.getElementById("shell");
+        const sidebar = document.getElementById("sidebar");
+        const mapSlot = document.getElementById("mapSlot");
+        let collapseTimer = null;
+        let requestHistoryItems = [];
+        const map = L.map("map").setView([10.7626, 106.7045], 15);
+
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "&copy; OpenStreetMap contributors"
+        }).addTo(map);
+
+        document.getElementById("image_file").addEventListener("change", previewImage);
+        document.getElementById("stallForm").addEventListener("submit", saveStall);
+        map.on("click", e => updateMarker(e.latlng.lat, e.latlng.lng));
+        sidebar.addEventListener("mouseenter", openSidebar);
+        sidebar.addEventListener("mouseleave", scheduleSidebarClose);
+        sidebar.addEventListener("focusin", openSidebar);
+        sidebar.addEventListener("focusout", scheduleSidebarClose);
+
+        function openSidebar() {
+            clearTimeout(collapseTimer);
+            shell.classList.add("sidebar-open");
+        }
+
+        function scheduleSidebarClose() {
+            clearTimeout(collapseTimer);
+            if (!sidebar.matches(":hover") && !sidebar.contains(document.activeElement)) {
+                shell.classList.remove("sidebar-open");
+            }
+        }
+
+        function showView(viewName, button = null) {
+            document.querySelectorAll(".view").forEach(item => item.classList.remove("active"));
+            document.getElementById(`view-${viewName}`).classList.add("active");
+            document.querySelectorAll(".nav-button").forEach(item => item.classList.remove("active"));
+            const target = button || document.querySelector(`.nav-button[data-view="${viewName}"]`);
+            if (target) target.classList.add("active");
+            if (viewName === "chinh-sua-gian-hang") {
+                setTimeout(() => map.invalidateSize(), 120);
+            }
+        }
+
+        function revealMap() {
+            mapSlot.classList.add("show");
+            setTimeout(() => map.invalidateSize(), 120);
+        }
+
+        async function api(path, options = {}) {
+            const res = await fetch(path, { ...options, cache: "no-store", credentials: "include" });
+            const body = await safeJson(res);
+            if (res.status === 401 || res.status === 403) {
+                location.href = "/login";
+                return null;
+            }
+            if (!res.ok) throw new Error(body?.detail || "Request failed");
+            return body;
+        }
+
+        async function safeJson(response) {
+            try { return await response.json(); } catch { return null; }
+        }
+
+        async function bootstrap() {
+            const me = await api("/auth/me");
+            if (!me || me.user.role !== "stall_owner") return;
+            document.getElementById("welcome").textContent = `Xin chào ${me.user.full_name || me.user.username}`;
+
+            const categories = await api("/categories");
+            document.getElementById("category_id").innerHTML = categories.map(item => `<option value="${item.id}">${item.name}</option>`).join("");
+
+            dashboardPayload = await api("/owner/dashboard");
+            if (!dashboardPayload?.stall) {
+                location.href = "/owner";
+                return;
+            }
+
+            fillDashboard(dashboardPayload);
+            await loadRequestHistory(true);
+        }
+
+        function fillDashboard(data) {
+            const stall = data.stall;
+            fillMetrics(data.metrics || {});
+            fillTrend(data.listens_trend || []);
+            fillForm(stall);
+            fillSummaryCard(stall);
+        }
+
+        function fillMetrics(metrics) {
+            document.getElementById("m1").textContent = Number(metrics.total_listens || 0);
+            document.getElementById("m2").textContent = Number(metrics.listens_7_days || 0);
+            document.getElementById("m3").textContent = Number(metrics.listens_30_days || 0);
+            document.getElementById("m4").textContent = Number(metrics.pending_requests || 0);
+            document.getElementById("pendingBadge").textContent = Number(metrics.pending_requests || 0);
+        }
+
+        function fillTrend(items) {
+            const host = document.getElementById("trendBars");
+            if (!Array.isArray(items) || !items.length) {
+                host.innerHTML = `<div style="grid-column:1/-1;color:var(--muted);">Chưa có dữ liệu lượt nghe.</div>`;
+                return;
+            }
+            const max = Math.max(...items.map(item => Number(item.count || 0)), 1);
+            host.innerHTML = items.map(item => {
+                const height = Math.max(8, Math.round((Number(item.count || 0) / max) * 92));
+                return `
+                        <div class="trend-bar">
+                            <div class="trend-count">${Number(item.count || 0)}</div>
+                            <div class="trend-fill" style="height:${height}px;"></div>
+                            <div class="trend-label">${escapeHtml(item.label || "")}</div>
+                        </div>
+                    `;
+            }).join("");
+        }
+}
+    </script>
+
 </body>
 </html>
 
