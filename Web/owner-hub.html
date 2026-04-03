@@ -981,7 +981,262 @@
                     `;
             }).join("");
         }
-}
+
+        function fillSummaryCard(stall) {
+            const image = document.getElementById("stallImageCard");
+            image.src = stall.image_url || "";
+            image.style.display = stall.image_url ? "block" : "none";
+            document.getElementById("stallNameCard").textContent = stall.name || "";
+            const timeLabel = stall.opening_hours || [stall.opening_time, stall.closing_time].filter(Boolean).join(" - ");
+            document.getElementById("stallMetaCard").textContent = `${document.querySelector('#category_id option:checked')?.textContent || ""} · ${timeLabel || "Chưa cập nhật giờ mở cửa"}`;
+            document.getElementById("stallOpenBadge").textContent = stall.is_open ? "Đang mở" : "Đang đóng";
+            document.getElementById("stallOpenBadge").className = `pill ${stall.is_open ? "approved" : "rejected"}`;
+            document.getElementById("stallPoiBadge").textContent = `POI ${Math.round(stall.poi_radius_m || 30)}m`;
+        }
+
+        function fillForm(stall) {
+            document.getElementById("name").value = stall.name || "";
+            document.getElementById("category_id").value = String(stall.category_id || "");
+            document.getElementById("lat").value = Number(stall.lat).toFixed(6);
+            document.getElementById("lng").value = Number(stall.lng).toFixed(6);
+            document.getElementById("opening_time").value = stall.opening_time || "";
+            document.getElementById("closing_time").value = stall.closing_time || "";
+            document.getElementById("poi_radius_m").value = Math.round(stall.poi_radius_m || 30);
+            document.getElementById("specialty_1").value = stall.specialties?.[0] || "";
+            document.getElementById("specialty_2").value = stall.specialties?.[1] || "";
+            document.getElementById("specialty_3").value = stall.specialties?.[2] || "";
+            document.getElementById("script_vi").value = stall.script_vi || "";
+            document.getElementById("is_open").value = String(Boolean(stall.is_open));
+            updateMarker(stall.lat, stall.lng);
+            if (stall.image_url) {
+                document.getElementById("img_preview").src = stall.image_url;
+                document.getElementById("img_preview").style.display = "block";
+                document.getElementById("preview_text").style.display = "none";
+            }
+        }
+
+        function previewImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function () {
+                document.getElementById("img_preview").src = reader.result;
+                document.getElementById("img_preview").style.display = "block";
+                document.getElementById("preview_text").style.display = "none";
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function geocode() {
+            const address = document.getElementById("address_search").value.trim();
+            if (!address) return showStatus("Nhập địa chỉ trước khi tìm.", true);
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ", Vietnam")}&limit=1`);
+                const data = await res.json();
+                if (!data.length) return showStatus("Không tìm thấy địa chỉ.", true);
+                revealMap();
+                updateMarker(Number(data[0].lat), Number(data[0].lon));
+                map.setView([data[0].lat, data[0].lon], 17);
+                setGpsAccuracy("");
+            } catch {
+                showStatus("Không thể tìm địa chỉ.", true);
+            }
+        }
+
+        async function captureCurrentLocation() {
+            if (!navigator.geolocation) {
+                showStatus("Trình duyệt không hỗ trợ lấy GPS hiện tại.", true);
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                position => {
+                    const { latitude, longitude, accuracy } = position.coords;
+                    revealMap();
+                    updateMarker(latitude, longitude);
+                    map.setView([latitude, longitude], 18);
+                    setGpsAccuracy(`Độ chính xác GPS hiện tại: khoảng ${Math.round(accuracy)}m`);
+                    showStatus("Đã lấy vị trí hiện tại.");
+                },
+                () => showStatus("Không thể lấy vị trí hiện tại. Hãy bật quyền vị trí trên trình duyệt.", true),
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        }
+
+        function updateMarker(lat, lng) {
+            revealMap();
+            if (marker) map.removeLayer(marker);
+            marker = L.marker([lat, lng]).addTo(map);
+            document.getElementById("lat").value = Number(lat).toFixed(6);
+            document.getElementById("lng").value = Number(lng).toFixed(6);
+        }
+
+        function setGpsAccuracy(message) {
+            document.getElementById("gps_accuracy").textContent = message;
+        }
+
+        async function saveStall(event) {
+            event.preventDefault();
+            if (!document.getElementById("name").value.trim()) return showStatus("Nhập tên gian hàng.", true);
+            if (!document.getElementById("lat").value.trim() || !document.getElementById("lng").value.trim()) return showStatus("Chọn vị trí trên bản đồ trước khi lưu.", true);
+            if (!document.getElementById("opening_time").value || !document.getElementById("closing_time").value) return showStatus("Nhập đầy đủ giờ mở và giờ đóng.", true);
+            if (!document.getElementById("poi_radius_m").value.trim() || Number(document.getElementById("poi_radius_m").value) < 10) return showStatus("Nhập bán kính POI tối thiểu 10m.", true);
+            if (!document.getElementById("specialty_1").value.trim() || !document.getElementById("specialty_2").value.trim() || !document.getElementById("specialty_3").value.trim()) return showStatus("Nhập đủ 3 món đặc sản.", true);
+            if (!document.getElementById("script_vi").value.trim()) return showStatus("Nhập script tiếng Việt cho TTS.", true);
+
+            const formData = new FormData();
+            formData.append("name", document.getElementById("name").value.trim());
+            formData.append("category_id", document.getElementById("category_id").value);
+            formData.append("lat", document.getElementById("lat").value.trim());
+            formData.append("lng", document.getElementById("lng").value.trim());
+            formData.append("opening_time", document.getElementById("opening_time").value);
+            formData.append("closing_time", document.getElementById("closing_time").value);
+            formData.append("poi_radius_m", document.getElementById("poi_radius_m").value.trim());
+            formData.append("specialty_1", document.getElementById("specialty_1").value.trim());
+            formData.append("specialty_2", document.getElementById("specialty_2").value.trim());
+            formData.append("specialty_3", document.getElementById("specialty_3").value.trim());
+            formData.append("script_vi", document.getElementById("script_vi").value.trim());
+            formData.append("is_open", document.getElementById("is_open").value);
+            const file = document.getElementById("image_file").files[0];
+            if (file) formData.append("image", file);
+
+            try {
+                await api("/owner/stall-update-request", { method: "POST", body: formData });
+                showStatus("Đã gửi yêu cầu cập nhật để admin duyệt.");
+                showToast("Đã gửi yêu cầu cập nhật thành công.", "ok");
+                await reloadOwnerData();
+            } catch (error) {
+                showStatus(error.message, true);
+            }
+        }
+
+        async function reloadOwnerData() {
+            dashboardPayload = await api("/owner/dashboard");
+            if (dashboardPayload?.stall) fillDashboard(dashboardPayload);
+            await loadRequestHistory(false);
+        }
+
+        async function loadRequestHistory(showPopup = true) {
+            const data = await api("/owner/update-requests");
+            requestHistoryItems = data?.items || [];
+            renderRequestHistory(requestHistoryItems);
+            const latest = requestHistoryItems[0];
+            if (showPopup && latest && latest.status === "rejected") {
+                showToast(`Yêu cầu gần nhất bị từ chối.${latest.admin_note ? ` Lý do: ${latest.admin_note}` : ""}`, "warn");
+            }
+        }
+
+        function renderRequestHistory(items) {
+            const host = document.getElementById("requestHistory");
+            if (!Array.isArray(items) || !items.length) {
+                host.innerHTML = `<div style="color:var(--muted);">Chưa có yêu cầu cập nhật nào.</div>`;
+                return;
+            }
+            host.innerHTML = items.map(item => `
+                    <div class="notice-item ${escapeHtml(item.status)}">
+                        <strong>${statusLabel(item.status)}</strong>
+                        <div class="notice-meta">Gửi lúc: ${formatDateTime(item.submitted_at)}${item.reviewed_at ? ` · Xử lý lúc: ${formatDateTime(item.reviewed_at)}` : ""}</div>
+                        ${item.status === "rejected" && item.admin_note ? `<div class="note-block">Lý do từ chối: ${escapeHtml(item.admin_note)}</div>` : ""}
+                        <div style="margin-top:12px;">
+                            <button class="btn btn-ghost" type="button" onclick="openRequestDetail(${item.id})">Xem chi tiết</button>
+                        </div>
+                    </div>
+                `).join("");
+        }
+
+        function openRequestDetail(id) {
+            const item = requestHistoryItems.find(entry => entry.id === id);
+            if (!item) return;
+            document.getElementById("requestDetailMeta").textContent = `Trạng thái: ${statusLabel(item.status)} · Gửi lúc: ${formatDateTime(item.submitted_at)}`;
+            const note = document.getElementById("requestDetailNote");
+            if (item.admin_note) {
+                note.style.display = "block";
+                note.textContent = item.status === "rejected" ? `Lý do từ chối: ${item.admin_note}` : item.admin_note;
+            } else {
+                note.style.display = "none";
+                note.textContent = "";
+            }
+            document.getElementById("requestDetailCompare").innerHTML = renderCompareRows(item.field_changes || []);
+            document.getElementById("requestDetailDialog").showModal();
+        }
+
+        function closeRequestDetail() {
+            document.getElementById("requestDetailDialog").close();
+        }
+
+        function renderCompareRows(changes) {
+            if (!Array.isArray(changes) || !changes.length) return '<div style="color:var(--muted);">Không có dữ liệu so sánh.</div>';
+            return changes.map(item => `
+                    <div class="compare-row ${item.changed ? "changed" : ""}">
+                        <div class="compare-label">${escapeHtml(item.label)}${item.changed ? " · Đã yêu cầu chỉnh sửa" : ""}</div>
+                        <div class="compare-cols">
+                            <div class="compare-cell">
+                                <div style="color:var(--muted);font-size:12px;margin-bottom:6px;">Bản hiện tại</div>
+                                ${formatCompareValue(item.old_value)}
+                            </div>
+                            <div class="compare-cell compare-new">
+                                <div style="color:var(--muted);font-size:12px;margin-bottom:6px;">Bản yêu cầu</div>
+                                ${item.changed ? `<strong>${formatCompareValue(item.new_value)}</strong>` : formatCompareValue(item.new_value)}
+                            </div>
+                        </div>
+                    </div>
+                `).join("");
+        }
+
+        function formatCompareValue(value) {
+            if (Array.isArray(value)) {
+                if (!value.length) return "<span style='color:#98a3af;'>Trống</span>";
+                return value.map(item => escapeHtml(item)).join("<br>");
+            }
+            if (typeof value === "boolean") return value ? "Đang mở" : "Đang đóng";
+            if (value === null || value === undefined || value === "") return "<span style='color:#98a3af;'>Trống</span>";
+            if (typeof value === "number") return escapeHtml(String(value));
+            if (String(value).startsWith("http")) return `<a href="${escapeHtml(value)}" target="_blank" rel="noreferrer">Xem ảnh</a>`;
+            return escapeHtml(String(value));
+        }
+
+        function statusLabel(status) {
+            if (status === "pending") return "Chờ duyệt";
+            if (status === "approved") return "Đã duyệt";
+            if (status === "rejected") return "Bị từ chối";
+            return status || "";
+        }
+
+        function formatDateTime(value) {
+            if (!value) return "";
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return value;
+            return date.toLocaleString("vi-VN");
+        }
+
+        function escapeHtml(text) {
+            return String(text ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+        }
+
+        function showStatus(message, isError = false) {
+            const box = document.getElementById("statusBox");
+            box.textContent = message;
+            box.className = `status show ${isError ? "err" : "ok"}`;
+        }
+
+        function showToast(message, type = "ok") {
+            const stack = document.getElementById("toastStack");
+            const toast = document.createElement("div");
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            stack.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.add("show"));
+            setTimeout(() => {
+                toast.classList.remove("show");
+                setTimeout(() => toast.remove(), 220);
+            }, 3200);
+        }
+
+        async function logout() {
+            await fetch("/auth/logout", { method: "POST", credentials: "include" });
+            location.href = "/login";
+        }
+
+        bootstrap();
     </script>
 
 </body>
