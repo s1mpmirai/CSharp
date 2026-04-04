@@ -2,7 +2,7 @@ namespace FoodStreetAudioGuide
 {
     internal static class ApiSettings
     {
-        private const string DefaultLanBaseUrl = "http://192.168.1.165:8000";
+        private const string DefaultLanBaseUrl = "http://103.245.237.24:8000";
 
         public static string GetBaseUrl()
         {

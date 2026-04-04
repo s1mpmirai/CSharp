@@ -1,7 +1,12 @@
 .vs/
+.idea/
 **/bin/
 **/obj/
 **/__pycache__/
 *.pyc
 *.user
+*.iml
 Backend/uploads/
+Backend/backup.sql
+Backend/uvicorn
+Binh.zip
