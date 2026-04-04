@@ -1,6 +1,7 @@
 using CommunityToolkit.Maui;
 using FoodStreetAudioGuide;
 using Microsoft.Extensions.Logging;
+using ZXing.Net.Maui.Controls;
 
 public static class MauiProgram
 {
@@ -10,7 +11,7 @@ public static class MauiProgram
         builder
             .UseMauiApp<App>()
             .UseMauiCommunityToolkit()
-            .UseMauiMaps()
+            .UseBarcodeReader()
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
@@ -22,14 +23,15 @@ public static class MauiProgram
         builder.Services.AddHttpClient<StallService>(client =>
         {
             client.BaseAddress = new Uri(ApiSettings.GetBaseUrl());
+            client.Timeout = TimeSpan.FromSeconds(4);
         });
 
         builder.Services.AddHttpClient<AudioCacheService>(client =>
         {
             client.BaseAddress = new Uri(ApiSettings.GetBaseUrl());
+            client.Timeout = TimeSpan.FromSeconds(4);
         });
 
-        builder.Services.AddTransient<LoadingPage>();
         builder.Services.AddTransient<LanguageSelectionPage>();
         builder.Services.AddTransient<MainPage>();
         builder.Services.AddTransient<DownloadedAudioPage>();

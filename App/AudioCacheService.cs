@@ -1,5 +1,8 @@
 using FoodStreetAudioGuide.Models;
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.Maui.Networking;
 
 namespace FoodStreetAudioGuide
 {
@@ -21,18 +24,24 @@ namespace FoodStreetAudioGuide
             DeleteStaleAudioFiles();
         }
 
-        public async Task<string?> GetPlayableAudioPathAsync(int stallId, string languageCode)
+        public async Task<string?> GetPlayableAudioPathAsync(StallItem stall, string languageCode)
         {
-            var localPath = GetAudioPath(stallId, languageCode);
+            var localPath = GetAudioPath(stall.Id, languageCode, stall.GetScript(languageCode));
+            DeleteOlderAudioVariants(stall.Id, languageCode, stall.GetScript(languageCode));
             if (File.Exists(localPath))
             {
                 return localPath;
             }
 
-            var cacheKey = $"{stallId}:{languageCode}";
+            if (!CanAttemptBackendRequest())
+            {
+                return null;
+            }
+
+            var cacheKey = $"{stall.Id}:{languageCode}:{BuildScriptFingerprint(stall.GetScript(languageCode), languageCode)}";
             var downloadTask = _inflightAudioDownloads.GetOrAdd(
                 cacheKey,
-                _ => DownloadAudioAsync(localPath, stallId, languageCode));
+                _ => DownloadAudioAsync(localPath, stall.Id, languageCode, stall.GetScript(languageCode)));
 
             try
             {
@@ -44,7 +53,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
-        private async Task<string?> DownloadAudioAsync(string localPath, int stallId, string languageCode)
+        private async Task<string?> DownloadAudioAsync(string localPath, int stallId, string languageCode, string scriptText)
         {
             try
             {
@@ -54,7 +63,7 @@ namespace FoodStreetAudioGuide
 
                 if (response.IsSuccessStatusCode)
                 {
-                    DeleteOlderAudioVariants(stallId, languageCode);
+                    DeleteOlderAudioVariants(stallId, languageCode, scriptText);
                     var bytes = await response.Content.ReadAsByteArrayAsync();
                     await File.WriteAllBytesAsync(localPath, bytes);
                     return localPath;
@@ -68,14 +77,15 @@ namespace FoodStreetAudioGuide
             return File.Exists(localPath) ? localPath : null;
         }
 
-        public bool HasCachedAudio(int stallId, string languageCode)
+        public bool HasCachedAudio(StallItem stall, string languageCode)
         {
-            return File.Exists(GetAudioPath(stallId, languageCode));
+            DeleteOlderAudioVariants(stall.Id, languageCode, stall.GetScript(languageCode));
+            return File.Exists(GetAudioPath(stall.Id, languageCode, stall.GetScript(languageCode)));
         }
 
-        public async Task<bool> PreloadAudioAsync(int stallId, string languageCode)
+        public async Task<bool> PreloadAudioAsync(StallItem stall, string languageCode)
         {
-            var path = await GetPlayableAudioPathAsync(stallId, languageCode);
+            var path = await GetPlayableAudioPathAsync(stall, languageCode);
             return !string.IsNullOrWhiteSpace(path) && File.Exists(path);
         }
 
@@ -83,9 +93,22 @@ namespace FoodStreetAudioGuide
         {
             var cachedIds = new List<int>();
 
+            if (!CanAttemptBackendRequest())
+            {
+                foreach (var stall in stalls.Where(item => item.Id > 0).Take(limit))
+                {
+                    if (HasCachedAudio(stall, languageCode))
+                    {
+                        cachedIds.Add(stall.Id);
+                    }
+                }
+
+                return cachedIds;
+            }
+
             foreach (var stall in stalls.Where(item => item.Id > 0).Take(limit))
             {
-                if (HasCachedAudio(stall.Id, languageCode))
+                if (HasCachedAudio(stall, languageCode))
                 {
                     cachedIds.Add(stall.Id);
                     continue;
@@ -93,7 +116,7 @@ namespace FoodStreetAudioGuide
 
                 try
                 {
-                    if (await PreloadAudioAsync(stall.Id, languageCode))
+                    if (await PreloadAudioAsync(stall, languageCode))
                     {
                         cachedIds.Add(stall.Id);
                     }
@@ -139,10 +162,11 @@ namespace FoodStreetAudioGuide
             return true;
         }
 
-        private string GetAudioPath(int stallId, string languageCode)
+        private string GetAudioPath(int stallId, string languageCode, string scriptText)
         {
-            var safeLanguageCode = SanitizeSegment(languageCode);
-            return Path.Combine(_audioDirectory, $"stall-{stallId}-{safeLanguageCode}-{_audioProfileVersion}.mp3");
+            var safeLanguageCode = SanitizeLanguageCode(languageCode);
+            var scriptFingerprint = BuildScriptFingerprint(scriptText, languageCode);
+            return Path.Combine(_audioDirectory, $"stall-{stallId}-{safeLanguageCode}-{_audioProfileVersion}-{scriptFingerprint}.mp3");
         }
 
         private void DeleteStaleAudioFiles()
@@ -157,12 +181,13 @@ namespace FoodStreetAudioGuide
             }
         }
 
-        private void DeleteOlderAudioVariants(int stallId, string languageCode)
+        private void DeleteOlderAudioVariants(int stallId, string languageCode, string currentScriptText)
         {
-            var safeLanguageCode = SanitizeSegment(languageCode);
+            var safeLanguageCode = SanitizeLanguageCode(languageCode);
+            var currentSuffix = $"-{_audioProfileVersion}-{BuildScriptFingerprint(currentScriptText, languageCode)}.mp3";
             foreach (var path in Directory.GetFiles(_audioDirectory, $"stall-{stallId}-{safeLanguageCode}-*.mp3"))
             {
-                if (!path.EndsWith($"-{_audioProfileVersion}.mp3", StringComparison.OrdinalIgnoreCase))
+                if (!path.EndsWith(currentSuffix, StringComparison.OrdinalIgnoreCase))
                 {
                     TryDelete(path);
                 }
@@ -184,6 +209,23 @@ namespace FoodStreetAudioGuide
         private static string SanitizeSegment(string value)
         {
             return value.Replace("/", "-").Replace("\\", "-").Replace(":", "-").Trim();
+        }
+
+        private static string SanitizeLanguageCode(string value)
+        {
+            return SanitizeSegment(value).Replace("-", "_");
+        }
+
+        private string BuildScriptFingerprint(string scriptText, string languageCode)
+        {
+            var normalized = $"{_audioProfileVersion}:{languageCode}:{scriptText ?? string.Empty}";
+            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
+            return Convert.ToHexString(bytes)[..16].ToLowerInvariant();
+        }
+
+        private static bool CanAttemptBackendRequest()
+        {
+            return Connectivity.Current.NetworkAccess != NetworkAccess.None;
         }
     }
 }

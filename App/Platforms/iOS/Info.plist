@@ -28,5 +28,15 @@
 	</array>
 	<key>XSAppIconAssets</key>
 	<string>Assets.xcassets/appicon.appiconset</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access is used to scan QR codes and open audio guides for nearby stalls.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Location is used to trigger nearby food stall audio guides and show your nearby POIs.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Background location is used to keep anonymous route analytics and trigger nearby food stall audio in supported modes.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 </dict>
 </plist>

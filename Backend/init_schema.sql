@@ -124,7 +124,7 @@ ON listening_logs(stall_id, language_id, listened_at);
 
 INSERT INTO roles (name, description) VALUES
 ('super_admin', 'Toan quyen he thong'),
-('content_admin', 'Quan ly noi dung, gian hang, ban dich')
+('stall_owner', 'Chu gian hang')
 ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO languages (code, name, native_name, locale_code, sort_order) VALUES

@@ -44,6 +44,11 @@
 
 	<ItemGroup>
 		<Compile Remove="Models\StallItem.cs" />
+		<Compile Remove="MapHtmlFactory.cs" />
+		<Compile Remove="MapLibreHtmlFactory.cs" />
+		<Compile Remove="OfflineMapHtmlFactory.cs" />
+		<Compile Remove="OpenStreetMapHtmlFactory.cs" />
+		<Compile Remove="QrScannerPage.cs" />
 
 		<!-- App Icon -->
 		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
@@ -67,7 +72,7 @@
 		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.5" />
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.9" />
-		<PackageReference Include="Microsoft.Maui.Controls.Maps" Version="$(MauiVersion)" />
+		<PackageReference Include="ZXing.Net.Maui.Controls" Version="0.6.0" />
 	</ItemGroup>
 
 </Project>

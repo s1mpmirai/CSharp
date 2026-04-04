@@ -2,11 +2,9 @@ namespace FoodStreetAudioGuide
 {
     public partial class App : Application
     {
-        private readonly LoadingPage _startupPage;
+        private readonly LanguageSelectionPage _startupPage;
 
-        // Constructor nhận LoadingPage từ hệ thống DI. 
-        // MAUI sẽ tự biết LoadingPage cần StallService và tự chuẩn bị cho bạn.
-        public App(LoadingPage startupPage)
+        public App(LanguageSelectionPage startupPage)
         {
             InitializeComponent();
             _startupPage = startupPage;
@@ -14,7 +12,6 @@ namespace FoodStreetAudioGuide
 
         protected override Window CreateWindow(IActivationState? activationState)
         {
-            // Sử dụng trang startupPage đã được "tiêm" sẵn Service từ trước
             return new Window(new NavigationPage(_startupPage));
         }
     }

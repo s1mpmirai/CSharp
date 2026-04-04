@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="FoodStreetAudioGuide.LanguageSelectionPage"
              BackgroundColor="#F7F8FB"
-             Shell.NavBarIsVisible="False">
+             NavigationPage.HasNavigationBar="False">
 
     <ScrollView>
         <VerticalStackLayout Padding="22,20,22,14" Spacing="14">

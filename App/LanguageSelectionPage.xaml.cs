@@ -22,6 +22,12 @@ namespace FoodStreetAudioGuide
             UpdateSelectionUi();
         }
 
+        protected override void OnAppearing()
+        {
+            base.OnAppearing();
+            _ = WarmStartupAsync();
+        }
+
         private void OnLanguageCardTapped(object sender, TappedEventArgs e)
         {
             if (e.Parameter is not string language)
@@ -47,6 +53,17 @@ namespace FoodStreetAudioGuide
             {
                 ContinueButton.IsEnabled = true;
                 ContinueButton.Opacity = 1;
+            }
+        }
+
+        private async Task WarmStartupAsync()
+        {
+            try
+            {
+                await _stallService.LoadCachedStallsAsync();
+            }
+            catch
+            {
             }
         }
 

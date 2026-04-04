@@ -6,11 +6,15 @@
              x:Name="MainPageRoot"
              x:Class="FoodStreetAudioGuide.MainPage"
              x:DataType="local:MainPage"
-             Shell.NavBarIsVisible="False"
+             NavigationPage.HasNavigationBar="False"
              BackgroundColor="#F6F6F6">
 
     <Grid RowDefinitions="Auto,Auto,*,Auto" Padding="16,14,16,0" RowSpacing="12">
-        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" VerticalOptions="Center">
+        <Grid.GestureRecognizers>
+            <TapGestureRecognizer Tapped="OnPageBackgroundTapped" />
+        </Grid.GestureRecognizers>
+
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto,Auto" VerticalOptions="Center">
             <Label Text="←"
                    FontSize="24"
                    TextColor="#1E2433"
@@ -28,12 +32,46 @@
                    FontSize="18"
                    TextColor="#1E2433" />
 
-            <Label Grid.Column="2"
+            <Button Grid.Column="2"
+                    x:Name="RefreshDataButton"
+                    Text="Refresh"
+                    Clicked="OnRefreshDataClicked"
+                    Padding="10,4"
+                    HeightRequest="32"
+                    MinimumWidthRequest="74"
+                    CornerRadius="16"
+                    BackgroundColor="#F6EFE7"
+                    TextColor="#8C5A27"
+                    FontSize="12"
+                    FontAttributes="Bold"
+                    HorizontalOptions="End"
+                    VerticalOptions="Center"
+                    Margin="0,0,10,0" />
+
+            <Label Grid.Column="3"
+                   x:Name="MapOpenLabel"
+                   Text="⌖"
+                   FontSize="20"
+                   TextColor="#1E2433"
+                   VerticalOptions="Center"
+                   HorizontalOptions="End"
+                   Margin="0,0,12,0">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnMapOpenTapped" />
+                </Label.GestureRecognizers>
+            </Label>
+
+            <Label Grid.Column="4"
+                   x:Name="QrScanLabel"
                    Text="⚚"
                    FontSize="20"
                    TextColor="#1E2433"
                    VerticalOptions="Center"
-                   HorizontalOptions="End" />
+                   HorizontalOptions="End">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnQrScanTapped" />
+                </Label.GestureRecognizers>
+            </Label>
         </Grid>
 
         <Border Grid.Row="1"
@@ -48,6 +86,7 @@
                 <SearchBar x:Name="SearchBarControl"
                            Placeholder="Search food stalls, cuisines..."
                            TextChanged="OnSearchTextChanged"
+                           SearchButtonPressed="OnSearchButtonPressed"
                            FontSize="16"
                            BackgroundColor="Transparent"
                            PlaceholderColor="#7D8795"
@@ -57,99 +96,101 @@
             </Grid>
         </Border>
 
-        <CollectionView Grid.Row="2"
-                        x:Name="StallsCollectionView"
-                        SelectionMode="None"
-                        ItemSizingStrategy="MeasureFirstItem">
-            <CollectionView.ItemsLayout>
-                <LinearItemsLayout Orientation="Vertical" ItemSpacing="12" />
-            </CollectionView.ItemsLayout>
+        <Grid Grid.Row="2">
+            <CollectionView x:Name="StallsCollectionView"
+                            SelectionMode="None"
+                            ItemSizingStrategy="MeasureFirstItem">
+                <CollectionView.ItemsLayout>
+                    <LinearItemsLayout Orientation="Vertical" ItemSpacing="12" />
+                </CollectionView.ItemsLayout>
 
-            <CollectionView.ItemTemplate>
-                <DataTemplate x:DataType="models:StallItem">
-                    <Border BackgroundColor="#FBFBFB"
-                            Stroke="#E8E1DB"
-                            StrokeThickness="1"
-                            Padding="12,12">
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnStallTapped" CommandParameter="{Binding .}" />
-                        </Border.GestureRecognizers>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="models:StallItem">
+                        <Border BackgroundColor="#FBFBFB"
+                                Stroke="#E8E1DB"
+                                StrokeThickness="1"
+                                Padding="12,12">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnStallTapped" CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
 
-                        <Border.StrokeShape>
-                            <RoundRectangle CornerRadius="28" />
-                        </Border.StrokeShape>
+                            <Border.StrokeShape>
+                                <RoundRectangle CornerRadius="28" />
+                            </Border.StrokeShape>
 
-                        <Grid ColumnDefinitions="62,1,66,*" ColumnSpacing="10">
-                            <VerticalStackLayout VerticalOptions="Center" Spacing="0">
-                                <Label Text="{Binding DistanceText}"
-                                       TextColor="#EF8F2A"
-                                       FontSize="16"
-                                       FontAttributes="Bold"
-                                       HorizontalTextAlignment="Center" />
-
-                                <Label x:DataType="local:MainPage"
-                                       Text="{Binding Source={x:Reference MainPageRoot}, Path=AwayLabel}"
-                                       TextColor="#8490A0"
-                                       FontSize="10"
-                                       FontAttributes="Bold"
-                                       HorizontalTextAlignment="Center" />
-                            </VerticalStackLayout>
-
-                            <BoxView Grid.Column="1"
-                                     WidthRequest="1"
-                                     HeightRequest="44"
-                                     Color="#ECE7E2"
-                                     VerticalOptions="Center" />
-
-                            <Border Grid.Column="2"
-                                    WidthRequest="62"
-                                    HeightRequest="62"
-                                    BackgroundColor="#E7ECEF"
-                                    StrokeThickness="0"
-                                    HorizontalOptions="Center"
-                                    VerticalOptions="Center">
-                                <Border.StrokeShape>
-                                    <RoundRectangle CornerRadius="31" />
-                                </Border.StrokeShape>
-                                <Image Source="{Binding ThumbnailUrl}" Aspect="AspectFill" />
-                            </Border>
-
-                            <VerticalStackLayout Grid.Column="3" VerticalOptions="Center" Spacing="3">
-                                <HorizontalStackLayout Spacing="6">
-                                    <Label FormattedText="{Binding HighlightedName}"
+                            <Grid ColumnDefinitions="62,1,66,*" ColumnSpacing="10">
+                                <VerticalStackLayout VerticalOptions="Center" Spacing="0">
+                                    <Label Text="{Binding DistanceText}"
+                                           TextColor="#EF8F2A"
                                            FontSize="16"
                                            FontAttributes="Bold"
-                                           TextColor="#1F2738"
-                                           LineBreakMode="TailTruncation"
-                                           HorizontalOptions="StartAndExpand" />
-                                    <Border IsVisible="{Binding HasOfflineAudio}"
-                                            BackgroundColor="#ECF8EF"
-                                            StrokeThickness="0"
-                                            Padding="8,3"
-                                            VerticalOptions="Center">
-                                        <Border.StrokeShape>
-                                            <RoundRectangle CornerRadius="10" />
-                                        </Border.StrokeShape>
-                                        <Label Text="Offline"
-                                               FontSize="10"
-                                               FontAttributes="Bold"
-                                               TextColor="#2E8F52" />
-                                    </Border>
-                                </HorizontalStackLayout>
+                                           HorizontalTextAlignment="Center" />
 
-                                <HorizontalStackLayout Spacing="6">
-                                    <Label Text="★" FontSize="14" TextColor="#F1A33A" VerticalOptions="Center" />
-                                    <Label Text="{Binding Rating}" FontSize="14" FontAttributes="Bold" TextColor="#2D3544" VerticalOptions="Center" />
-                                    <Label Text="{Binding Reviews}" FontSize="14" TextColor="#8B95A4" VerticalOptions="Center" />
-                                    <Label Text="•" FontSize="14" TextColor="#C1C9D4" VerticalOptions="Center" />
-                                    <Label FormattedText="{Binding HighlightedCuisine}" FontSize="14" TextColor="#8B95A4" VerticalOptions="Center" />
-                                </HorizontalStackLayout>
-                            </VerticalStackLayout>
-                        </Grid>
-                    </Border>
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-        </CollectionView>
+                                    <Label x:DataType="local:MainPage"
+                                           Text="{Binding Source={x:Reference MainPageRoot}, Path=AwayLabel}"
+                                           TextColor="#8490A0"
+                                           FontSize="10"
+                                           FontAttributes="Bold"
+                                           HorizontalTextAlignment="Center" />
+                                </VerticalStackLayout>
+
+                                <BoxView Grid.Column="1"
+                                         WidthRequest="1"
+                                         HeightRequest="44"
+                                         Color="#ECE7E2"
+                                         VerticalOptions="Center" />
+
+                                <Border Grid.Column="2"
+                                        WidthRequest="62"
+                                        HeightRequest="62"
+                                        BackgroundColor="#E7ECEF"
+                                        StrokeThickness="0"
+                                        HorizontalOptions="Center"
+                                        VerticalOptions="Center">
+                                    <Border.StrokeShape>
+                                        <RoundRectangle CornerRadius="31" />
+                                    </Border.StrokeShape>
+                                    <Image Source="{Binding ThumbnailUrl}" Aspect="AspectFill" />
+                                </Border>
+
+                                <VerticalStackLayout Grid.Column="3" VerticalOptions="Center" Spacing="3">
+                                    <HorizontalStackLayout Spacing="6">
+                                        <Label FormattedText="{Binding HighlightedName}"
+                                               FontSize="16"
+                                               FontAttributes="Bold"
+                                               TextColor="#1F2738"
+                                               LineBreakMode="TailTruncation"
+                                               HorizontalOptions="Start" />
+                                        <Border IsVisible="{Binding HasOfflineAudio}"
+                                                BackgroundColor="#ECF8EF"
+                                                StrokeThickness="0"
+                                                Padding="8,3"
+                                                VerticalOptions="Center">
+                                            <Border.StrokeShape>
+                                                <RoundRectangle CornerRadius="10" />
+                                            </Border.StrokeShape>
+                                            <Label x:DataType="local:MainPage"
+                                                   Text="{Binding Source={x:Reference MainPageRoot}, Path=OfflineBadgeLabel}"
+                                                   FontSize="10"
+                                                   FontAttributes="Bold"
+                                                   TextColor="#2E8F52" />
+                                        </Border>
+                                    </HorizontalStackLayout>
+
+                                    <HorizontalStackLayout Spacing="6">
+                                        <Label Text="★" FontSize="14" TextColor="#F1A33A" VerticalOptions="Center" />
+                                        <Label Text="{Binding Rating}" FontSize="14" FontAttributes="Bold" TextColor="#2D3544" VerticalOptions="Center" />
+                                        <Label Text="{Binding Reviews}" FontSize="14" TextColor="#8B95A4" VerticalOptions="Center" />
+                                        <Label Text="•" FontSize="14" TextColor="#C1C9D4" VerticalOptions="Center" />
+                                        <Label FormattedText="{Binding HighlightedCuisine}" FontSize="14" TextColor="#8B95A4" VerticalOptions="Center" />
+                                    </HorizontalStackLayout>
+                                </VerticalStackLayout>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </Grid>
 
         <Grid Grid.Row="3" Margin="-16,0,-16,0" HeightRequest="96">
             <Border VerticalOptions="End"
@@ -162,68 +203,52 @@
                     <RoundRectangle CornerRadius="0" />
                 </Border.StrokeShape>
 
-                <Grid ColumnDefinitions="*,*,*" VerticalOptions="Center">
-                    <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
-                        <Label Text="🍴" FontSize="20" HorizontalTextAlignment="Center" TextColor="#EF8F2A" />
-                        <Label x:Name="ExploreTabLabel" Text="EXPLORES" FontSize="9" FontAttributes="Bold" TextColor="#EF8F2A" HorizontalTextAlignment="Center" />
-                    </VerticalStackLayout>
+                <Grid ColumnDefinitions="*,*" VerticalOptions="Center">
+                    <Grid WidthRequest="96"
+                          HorizontalOptions="Center"
+                          RowDefinitions="Auto,Auto"
+                          RowSpacing="2">
+                        <Label Text="🍴"
+                               FontSize="20"
+                               HorizontalTextAlignment="Center"
+                               TextColor="#EF8F2A" />
+                        <Label x:Name="ExploreTabLabel"
+                               Grid.Row="1"
+                               Text="EXPLORES"
+                               FontSize="9"
+                               FontAttributes="Bold"
+                               TextColor="#EF8F2A"
+                               HorizontalTextAlignment="Center"
+                               LineBreakMode="NoWrap" />
+                    </Grid>
 
-                    <Grid Grid.Column="1" />
-
-                    <VerticalStackLayout Grid.Column="2" Spacing="2" HorizontalOptions="Center">
-                        <Image WidthRequest="20"
-                               HeightRequest="20"
-                               HorizontalOptions="Center">
-                            <Image.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnSavedTapped" />
-                            </Image.GestureRecognizers>
-                            <Image.Source>
-                                <FontImageSource Glyph="&#9829;" Size="20" />
-                            </Image.Source>
-                        </Image>
-                        <Label x:Name="SavedTabLabel" Text="SAVED" FontSize="9" FontAttributes="Bold" TextColor="#95A5BE" HorizontalTextAlignment="Center">
+                    <Grid Grid.Column="1"
+                          WidthRequest="96"
+                          HorizontalOptions="Center"
+                          RowDefinitions="Auto,Auto"
+                          RowSpacing="2">
+                        <Label Grid.Row="0"
+                               Text="♥"
+                               FontSize="20"
+                               HorizontalTextAlignment="Center"
+                               TextColor="#95A5BE">
                             <Label.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnSavedTapped" />
                             </Label.GestureRecognizers>
                         </Label>
-                    </VerticalStackLayout>
-                </Grid>
-            </Border>
-
-            <Border WidthRequest="68"
-                    HeightRequest="68"
-                    HorizontalOptions="Center"
-                    VerticalOptions="Start"
-                    TranslationY="-4"
-                    BackgroundColor="White"
-                    Stroke="#FFFFFF"
-                    StrokeThickness="0"
-                    ZIndex="5">
-                <Border.Shadow>
-                    <Shadow Brush="#2BE39A3A" Offset="0,9" Radius="8" Opacity="1.5" />
-                </Border.Shadow>
-
-                <Border.StrokeShape>
-                    <RoundRectangle CornerRadius="34" />
-                </Border.StrokeShape>
-
-                <Grid Padding="5">
-                    <Border BackgroundColor="#EF9A30"
-                            Stroke="#EF9A30"
-                            StrokeThickness="0">
-                        <Border.StrokeShape>
-                            <RoundRectangle CornerRadius="29" />
-                        </Border.StrokeShape>
-
-                        <Grid>
-                            <Image Source="map.png"
-                                   WidthRequest="24"
-                                   HeightRequest="24"
-                                   HorizontalOptions="Center"
-                                   VerticalOptions="Center" />
-                            <Label x:Name="MapTabLabel" Text="MAP" IsVisible="False" />
-                        </Grid>
-                    </Border>
+                        <Label x:Name="SavedTabLabel"
+                               Grid.Row="1"
+                               Text="SAVED"
+                               FontSize="9"
+                               FontAttributes="Bold"
+                               TextColor="#95A5BE"
+                               HorizontalTextAlignment="Center"
+                               LineBreakMode="NoWrap">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnSavedTapped" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                    </Grid>
                 </Grid>
             </Border>
         </Grid>
@@ -241,6 +266,7 @@
                                    WidthRequest="36"
                                    HeightRequest="36" />
                 <Label Text="Loading nearby stalls..."
+                       x:Name="InitialLoadingLabel"
                        FontSize="16"
                        FontAttributes="Bold"
                        TextColor="#425066"
@@ -264,6 +290,7 @@
                     VerticalOptions="Center"
                     HorizontalOptions="Center"
                     MaximumWidthRequest="420"
+                    MaximumHeightRequest="620"
                     BackgroundColor="White"
                     Stroke="#E8E1DB"
                     StrokeThickness="1">
@@ -274,8 +301,12 @@
                     <RoundRectangle CornerRadius="28" />
                 </Border.StrokeShape>
 
-                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto,Auto" RowSpacing="14">
+                <Grid RowDefinitions="Auto,*">
                     <Grid ColumnDefinitions="*,Auto">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnPopupCardTapped" />
+                        </Grid.GestureRecognizers>
+                        
                         <Label x:Name="ScriptPopupHeaderLabel"
                                Text="Stall Introduction"
                                FontSize="14"
@@ -296,116 +327,194 @@
                                 FontSize="16" />
                     </Grid>
 
-                    <Label x:Name="ScriptPopupTitleLabel"
-                           Grid.Row="1"
-                           FontSize="22"
-                           FontAttributes="Bold"
-                           TextColor="#1F2738" />
+                    <ScrollView x:Name="ScriptPopupScrollView"
+                                Grid.Row="1"
+                                Margin="0,14,0,0">
+                        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="14">
+                            <Label x:Name="ScriptPopupTitleLabel"
+                               Grid.Row="0"
+                               FontSize="22"
+                               FontAttributes="Bold"
+                               TextColor="#1F2738" />
 
-                    <Grid Grid.Row="2" ColumnDefinitions="96,*" ColumnSpacing="14">
-                        <Border WidthRequest="96"
-                                HeightRequest="96"
-                                BackgroundColor="#E7ECEF"
-                                StrokeThickness="0"
-                                HorizontalOptions="Start"
-                                VerticalOptions="Start">
-                            <Border.StrokeShape>
-                                <RoundRectangle CornerRadius="20" />
-                            </Border.StrokeShape>
-                            <Image x:Name="ScriptPopupImage"
-                                   Aspect="AspectFill" />
-                        </Border>
+                        <Grid Grid.Row="1" ColumnDefinitions="96,*" ColumnSpacing="14">
+                            <Border WidthRequest="96"
+                                    HeightRequest="96"
+                                    BackgroundColor="#E7ECEF"
+                                    StrokeThickness="0"
+                                    HorizontalOptions="Start"
+                                    VerticalOptions="Start">
+                                <Border.StrokeShape>
+                                    <RoundRectangle CornerRadius="20" />
+                                </Border.StrokeShape>
+                                <Image x:Name="ScriptPopupImage"
+                                       Aspect="AspectFill" />
+                            </Border>
 
-                        <VerticalStackLayout Grid.Column="1" Spacing="8">
-                            <Label x:Name="ScriptPopupCuisineLabel"
-                                   FontSize="15"
+                            <VerticalStackLayout Grid.Column="1" Spacing="8">
+                                <Label x:Name="ScriptPopupCuisineLabel"
+                                       FontSize="15"
+                                       FontAttributes="Bold"
+                                       TextColor="#1F2738" />
+
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                    <Label Text="📍" FontSize="14" />
+                                    <Label x:Name="ScriptPopupDistanceLabel"
+                                           Grid.Column="1"
+                                           FontSize="14"
+                                           TextColor="#607086" />
+                                </Grid>
+
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                    <Label Text="★" FontSize="14" TextColor="#F1A33A" />
+                                    <Label x:Name="ScriptPopupRatingSummaryLabel"
+                                           Grid.Column="1"
+                                           FontSize="14"
+                                           TextColor="#607086" />
+                                </Grid>
+
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                    <Label Text="🕒" FontSize="14" />
+                                    <Label x:Name="ScriptPopupHoursLabel"
+                                           Grid.Column="1"
+                                           FontSize="14"
+                                           TextColor="#607086" />
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Grid>
+
+                        <VerticalStackLayout Grid.Row="2" Spacing="6">
+                            <Label x:Name="ScriptPopupRatePromptLabel"
+                                   FontSize="13"
                                    FontAttributes="Bold"
-                                   TextColor="#1F2738" />
+                                   TextColor="#8490A0" />
 
-                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                                <Label Text="📍" FontSize="14" />
-                                <Label x:Name="ScriptPopupDistanceLabel"
-                                       Grid.Column="1"
-                                       FontSize="14"
-                                       TextColor="#607086" />
-                            </Grid>
-
-                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                                <Label Text="★" FontSize="14" TextColor="#F1A33A" />
-                                <Label x:Name="ScriptPopupRatingLabel"
-                                       Grid.Column="1"
-                                       FontSize="14"
-                                       TextColor="#607086" />
-                            </Grid>
-
-                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                                <Label Text="💬" FontSize="14" />
-                                <Label x:Name="ScriptPopupReviewsLabel"
-                                       Grid.Column="1"
-                                       FontSize="14"
-                                       TextColor="#607086" />
-                            </Grid>
-
-                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                                <Label Text="🕒" FontSize="14" />
-                                <Label x:Name="ScriptPopupHoursLabel"
-                                       Grid.Column="1"
-                                       FontSize="14"
-                                       TextColor="#607086" />
-                            </Grid>
+                            <HorizontalStackLayout x:Name="ScriptPopupRatingButtons"
+                                                   Spacing="6">
+                                <Button Text="☆"
+                                        Clicked="OnRatePopupClicked"
+                                        CommandParameter="1"
+                                        Padding="0"
+                                        WidthRequest="36"
+                                        HeightRequest="36"
+                                        FontSize="24"
+                                        BackgroundColor="Transparent"
+                                        TextColor="#F1A33A" />
+                                <Button Text="☆"
+                                        Clicked="OnRatePopupClicked"
+                                        CommandParameter="2"
+                                        Padding="0"
+                                        WidthRequest="36"
+                                        HeightRequest="36"
+                                        FontSize="24"
+                                        BackgroundColor="Transparent"
+                                        TextColor="#F1A33A" />
+                                <Button Text="☆"
+                                        Clicked="OnRatePopupClicked"
+                                        CommandParameter="3"
+                                        Padding="0"
+                                        WidthRequest="36"
+                                        HeightRequest="36"
+                                        FontSize="24"
+                                        BackgroundColor="Transparent"
+                                        TextColor="#F1A33A" />
+                                <Button Text="☆"
+                                        Clicked="OnRatePopupClicked"
+                                        CommandParameter="4"
+                                        Padding="0"
+                                        WidthRequest="36"
+                                        HeightRequest="36"
+                                        FontSize="24"
+                                        BackgroundColor="Transparent"
+                                        TextColor="#F1A33A" />
+                                <Button Text="☆"
+                                        Clicked="OnRatePopupClicked"
+                                        CommandParameter="5"
+                                        Padding="0"
+                                        WidthRequest="36"
+                                        HeightRequest="36"
+                                        FontSize="24"
+                                        BackgroundColor="Transparent"
+                                        TextColor="#F1A33A" />
+                            </HorizontalStackLayout>
                         </VerticalStackLayout>
-                    </Grid>
 
-                    <VerticalStackLayout Grid.Row="3" Spacing="8">
-                        <Label x:Name="ScriptPopupSpecialtiesHeaderLabel"
+                        <VerticalStackLayout Grid.Row="3" Spacing="8">
+                            <Label x:Name="ScriptPopupSpecialtiesHeaderLabel"
+                                   FontSize="13"
+                                   FontAttributes="Bold"
+                                   TextColor="#8490A0" />
+
+                            <VerticalStackLayout x:Name="ScriptPopupSpecialtiesContainer"
+                                                 Spacing="6" />
+                        </VerticalStackLayout>
+
+                        <Label Grid.Row="4"
+                               Text="Script"
                                FontSize="13"
                                FontAttributes="Bold"
                                TextColor="#8490A0" />
 
-                        <VerticalStackLayout x:Name="ScriptPopupSpecialtiesContainer"
-                                             Spacing="6" />
-                    </VerticalStackLayout>
+                        <Grid Grid.Row="5">
+                            <Label x:Name="ScriptPopupContentLabel"
+                                   FontSize="16"
+                                   LineHeight="1.4"
+                                   MaxLines="6"
+                                   TextColor="#425066" />
 
-                    <Label Grid.Row="4"
-                           Text="Script"
-                           FontSize="13"
-                           FontAttributes="Bold"
-                           TextColor="#8490A0" />
+                            <BoxView x:Name="ScriptPopupFadeOverlay"
+                                     InputTransparent="True"
+                                     VerticalOptions="End"
+                                     HeightRequest="34"
+                                     IsVisible="False">
+                                <BoxView.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#00FFFFFF" Offset="0.0" />
+                                        <GradientStop Color="#FFFFFFFF" Offset="1.0" />
+                                    </LinearGradientBrush>
+                                </BoxView.Background>
+                            </BoxView>
+                        </Grid>
 
-                    <ScrollView Grid.Row="5" MaximumHeightRequest="220">
-                        <Label x:Name="ScriptPopupContentLabel"
-                               FontSize="16"
-                               LineHeight="1.4"
-                               TextColor="#425066" />
-                    </ScrollView>
-
-                    <Button x:Name="ScriptPopupCloseButton"
-                            Grid.Row="6"
-                            Text="Close"
-                            Clicked="OnClosePopupClicked"
-                            CornerRadius="18"
-                            HeightRequest="48"
-                            BackgroundColor="#EF8F2A"
-                            TextColor="White"
-                            FontAttributes="Bold" />
-
-                    <Grid Grid.Row="7" ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                        <Label x:Name="ScriptPopupAudioStatusLabel"
-                               VerticalOptions="Center"
-                               FontSize="13"
-                               FontAttributes="Bold"
-                               TextColor="#607086" />
-
-                        <Button x:Name="ScriptPopupDownloadButton"
-                                Grid.Column="1"
-                                Clicked="OnDownloadAudioClicked"
-                                CornerRadius="16"
-                                HeightRequest="40"
-                                Padding="14,8"
-                                BackgroundColor="#F6EFE7"
+                        <Button x:Name="ScriptPopupReadMoreButton"
+                                Grid.Row="6"
+                                IsVisible="False"
+                                Clicked="OnToggleScriptExpandedClicked"
+                                BackgroundColor="Transparent"
                                 TextColor="#C8741F"
+                                FontAttributes="Bold"
+                                HorizontalOptions="Start"
+                                Padding="0" />
+
+                        <Button x:Name="ScriptPopupCloseButton"
+                                Grid.Row="7"
+                                Text="Directions"
+                                Clicked="OnNavigateToStallClicked"
+                                CornerRadius="18"
+                                HeightRequest="48"
+                                BackgroundColor="#EF8F2A"
+                                TextColor="White"
                                 FontAttributes="Bold" />
+
+                        <Grid Grid.Row="8" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                            <Label x:Name="ScriptPopupAudioStatusLabel"
+                                   VerticalOptions="Center"
+                                   FontSize="13"
+                                   FontAttributes="Bold"
+                                   TextColor="#607086" />
+
+                            <Button x:Name="ScriptPopupDownloadButton"
+                                    Grid.Column="1"
+                                    Clicked="OnDownloadAudioClicked"
+                                    CornerRadius="16"
+                                    HeightRequest="40"
+                                    Padding="14,8"
+                                    BackgroundColor="#F6EFE7"
+                                    TextColor="#C8741F"
+                                    FontAttributes="Bold" />
+                        </Grid>
                     </Grid>
+                </ScrollView>
                 </Grid>
             </Border>
         </Grid>

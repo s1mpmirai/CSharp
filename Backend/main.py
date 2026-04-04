@@ -22,6 +22,7 @@ import base64
 import json
 import secrets
 import unicodedata
+import re
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:password123@localhost:5432/food_street_db")
@@ -147,6 +148,7 @@ class Review(Base):
     id = Column(Integer, primary_key=True, index=True)
     stall_id = Column(Integer, ForeignKey("stalls.id", ondelete="CASCADE"), nullable=False)
     rating = Column(Integer, nullable=False)
+    ip_address = Column(String(64))
     comment = Column(Text)
     reviewer_name = Column(String(120))
     is_approved = Column(Boolean, nullable=False, default=False)
@@ -164,6 +166,8 @@ class ListeningLog(Base):
     device_id = Column(String(120))
     duration_seconds = Column(Integer, nullable=False, default=0)
     source = Column(String(30), nullable=False, default="app")
+    latitude = Column(Float)
+    longitude = Column(Float)
     listened_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
@@ -206,6 +210,17 @@ class StallUpdateRequest(Base):
     category = relationship("Category")
 
 
+class LocationLog(Base):
+    __tablename__ = "location_logs"
+    id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
+    session_id = Column(String(120))
+    device_id = Column(String(120))
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    source = Column(String(30), nullable=False, default="app")
+    recorded_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 Base.metadata.create_all(bind=engine)
 
 
@@ -219,6 +234,9 @@ def ensure_schema_columns():
         "ALTER TABLE stall_update_requests ADD COLUMN IF NOT EXISTS specialty_2 TEXT",
         "ALTER TABLE stall_update_requests ADD COLUMN IF NOT EXISTS specialty_3 TEXT",
         "ALTER TABLE stall_update_requests ADD COLUMN IF NOT EXISTS poi_radius_m DOUBLE PRECISION DEFAULT 30",
+        "ALTER TABLE listening_logs ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION",
+        "ALTER TABLE listening_logs ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION",
+        "ALTER TABLE reviews ADD COLUMN IF NOT EXISTS ip_address VARCHAR(64)",
     ]
     with engine.begin() as connection:
         for statement in statements:
@@ -353,6 +371,8 @@ def serialize_owner_stall_for_request(request: Request, stall: Stall) -> dict:
     payload = serialize_owner_stall(stall)
     if stall.image_url:
         payload["image_url"] = str(request.base_url).rstrip("/") + f"/uploads/{stall.image_url}"
+    payload["qr_code_value"] = build_stall_qr_code(stall.id)
+    payload["qr_launch_url"] = str(request.base_url).rstrip("/") + f"/qr/resolve?code={payload['qr_code_value']}"
     return payload
 
 
@@ -366,6 +386,30 @@ def decode_token(token: str) -> dict:
     if data.get('exp', 0) < int(datetime.utcnow().timestamp()):
         raise HTTPException(status_code=401, detail='Phiên đăng nhập đã hết hạn')
     return data
+
+
+def build_stall_qr_code(stall_id: int) -> str:
+    payload = f"stall:{stall_id}"
+    signature = hmac.new(APP_SECRET.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()[:16]
+    return f"sfqr1.{stall_id}.{signature}"
+
+
+def resolve_stall_qr_code(code: str) -> int:
+    parts = (code or "").strip().split(".")
+    if len(parts) != 3 or parts[0] != "sfqr1":
+        raise HTTPException(status_code=400, detail="Mã QR không hợp lệ")
+
+    _, stall_id_text, signature = parts
+    try:
+        stall_id = int(stall_id_text)
+    except ValueError as ex:
+        raise HTTPException(status_code=400, detail="Mã QR không hợp lệ") from ex
+
+    expected = hmac.new(APP_SECRET.encode("utf-8"), f"stall:{stall_id}".encode("utf-8"), hashlib.sha256).hexdigest()[:16]
+    if not hmac.compare_digest(signature, expected):
+        raise HTTPException(status_code=400, detail="Mã QR không hợp lệ")
+
+    return stall_id
 
 
 def require_auth_page(request: Request, db: Session) -> User:
@@ -391,6 +435,18 @@ def build_translations(base_title: str, base_script_vi: str) -> dict[str, dict[s
                 "script_text": translate_text(base_script_vi, target_code) if base_script_vi else ""
             }
     return results
+
+
+def build_specialty_translations(specialties: list[str]) -> dict[str, list[str]]:
+    clean_specialties = [item.strip() for item in specialties if item and item.strip()]
+    if not clean_specialties:
+        return {}
+
+    # Do not translate specialties at response time.
+    # Runtime translation here makes /nearby and /search extremely slow because
+    # every request fans out into multiple translator calls for every stall.
+    # The app already has a local fallback translator for known specialties.
+    return {"vi": clean_specialties}
 
 
 def upsert_stall_translations(db: Session, stall: Stall, base_title: str, base_script_vi: str):
@@ -426,10 +482,46 @@ def get_owner_stall(db: Session, user_id: int) -> Optional[Stall]:
     return (
         db.query(Stall)
         .options(joinedload(Stall.category), joinedload(Stall.translations).joinedload(StallTranslation.language))
+        .filter(
+            Stall.created_by_user_id == user_id,
+            Stall.is_deleted == False,
+            Stall.is_active == True
+        )
+        .order_by(Stall.id.desc())
+        .first()
+    )
+
+
+def get_owner_any_stall(db: Session, user_id: int) -> Optional[Stall]:
+    return (
+        db.query(Stall)
+        .options(joinedload(Stall.category), joinedload(Stall.translations).joinedload(StallTranslation.language))
         .filter(Stall.created_by_user_id == user_id, Stall.is_deleted == False)
         .order_by(Stall.id.desc())
         .first()
     )
+
+
+def get_owner_pending_request(db: Session, user_id: int) -> Optional[StallUpdateRequest]:
+    return (
+        db.query(StallUpdateRequest)
+        .join(Stall, Stall.id == StallUpdateRequest.stall_id)
+        .filter(
+            Stall.created_by_user_id == user_id,
+            Stall.is_deleted == False,
+            StallUpdateRequest.status == "pending"
+        )
+        .order_by(StallUpdateRequest.submitted_at.desc(), StallUpdateRequest.id.desc())
+        .first()
+    )
+
+
+def owner_is_waiting_for_initial_approval(db: Session, user_id: int) -> bool:
+    stall = get_owner_any_stall(db, user_id)
+    if not stall or stall.is_active:
+        return False
+    pending = get_owner_pending_request(db, user_id)
+    return pending is not None
 
 
 def translations_to_dict(stall: Stall) -> dict[str, str]:
@@ -512,28 +604,82 @@ def split_search_terms(value: Optional[str]) -> list[str]:
     return [item for item in normalize_search_text(value).split() if item]
 
 
+def format_distance_text(distance_km: float) -> str:
+    if distance_km < 1:
+        return f"{int(round(distance_km * 1000))}m"
+    return f"{round(distance_km, 2)}km"
+
+
 def serialize_stall_card(stall: Stall, request: Request, distance_km: float) -> dict:
     opening_time, closing_time = split_opening_hours(stall.opening_hours)
+    qr_code = build_stall_qr_code(stall.id)
+    specialties = serialize_specialties(stall)
     return {
         "Id": stall.id,
         "Name": stall.name,
-        "DistanceText": f"{round(distance_km, 2)}km",
+        "DistanceText": format_distance_text(distance_km),
         "Distance": distance_km,
         "Lat": stall.latitude,
         "Lng": stall.longitude,
         "Rating": str(stall.rating_avg),
         "Reviews": f"({stall.reviews_count})",
+        "ReviewsCount": stall.reviews_count,
         "Cuisine": stall.category.name if stall.category else "",
         "CategorySlug": stall.category.slug if stall.category else "",
         "OpeningHours": stall.opening_hours or "",
         "OpeningTime": opening_time,
         "ClosingTime": closing_time,
-        "Specialties": serialize_specialties(stall),
+        "Specialties": specialties,
+        "SpecialtyTranslations": build_specialty_translations(specialties),
         "PoiRadiusMeters": stall.poi_radius_m or 30,
         "Translations": translations_to_dict(stall),
         "ImageUrl": build_upload_url(request, stall.image_url) if stall.image_url else "",
-        "ThumbnailUrl": build_thumbnail_url(request, stall.image_url) if stall.image_url else ""
+        "ThumbnailUrl": build_thumbnail_url(request, stall.image_url) if stall.image_url else "",
+        "QrCodeValue": qr_code,
+        "QrLaunchUrl": str(request.base_url).rstrip("/") + f"/qr/resolve?code={qr_code}"
     }
+
+
+def get_content_sync_version(db: Session) -> str:
+    stall_updated = db.query(func.max(Stall.updated_at)).scalar()
+    translation_updated = db.query(func.max(StallTranslation.updated_at)).scalar()
+    category_updated = db.query(func.max(Category.updated_at)).scalar()
+
+    timestamps = [
+        item for item in (stall_updated, translation_updated, category_updated)
+        if item is not None
+    ]
+
+    if not timestamps:
+        return "0"
+
+    latest = max(timestamps)
+    return latest.isoformat(timespec="microseconds")
+
+
+def refresh_stall_rating_summary(db: Session, stall: Stall) -> None:
+    review_count, average_rating = (
+        db.query(func.count(Review.id), func.coalesce(func.avg(Review.rating), 0))
+        .filter(
+            Review.stall_id == stall.id,
+            Review.is_approved == True,
+            Review.is_deleted == False
+        )
+        .one()
+    )
+
+    stall.reviews_count = int(review_count or 0)
+    stall.rating_avg = round(float(average_rating or 0), 1)
+    stall.updated_at = datetime.utcnow()
+
+
+def get_request_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        first_hop = forwarded.split(",")[0].strip()
+        if first_hop:
+            return first_hop
+    return request.client.host if request.client else ""
 
 
 def compute_search_score(stall: Stall, query_terms: list[str]) -> int:
@@ -618,6 +764,8 @@ def serialize_owner_stall(stall: Stall) -> dict:
         "opening_time": opening_time,
         "closing_time": closing_time,
         "is_open": stall.is_open,
+        "rating_avg": float(stall.rating_avg or 0),
+        "reviews_count": int(stall.reviews_count or 0),
         "script_vi": translations_to_dict(stall).get("vi", ""),
         "image_url": f"/uploads/{stall.image_url}" if stall.image_url else ""
     }
@@ -831,6 +979,89 @@ def ensure_seed_data():
         db.close()
 
 
+def ensure_default_web_users():
+    db = SessionLocal()
+    try:
+        super_admin_role = db.query(Role).filter(Role.name == "super_admin").first()
+
+        default_users = []
+        if super_admin_role:
+            default_users.append({
+                "role_id": super_admin_role.id,
+                "username": "admin",
+                "password": DEFAULT_ADMIN_PASSWORD,
+                "full_name": "Quản trị hệ thống",
+                "email": "admin@streetfeast.local",
+            })
+
+        for item in default_users:
+            user = db.query(User).filter(User.username == item["username"]).first()
+            if not user:
+                db.add(User(
+                    role_id=item["role_id"],
+                    username=item["username"],
+                    password_hash=hash_password(item["password"]),
+                    full_name=item["full_name"],
+                    email=item["email"],
+                    is_active=True
+                ))
+                continue
+
+            user.role_id = item["role_id"]
+            user.full_name = item["full_name"]
+            user.email = item["email"]
+            user.is_active = True
+            user.updated_at = datetime.utcnow()
+            if needs_password_rehash(user.password_hash):
+                user.password_hash = hash_password(item["password"])
+
+        db.commit()
+    finally:
+        db.close()
+
+
+def ensure_stall_owner_assignments():
+    # Legacy helper kept only so old scripts do not crash if they import it.
+    # Current onboarding flow must never auto-create or auto-assign owners.
+    return
+
+
+def ensure_stall_translation_coverage():
+    db = SessionLocal()
+    try:
+        expected_codes = set(SUPPORTED_TRANSLATIONS.keys())
+        stalls = (
+            db.query(Stall)
+            .options(joinedload(Stall.translations).joinedload(StallTranslation.language))
+            .filter(Stall.is_deleted == False)
+            .all()
+        )
+
+        changed = False
+        for stall in stalls:
+            current_translations = translations_to_dict(stall)
+            base_script_vi = current_translations.get("vi", "").strip()
+            if not base_script_vi:
+                continue
+
+            current_codes = {
+                item.language.code
+                for item in stall.translations
+                if item.language and item.script_text and item.script_text.strip()
+            }
+            missing_codes = expected_codes - current_codes
+            if not missing_codes:
+                continue
+
+            upsert_stall_translations(db, stall, stall.name or "", base_script_vi)
+            changed = True
+
+        if changed:
+            db.commit()
+    finally:
+        db.close()
+
+
 def repair_reference_data_clean():
     db = SessionLocal()
     try:
@@ -884,6 +1115,8 @@ def repair_reference_data_clean():
 
 
 ensure_seed_data()
+ensure_default_web_users()
+ensure_stall_translation_coverage()
 normalize_reference_data()
 repair_reference_data_clean()
 
@@ -919,6 +1152,12 @@ class SearchRequest(BaseModel):
     limit: int = 20
 
 
+class RatingRequest(BaseModel):
+    rating: int
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+
+
 @app.get("/")
 def root(request: Request, db: Session = Depends(get_db)):
     user = get_current_user_from_request(request, db)
@@ -939,7 +1178,7 @@ def owner_page(request: Request, db: Session = Depends(get_db)):
     user = require_auth_page(request, db)
     require_role(user, "stall_owner")
     stall = get_owner_stall(db, user.id)
-    page = "owner-hub.html" if stall else "admin.html"
+    page = "owner-dashboard.html" if stall else "admin.html"
     return web_file_response(page)
 
 
@@ -953,8 +1192,13 @@ def superadmin_page(request: Request, db: Session = Depends(get_db)):
 @app.post("/auth/login")
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).options(joinedload(User.role)).filter(User.username == payload.username).first()
-    if not user or not user.is_active or not verify_password(payload.password, user.password_hash):
+    if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Tên đăng nhập hoặc mật khẩu không đúng")
+
+    if not user.is_active:
+        if user.role and user.role.name == "stall_owner" and owner_is_waiting_for_initial_approval(db, user.id):
+            raise HTTPException(status_code=403, detail="Tài khoản đang chờ admin duyệt gian hàng đầu tiên. Vui lòng đăng nhập lại sau khi được duyệt.")
+        raise HTTPException(status_code=403, detail="Tài khoản hiện đang bị khóa")
 
     if needs_password_rehash(user.password_hash):
         user.password_hash = hash_password(payload.password)
@@ -985,7 +1229,11 @@ def logout():
 def auth_me(request: Request, db: Session = Depends(get_db)):
     user = require_auth_page(request, db)
     owner_stall = get_owner_stall(db, user.id) if user.role.name == "stall_owner" else None
-    return {"user": serialize_user(user), "has_stall": owner_stall is not None}
+    return {
+        "user": serialize_user(user),
+        "has_stall": owner_stall is not None,
+        "pending_initial_approval": owner_is_waiting_for_initial_approval(db, user.id) if user.role.name == "stall_owner" else False
+    }
 
 
 @app.get("/categories")
@@ -1032,6 +1280,15 @@ def owner_dashboard(request: Request, db: Session = Depends(get_db)):
         .filter(StallUpdateRequest.stall_id == stall.id, StallUpdateRequest.status == "pending")
         .scalar() or 0
     )
+    total_reviews = (
+        db.query(func.count(Review.id))
+        .filter(
+            Review.stall_id == stall.id,
+            Review.is_approved == True,
+            Review.is_deleted == False
+        )
+        .scalar() or 0
+    )
     rejected_requests = (
         db.query(func.count(StallUpdateRequest.id))
         .filter(StallUpdateRequest.stall_id == stall.id, StallUpdateRequest.status == "rejected")
@@ -1069,6 +1326,7 @@ def owner_dashboard(request: Request, db: Session = Depends(get_db)):
             "total_listens": int(total_listens),
             "listens_7_days": int(listens_7_days),
             "listens_30_days": int(listens_30_days),
+            "total_reviews": int(total_reviews),
             "pending_requests": int(pending_requests),
             "rejected_requests": int(rejected_requests),
         },
@@ -1118,8 +1376,13 @@ async def owner_create_stall(
     user = require_auth_page(request, db)
     require_role(user, "stall_owner")
 
-    if get_owner_stall(db, user.id):
+    existing_active_stall = get_owner_stall(db, user.id)
+    if existing_active_stall:
         raise HTTPException(status_code=400, detail="Bạn đã có gian hàng, hãy dùng chức năng cập nhật")
+
+    existing_any_stall = get_owner_any_stall(db, user.id)
+    if existing_any_stall and owner_is_waiting_for_initial_approval(db, user.id):
+        raise HTTPException(status_code=400, detail="Bạn đã gửi yêu cầu tạo gian hàng và đang chờ admin duyệt")
 
     specialty_1, specialty_2, specialty_3 = require_specialties(specialty_1, specialty_2, specialty_3)
     poi_radius_m = require_poi_radius(poi_radius_m)
@@ -1132,28 +1395,89 @@ async def owner_create_stall(
         with open(os.path.join(UPLOAD_DIR, filename), "wb") as buffer:
             shutil.copyfileobj(image.file, buffer)
 
-    stall = Stall(
-        category_id=category_id,
-        name=name,
-        latitude=lat,
-        longitude=lng,
-        image_url=filename,
-        specialty_1=specialty_1,
-        specialty_2=specialty_2,
-        specialty_3=specialty_3,
-        poi_radius_m=poi_radius_m,
-        opening_hours=opening_hours,
-        is_open=True,
-        is_active=True,
-        rating_avg=0,
-        reviews_count=0,
-        created_by_user_id=user.id
-    )
-    db.add(stall)
-    db.flush()
+    if existing_any_stall:
+        stall = existing_any_stall
+        stall.category_id = category_id
+        stall.name = name
+        stall.latitude = lat
+        stall.longitude = lng
+        stall.image_url = filename
+        stall.specialty_1 = specialty_1
+        stall.specialty_2 = specialty_2
+        stall.specialty_3 = specialty_3
+        stall.poi_radius_m = poi_radius_m
+        stall.opening_hours = opening_hours
+        stall.is_open = True
+        stall.is_active = False
+        stall.is_deleted = False
+        stall.updated_at = datetime.utcnow()
+    else:
+        stall = Stall(
+            category_id=category_id,
+            name=name,
+            latitude=lat,
+            longitude=lng,
+            image_url=filename,
+            specialty_1=specialty_1,
+            specialty_2=specialty_2,
+            specialty_3=specialty_3,
+            poi_radius_m=poi_radius_m,
+            opening_hours=opening_hours,
+            is_open=True,
+            is_active=False,
+            rating_avg=0,
+            reviews_count=0,
+            created_by_user_id=user.id
+        )
+        db.add(stall)
+        db.flush()
+
     upsert_stall_translations(db, stall, name, script_vi)
+
+    pending = (
+        db.query(StallUpdateRequest)
+        .filter(StallUpdateRequest.stall_id == stall.id, StallUpdateRequest.status == "pending")
+        .order_by(StallUpdateRequest.id.desc())
+        .first()
+    )
+
+    if pending:
+        pending.category_id = category_id
+        pending.name = name
+        pending.latitude = lat
+        pending.longitude = lng
+        pending.specialty_1 = specialty_1
+        pending.specialty_2 = specialty_2
+        pending.specialty_3 = specialty_3
+        pending.poi_radius_m = poi_radius_m
+        pending.opening_hours = opening_hours
+        pending.is_open = True
+        pending.script_vi = script_vi
+        pending.image_url = filename
+        pending.submitted_at = datetime.utcnow()
+    else:
+        db.add(StallUpdateRequest(
+            stall_id=stall.id,
+            submitted_by_user_id=user.id,
+            category_id=category_id,
+            name=name,
+            latitude=lat,
+            longitude=lng,
+            specialty_1=specialty_1,
+            specialty_2=specialty_2,
+            specialty_3=specialty_3,
+            poi_radius_m=poi_radius_m,
+            opening_hours=opening_hours,
+            is_open=True,
+            script_vi=script_vi,
+            image_url=filename,
+            status="pending"
+        ))
+
+    user.is_active = False
+    user.updated_at = datetime.utcnow()
     db.commit()
-    return {"status": "success", "stall_id": stall.id}
+    return {"status": "success", "stall_id": stall.id, "pending_review": True}
 
 
 @app.post("/owner/stall-update-request")
@@ -1249,9 +1573,31 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
     total_owners = db.query(func.count(User.id)).filter(User.role_id == owner_role_id).scalar() or 0
     total_listens = db.query(func.count(ListeningLog.id)).scalar() or 0
     pending_updates = db.query(func.count(StallUpdateRequest.id)).filter(StallUpdateRequest.status == "pending").scalar() or 0
+    average_listen_seconds = db.query(func.avg(ListeningLog.duration_seconds)).scalar() or 0
+    unique_sessions = db.query(func.count(func.distinct(ListeningLog.session_id))).scalar() or 0
+    unique_devices = db.query(func.count(func.distinct(ListeningLog.device_id))).scalar() or 0
+    active_since = datetime.utcnow() - timedelta(minutes=5)
+
+    recent_location_rows = (
+        db.query(LocationLog)
+        .filter(LocationLog.recorded_at >= active_since)
+        .order_by(LocationLog.recorded_at.desc())
+        .limit(2000)
+        .all()
+    )
+
+    active_user_keys = {
+        (row.device_id or row.session_id or f"anon:{row.id}")
+        for row in recent_location_rows
+        if row.latitude is not None and row.longitude is not None
+    }
 
     top_rows = (
-        db.query(Stall.name, func.count(ListeningLog.id).label("listens"))
+        db.query(
+            Stall.name,
+            func.count(ListeningLog.id).label("listens"),
+            func.avg(ListeningLog.duration_seconds).label("avg_duration")
+        )
         .join(ListeningLog, ListeningLog.stall_id == Stall.id)
         .group_by(Stall.id)
         .order_by(func.count(ListeningLog.id).desc())
@@ -1259,19 +1605,18 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
         .all()
     )
 
-    heat_rows = (
-        db.query(
-            Stall.id,
-            Stall.name,
-            Stall.latitude,
-            Stall.longitude,
-            func.count(ListeningLog.id).label("listens")
-        )
-        .outerjoin(ListeningLog, ListeningLog.stall_id == Stall.id)
-        .filter(Stall.is_deleted == False)
-        .group_by(Stall.id)
-        .all()
-    )
+    heatmap_groups = {}
+    for row in recent_location_rows:
+        if row.latitude is None or row.longitude is None:
+            continue
+
+        lat_key = round(float(row.latitude), 4)
+        lng_key = round(float(row.longitude), 4)
+        group_key = (lat_key, lng_key)
+        device_key = row.device_id or row.session_id or f"anon:{row.id}"
+        bucket = heatmap_groups.setdefault(group_key, {"lat": lat_key, "lng": lng_key, "users": set(), "hits": 0})
+        bucket["users"].add(device_key)
+        bucket["hits"] += 1
 
     return {
         "metrics": {
@@ -1279,20 +1624,27 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
             "active_stalls": active_stalls,
             "total_owners": total_owners,
             "total_listens": total_listens,
-            "pending_updates": pending_updates
+            "pending_updates": pending_updates,
+            "average_listen_seconds": round(float(average_listen_seconds or 0), 1),
+            "unique_sessions": int(unique_sessions or 0),
+            "unique_devices": int(unique_devices or 0),
+            "active_users_5m": len(active_user_keys)
         },
-        "top_stalls": [{"name": row[0], "listens": row[1]} for row in top_rows],
-        "heatmap_points": [
-            {
-                "stall_id": row.id,
-                "name": row.name,
-                "lat": row.latitude,
-                "lng": row.longitude,
-                "listens": int(row.listens or 0)
-            }
-            for row in heat_rows
-            if int(row.listens or 0) > 0
-        ]
+        "top_stalls": [{"name": row[0], "listens": row[1], "avg_duration": round(float(row[2] or 0), 1)} for row in top_rows],
+        "heatmap_points": sorted(
+            [
+                {
+                    "lat": point["lat"],
+                    "lng": point["lng"],
+                    "users": len(point["users"]),
+                    "hits": point["hits"]
+                }
+                for point in heatmap_groups.values()
+                if point["users"]
+            ],
+            key=lambda item: (item["users"], item["hits"]),
+            reverse=True
+        )[:300]
     }
 
 
@@ -1590,9 +1942,13 @@ def approve_update(request_id: int, request: Request, db: Session = Depends(get_
     user = require_auth_page(request, db)
     require_role(user, "super_admin")
 
-    row = db.query(StallUpdateRequest).filter(StallUpdateRequest.id == request_id, StallUpdateRequest.status == "pending").first()
+    row = db.query(StallUpdateRequest).filter(StallUpdateRequest.id == request_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Không tìm thấy yêu cầu")
+    if row.status == "approved":
+        raise HTTPException(status_code=409, detail="Yêu cầu này đã được duyệt trước đó")
+    if row.status == "rejected":
+        raise HTTPException(status_code=409, detail="Yêu cầu này đã bị từ chối trước đó")
 
     stall = db.query(Stall).options(joinedload(Stall.translations)).filter(Stall.id == row.stall_id).first()
     if not stall:
@@ -1609,8 +1965,14 @@ def approve_update(request_id: int, request: Request, db: Session = Depends(get_
     stall.opening_hours = row.opening_hours
     stall.is_open = row.is_open
     stall.image_url = row.image_url
+    stall.is_active = True
     stall.updated_at = datetime.utcnow()
     upsert_stall_translations(db, stall, row.name, row.script_vi)
+
+    owner = db.query(User).filter(User.id == stall.created_by_user_id).first()
+    if owner and not owner.is_active:
+        owner.is_active = True
+        owner.updated_at = datetime.utcnow()
 
     row.status = "approved"
     row.reviewed_at = datetime.utcnow()
@@ -1630,9 +1992,23 @@ def reject_update(
     user = require_auth_page(request, db)
     require_role(user, "super_admin")
 
-    row = db.query(StallUpdateRequest).filter(StallUpdateRequest.id == request_id, StallUpdateRequest.status == "pending").first()
+    row = db.query(StallUpdateRequest).filter(StallUpdateRequest.id == request_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Không tìm thấy yêu cầu")
+    if row.status == "approved":
+        raise HTTPException(status_code=409, detail="Yêu cầu này đã được duyệt trước đó")
+    if row.status == "rejected":
+        raise HTTPException(status_code=409, detail="Yêu cầu này đã bị từ chối trước đó")
+
+    stall = db.query(Stall).filter(Stall.id == row.stall_id).first()
+    if stall and not stall.is_active:
+        stall.is_deleted = True
+        stall.updated_at = datetime.utcnow()
+
+        owner = db.query(User).filter(User.id == stall.created_by_user_id).first()
+        if owner and not owner.is_active:
+            owner.is_active = True
+            owner.updated_at = datetime.utcnow()
 
     row.status = "rejected"
     row.admin_note = admin_note
@@ -1656,7 +2032,12 @@ def get_nearby(location: UserLocation, request: Request, db: Session = Depends(g
         dist = geodesic((location.lat, location.lng), (stall.latitude, stall.longitude)).kilometers
         results.append(serialize_stall_card(stall, request, dist))
 
-    return sorted(results, key=lambda item: item["Distance"])[:10]
+    return sorted(results, key=lambda item: item["Distance"])
+
+
+@app.get("/sync/version")
+def get_sync_version(db: Session = Depends(get_db)):
+    return {"version": get_content_sync_version(db)}
 
 
 @app.post("/search")
@@ -1690,6 +2071,133 @@ def search_stalls(payload: SearchRequest, request: Request, db: Session = Depend
     return [item[2] for item in ranked[:limit]]
 
 
+@app.get("/stalls/map")
+def get_map_stalls(
+    request: Request,
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    db: Session = Depends(get_db)
+):
+    stalls = (
+        db.query(Stall)
+        .options(joinedload(Stall.category), joinedload(Stall.translations).joinedload(StallTranslation.language))
+        .filter(Stall.is_active == True, Stall.is_deleted == False)
+        .all()
+    )
+
+    user_point = (lat, lng) if lat is not None and lng is not None else None
+    results = []
+    for stall in stalls:
+        distance_km = geodesic(user_point, (stall.latitude, stall.longitude)).kilometers if user_point else 0
+        results.append(serialize_stall_card(stall, request, distance_km))
+
+    return sorted(results, key=lambda item: (item["Distance"], item["Name"]))
+
+
+@app.get("/stalls/{stall_id}")
+def get_stall_detail(
+    stall_id: int,
+    request: Request,
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    db: Session = Depends(get_db)
+):
+    stall = (
+        db.query(Stall)
+        .options(joinedload(Stall.category), joinedload(Stall.translations).joinedload(StallTranslation.language))
+        .filter(Stall.id == stall_id, Stall.is_active == True, Stall.is_deleted == False)
+        .first()
+    )
+    if not stall:
+        raise HTTPException(status_code=404, detail="Không tìm thấy gian hàng")
+
+    distance_km = 0
+    if lat is not None and lng is not None:
+        distance_km = geodesic((lat, lng), (stall.latitude, stall.longitude)).kilometers
+
+    return serialize_stall_card(stall, request, distance_km)
+
+
+@app.post("/stalls/{stall_id}/reviews")
+def submit_stall_review(
+    stall_id: int,
+    payload: RatingRequest,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    if payload.rating < 1 or payload.rating > 5:
+        raise HTTPException(status_code=400, detail="Điểm đánh giá phải từ 1 đến 5 sao")
+
+    stall = (
+        db.query(Stall)
+        .options(joinedload(Stall.category), joinedload(Stall.translations).joinedload(StallTranslation.language))
+        .filter(Stall.id == stall_id, Stall.is_active == True, Stall.is_deleted == False)
+        .first()
+    )
+    if not stall:
+        raise HTTPException(status_code=404, detail="Không tìm thấy gian hàng")
+
+    request_ip = get_request_ip(request)
+    if request_ip:
+        existing_review = (
+            db.query(Review)
+            .filter(
+                Review.stall_id == stall.id,
+                Review.ip_address == request_ip,
+                Review.is_deleted == False
+            )
+            .first()
+        )
+        if existing_review:
+            raise HTTPException(status_code=409, detail="Mỗi địa chỉ IP chỉ có thể đánh giá gian hàng này một lần")
+
+    review = Review(
+        stall_id=stall.id,
+        rating=payload.rating,
+        ip_address=request_ip or None,
+        is_approved=True,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+        is_deleted=False
+    )
+    db.add(review)
+    db.flush()
+    refresh_stall_rating_summary(db, stall)
+    db.commit()
+    db.refresh(stall)
+
+    distance_km = 0
+    if payload.lat is not None and payload.lng is not None:
+        distance_km = geodesic((payload.lat, payload.lng), (stall.latitude, stall.longitude)).kilometers
+
+    return serialize_stall_card(stall, request, distance_km)
+
+
+@app.get("/qr/resolve")
+def resolve_qr(
+    code: str,
+    request: Request,
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    db: Session = Depends(get_db)
+):
+    stall_id = resolve_stall_qr_code(code)
+    stall = (
+        db.query(Stall)
+        .options(joinedload(Stall.category), joinedload(Stall.translations).joinedload(StallTranslation.language))
+        .filter(Stall.id == stall_id, Stall.is_active == True, Stall.is_deleted == False)
+        .first()
+    )
+    if not stall:
+        raise HTTPException(status_code=404, detail="Không tìm thấy nội dung QR")
+
+    distance_km = 0
+    if lat is not None and lng is not None:
+        distance_km = geodesic((lat, lng), (stall.latitude, stall.longitude)).kilometers
+
+    return serialize_stall_card(stall, request, distance_km)
+
+
 @app.post("/logs/listening")
 def create_listening_log(
     stall_id: int = Form(...),
@@ -1697,6 +2205,8 @@ def create_listening_log(
     session_id: str = Form(""),
     device_id: str = Form(""),
     duration_seconds: int = Form(0),
+    lat: Optional[float] = Form(None),
+    lng: Optional[float] = Form(None),
     source: str = Form("app"),
     db: Session = Depends(get_db)
 ):
@@ -1711,8 +2221,39 @@ def create_listening_log(
         session_id=session_id,
         device_id=device_id,
         duration_seconds=duration_seconds,
+        latitude=lat,
+        longitude=lng,
         source=source,
         listened_at=datetime.utcnow()
+    ))
+    db.commit()
+    return {"status": "success"}
+
+
+@app.post("/logs/location")
+def create_location_log(
+    lat: float = Form(...),
+    lng: float = Form(...),
+    session_id: str = Form(""),
+    device_id: str = Form(""),
+    source: str = Form("app"),
+    recorded_at: str = Form(""),
+    db: Session = Depends(get_db)
+):
+    timestamp = datetime.utcnow()
+    if recorded_at:
+        try:
+            timestamp = datetime.fromisoformat(recorded_at.replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            timestamp = datetime.utcnow()
+
+    db.add(LocationLog(
+        session_id=session_id,
+        device_id=device_id,
+        latitude=lat,
+        longitude=lng,
+        source=source,
+        recorded_at=timestamp
     ))
     db.commit()
     return {"status": "success"}

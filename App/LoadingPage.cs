@@ -10,11 +10,12 @@ namespace FoodStreetAudioGuide
         private readonly string[] _statusMessages =
         {
             "Connecting to local vendors...",
-            "Mapping nearby food stalls...",
+            "Loading nearby food stalls...",
             "Preparing audio guides..."
         };
 
         private bool _isLoaded;
+        private bool _hasNavigated;
         private CancellationTokenSource? _loadingCts;
 
         public LoadingPage(StallService stallService, AudioCacheService audioCacheService)
@@ -147,32 +148,35 @@ namespace FoodStreetAudioGuide
         {
             base.OnAppearing();
 
-            if (_isLoaded)
+            if (_hasNavigated)
             {
                 return;
             }
 
-            _isLoaded = true;
-            _loadingCts = new CancellationTokenSource();
             try
             {
-                await RunLoadingAnimationAsync(_loadingCts.Token);
+                if (!_isLoaded)
+                {
+                    _isLoaded = true;
+                    _loadingCts = new CancellationTokenSource();
+                    await RunLoadingAnimationAsync(_loadingCts.Token);
+                }
             }
             catch (OperationCanceledException)
             {
                 return;
             }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"--- LOI LOADING PAGE: {ex.Message}");
+            }
 
-            if (_loadingCts.IsCancellationRequested)
+            if (_loadingCts?.IsCancellationRequested == true || _hasNavigated)
             {
                 return;
             }
 
-            var window = Application.Current?.Windows.FirstOrDefault();
-            if (window is not null)
-            {
-                window.Page = new NavigationPage(new LanguageSelectionPage(_stallService, _audioCacheService));
-            }
+            await NavigateToLanguageSelectionAsync();
         }
 
         protected override void OnDisappearing()
@@ -192,6 +196,44 @@ namespace FoodStreetAudioGuide
                 _progressTextLabel.Text = $"{percent}%";
                 _statusLabel.Text = _statusMessages[(percent / 35) % _statusMessages.Length];
                 await Task.Delay(90, cancellationToken);
+            }
+        }
+
+        private async Task NavigateToLanguageSelectionAsync()
+        {
+            if (_hasNavigated)
+            {
+                return;
+            }
+
+            _hasNavigated = true;
+
+            try
+            {
+                var targetPage = new LanguageSelectionPage(_stallService, _audioCacheService);
+
+                if (Navigation is not null)
+                {
+                    await Navigation.PushAsync(targetPage, false);
+                    if (Navigation.NavigationStack.Contains(this))
+                    {
+                        Navigation.RemovePage(this);
+                    }
+
+                    return;
+                }
+
+                var window = Application.Current?.Windows.FirstOrDefault();
+                if (window is not null)
+                {
+                    window.Page = new NavigationPage(targetPage);
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                _hasNavigated = false;
+                System.Diagnostics.Debug.WriteLine($"--- LOI DIEU HUONG STARTUP: {ex.Message}");
             }
         }
     }
