@@ -74,7 +74,7 @@
 
         .search-row {
             display: grid;
-            grid-template-columns: 1fr 86px 160px;
+            grid-template-columns: 1fr 86px;
             gap: 8px;
         }
 
@@ -95,13 +95,6 @@
         .btn-ghost {
             background: #eef2f7;
             color: #243041;
-        }
-
-        .gps-note {
-            color: #6f7b8c;
-            font-size: 13px;
-            margin-top: 6px;
-            min-height: 18px;
         }
 
         .preview {
@@ -199,9 +192,7 @@
                         <div class="search-row">
                             <input id="address_search" type="text">
                             <button class="btn btn-ghost" type="button" onclick="geocode()">Tìm</button>
-                            <button class="btn btn-ghost" type="button" onclick="captureCurrentLocation()">Lấy vị trí hiện tại</button>
                         </div>
-                        <div id="gps_accuracy" class="gps-note"></div>
                     </div>
 
                     <div class="row">
@@ -215,19 +206,20 @@
                         </div>
                     </div>
 
-                    <div class="group">
-                        <label for="opening_time">Giờ mở</label>
-                        <input id="opening_time" type="time">
-                    </div>
-
-                    <div class="group">
-                        <label for="closing_time">Giờ đóng</label>
-                        <input id="closing_time" type="time">
+                    <div class="row">
+                        <div class="group">
+                            <label for="opening_time">Giờ mở cửa</label>
+                            <input id="opening_time" type="time">
+                        </div>
+                        <div class="group">
+                            <label for="closing_time">Giờ đóng cửa</label>
+                            <input id="closing_time" type="time">
+                        </div>
                     </div>
 
                     <div class="group">
                         <label for="poi_radius_m">Bán kính tự phát POI (m)</label>
-                        <input id="poi_radius_m" type="number" min="10" step="1" value="30">
+                        <input id="poi_radius_m" type="number" min="1" step="1" value="30">
                     </div>
 
                     <div class="group">
@@ -268,9 +260,15 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        const HCMC_BOUNDS = L.latLngBounds([[10.34, 106.22], [11.15, 107.02]]);
         let marker = null;
         let mode = "create";
-        const map = L.map("map").setView([10.7626, 106.7045], 15);
+        const map = L.map("map", {
+            maxBounds: HCMC_BOUNDS,
+            maxBoundsViscosity: 1.0,
+            minZoom: 11,
+            maxZoom: 18
+        }).setView([10.7769, 106.7009], 13);
 
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
             attribution: "&copy; OpenStreetMap contributors"
@@ -283,16 +281,86 @@
         async function api(path, options = {}) {
             const res = await fetch(path, { ...options, credentials: "include" });
             const body = await safeJson(res);
+            const fallbackText = !body ? await safeText(res) : "";
             if (res.status === 401 || res.status === 403) {
                 location.href = "/login";
                 return null;
             }
-            if (!res.ok) throw new Error(body?.detail || "Request failed");
+            if (!res.ok) throw new Error(formatApiError(body) || fallbackText || "Request failed");
             return body;
         }
 
         async function safeJson(response) {
             try { return await response.json(); } catch { return null; }
+        }
+
+        async function safeText(response) {
+            try {
+                const clone = response.clone();
+                return (await clone.text()).trim();
+            } catch {
+                return "";
+            }
+        }
+
+        function formatApiError(body) {
+            const detail = body?.detail;
+            if (!detail) return "";
+            if (typeof detail === "string") return detail;
+            if (Array.isArray(detail)) {
+                return detail
+                    .map(item => {
+                        if (typeof item === "string") return item;
+                        const field = Array.isArray(item?.loc) ? item.loc[item.loc.length - 1] : "";
+                        const fieldLabel = getFieldLabel(field);
+                        const reason = item?.msg || "Dữ liệu không hợp lệ";
+                        return fieldLabel ? `${fieldLabel}: ${reason}` : reason;
+                    })
+                    .filter(Boolean)
+                    .join("\n");
+            }
+            if (typeof detail === "object") {
+                return Object.entries(detail).map(([key, value]) => `${getFieldLabel(key) || key}: ${value}`).join("\n");
+            }
+            return String(detail);
+        }
+
+        function getFieldLabel(field) {
+            const labels = {
+                name: "Tên gian hàng",
+                category_id: "Danh mục",
+                lat: "Vĩ độ",
+                lng: "Kinh độ",
+                opening_time: "Giờ mở",
+                closing_time: "Giờ đóng",
+                poi_radius_m: "Bán kính POI",
+                specialty_1: "Món đặc sản 1",
+                specialty_2: "Món đặc sản 2",
+                specialty_3: "Món đặc sản 3",
+                script_vi: "Script tiếng Việt",
+                image: "Ảnh gian hàng",
+                is_open: "Trạng thái mở cửa"
+            };
+            return labels[field] || "";
+        }
+
+        function splitOpeningHours(value) {
+            const normalized = (value || "").trim().replace(/\s*[–—-]\s*/g, "-");
+            if (!normalized) return { openingTime: "", closingTime: "" };
+
+            const parts = normalized.split("-").map(part => part.trim()).filter(Boolean);
+            if (parts.length >= 2) {
+                return {
+                    openingTime: parts[0],
+                    closingTime: parts[1]
+                };
+            }
+
+            return { openingTime: normalized, closingTime: "" };
+        }
+
+        function isClosingTimeAfterOpeningTime(openingTime, closingTime) {
+            return Boolean(openingTime && closingTime) && closingTime > openingTime;
         }
 
         async function bootstrap() {
@@ -305,11 +373,8 @@
 
             const owner = await api("/owner/stall");
             if (owner?.stall) {
-                mode = "edit";
-                fillForm(owner.stall);
-                document.getElementById("pageTitle").textContent = "Gửi yêu cầu cập nhật gian hàng";
-                document.getElementById("saveButton").textContent = "Gửi yêu cầu duyệt";
-                document.getElementById("editOnlyBlock").style.display = "block";
+                location.replace("/owner");
+                return;
             }
         }
 
@@ -318,10 +383,10 @@
             document.getElementById("category_id").value = String(stall.category_id || "");
             document.getElementById("lat").value = Number(stall.lat).toFixed(6);
             document.getElementById("lng").value = Number(stall.lng).toFixed(6);
-            document.getElementById("opening_time").value = stall.opening_time || "";
-            document.getElementById("closing_time").value = stall.closing_time || "";
+            const { openingTime, closingTime } = splitOpeningHours(stall.opening_hours || "");
+            document.getElementById("opening_time").value = openingTime;
+            document.getElementById("closing_time").value = closingTime;
             document.getElementById("poi_radius_m").value = Math.round(stall.poi_radius_m || 30);
-            setGpsAccuracy("");
             const specialties = Array.isArray(stall.specialties) ? stall.specialties : [];
             document.getElementById("specialty_1").value = specialties[0] || "";
             document.getElementById("specialty_2").value = specialties[1] || "";
@@ -353,63 +418,54 @@
             if (!address) return showStatus("Nhập địa chỉ trước khi tìm.", true);
 
             try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ", Vietnam")}&limit=1`);
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ", Ho Chi Minh City, Vietnam")}&limit=1`);
                 const data = await res.json();
                 if (!data.length) return showStatus("Không tìm thấy địa chỉ.", true);
-                updateMarker(Number(data[0].lat), Number(data[0].lon));
-                map.setView([data[0].lat, data[0].lon], 17);
-                setGpsAccuracy("");
+                const lat = Number(data[0].lat);
+                const lng = Number(data[0].lon);
+                if (!HCMC_BOUNDS.contains([lat, lng])) return showStatus("Địa chỉ phải nằm trong TP.HCM.", true);
+                updateMarker(lat, lng);
+                map.setView([lat, lng], 17);
             } catch {
                 showStatus("Không thể tìm địa chỉ.", true);
             }
         }
 
-        async function captureCurrentLocation() {
-            if (!navigator.geolocation) {
-                showStatus("Trình duyệt không hỗ trợ lấy GPS hiện tại.", true);
+        function updateMarker(lat, lng) {
+            if (!HCMC_BOUNDS.contains([lat, lng])) {
+                showStatus("Vị trí phải nằm trong phạm vi TP.HCM.", true);
                 return;
             }
-
-            navigator.geolocation.getCurrentPosition(
-                position => {
-                    const { latitude, longitude, accuracy } = position.coords;
-                    updateMarker(latitude, longitude);
-                    map.setView([latitude, longitude], 18);
-                    setGpsAccuracy(`Độ chính xác GPS hiện tại: khoảng ${Math.round(accuracy)}m`);
-                    showStatus("Đã lấy vị trí hiện tại.");
-                },
-                () => showStatus("Không thể lấy vị trí hiện tại. Hãy bật quyền vị trí trên trình duyệt.", true),
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-            );
-        }
-
-        function updateMarker(lat, lng) {
             if (marker) map.removeLayer(marker);
             marker = L.marker([lat, lng]).addTo(map);
             document.getElementById("lat").value = Number(lat).toFixed(6);
             document.getElementById("lng").value = Number(lng).toFixed(6);
         }
 
-        function setGpsAccuracy(message) {
-            document.getElementById("gps_accuracy").textContent = message;
-        }
-
         async function saveStall(event) {
             event.preventDefault();
             if (!document.getElementById("name").value.trim()) return showStatus("Nhập tên gian hàng.", true);
             if (!document.getElementById("lat").value.trim() || !document.getElementById("lng").value.trim()) return showStatus("Chọn vị trí trên bản đồ trước khi lưu.", true);
-            if (!document.getElementById("opening_time").value || !document.getElementById("closing_time").value) return showStatus("Nhập đầy đủ giờ mở và giờ đóng.", true);
-            if (!document.getElementById("poi_radius_m").value.trim() || Number(document.getElementById("poi_radius_m").value) < 10) return showStatus("Nhập bán kính POI tối thiểu 10m.", true);
+            if (!document.getElementById("poi_radius_m").value.trim() || Number(document.getElementById("poi_radius_m").value) <= 0) return showStatus("Nhập bán kính POI lớn hơn 0.", true);
             if (!document.getElementById("specialty_1").value.trim() || !document.getElementById("specialty_2").value.trim() || !document.getElementById("specialty_3").value.trim()) return showStatus("Nhập đủ 3 món đặc sản.", true);
             if (!document.getElementById("script_vi").value.trim()) return showStatus("Nhập script tiếng Việt cho TTS.", true);
+
+            const openingTime = document.getElementById("opening_time").value.trim();
+            const closingTime = document.getElementById("closing_time").value.trim();
+            if (!openingTime || !closingTime) {
+                return showStatus("Chọn đầy đủ giờ mở cửa và giờ đóng cửa.", true);
+            }
+            if (!isClosingTimeAfterOpeningTime(openingTime, closingTime)) {
+                return showStatus("Giờ đóng cửa phải muộn hơn giờ mở cửa.", true);
+            }
 
             const formData = new FormData();
             formData.append("name", document.getElementById("name").value.trim());
             formData.append("category_id", document.getElementById("category_id").value);
             formData.append("lat", document.getElementById("lat").value.trim());
             formData.append("lng", document.getElementById("lng").value.trim());
-            formData.append("opening_time", document.getElementById("opening_time").value);
-            formData.append("closing_time", document.getElementById("closing_time").value);
+            formData.append("opening_time", openingTime);
+            formData.append("closing_time", closingTime);
             formData.append("poi_radius_m", document.getElementById("poi_radius_m").value.trim());
             formData.append("specialty_1", document.getElementById("specialty_1").value.trim());
             formData.append("specialty_2", document.getElementById("specialty_2").value.trim());
@@ -425,11 +481,20 @@
 
             try {
                 const path = mode === "create" ? "/owner/stall" : "/owner/stall-update-request";
-                await api(path, { method: "POST", body: formData });
-                showStatus(mode === "create" ? "Tạo gian hàng thành công." : "Đã gửi yêu cầu cập nhật để admin duyệt.");
+                const result = await api(path, { method: "POST", body: formData });
                 if (mode === "create") {
-                    setTimeout(() => { location.href = "/owner"; }, 600);
+                    const successMessage = result?.pending_review
+                        ? "Đã gửi yêu cầu tạo gian hàng. Tài khoản của bạn sẽ tạm khóa cho đến khi admin duyệt."
+                        : "Tạo gian hàng thành công.";
+                    showStatus(successMessage);
+                    alert(successMessage);
+                    await fetch("/auth/logout", { method: "POST", credentials: "include" });
+                    setTimeout(() => location.replace("/login"), 350);
+                    return;
                 }
+
+                showStatus("Đã gửi yêu cầu cập nhật để admin duyệt.");
+                alert("Đã gửi yêu cầu cập nhật để admin duyệt.");
             } catch (error) {
                 showStatus(error.message, true);
             }
@@ -437,7 +502,7 @@
 
         function showStatus(message, isError = false) {
             const box = document.getElementById("statusBox");
-            box.textContent = message;
+            box.innerHTML = String(message || "").replace(/\n/g, "<br>");
             box.className = `status show ${isError ? "err" : "ok"}`;
         }
 

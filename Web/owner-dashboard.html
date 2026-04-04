@@ -3,148 +3,250 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản lý gian hàng của tôi</title>
+    <title>Owner Dashboard</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
+        :root {
+            --bg: #f5f7fb;
+            --card: #ffffff;
+            --ink: #213045;
+            --muted: #6d7b8d;
+            --line: #e0e6ee;
+            --primary: #ef8f2a;
+            --primary-dark: #d67b1d;
+            --nav: #1f2c3c;
+            --nav-soft: #2d3b4d;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             margin: 0;
-            background: #f5f7fb;
-            color: #243041;
-            font-family: "Segoe UI",sans-serif;
+            background: var(--bg);
+            color: var(--ink);
+            font-family: "Segoe UI", sans-serif;
         }
 
         .shell {
-            padding: 20px;
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: 88px 1fr;
+            transition: grid-template-columns .25s ease;
+        }
+
+            .shell.sidebar-open {
+                grid-template-columns: 280px 1fr;
+            }
+
+        .sidebar {
+            background: linear-gradient(180deg, var(--nav) 0%, #223247 100%);
+            color: white;
+            padding: 18px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            overflow: hidden;
+        }
+
+        .brand-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 10px 18px;
+            border-bottom: 1px solid rgba(255,255,255,.12);
+        }
+
+        .brand h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .brand p {
+            margin: 8px 0 0;
+            color: rgba(255,255,255,.72);
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        .brand-logout {
+            border: none;
+            background: rgba(255,255,255,.08);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            cursor: pointer;
+            display: grid;
+            place-items: center;
+            flex: 0 0 40px;
+        }
+
+        .nav {
+            display: grid;
+            gap: 10px;
+        }
+
+        .nav-button {
+            border: none;
+            background: transparent;
+            color: white;
+            border-radius: 14px;
+            padding: 14px 12px;
+            font: inherit;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: background .18s ease;
+            width: 100%;
+        }
+
+            .nav-button:hover, .nav-button.active {
+                background: var(--nav-soft);
+            }
+
+        .nav-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            display: inline-grid;
+            place-items: center;
+            background: rgba(255,255,255,.12);
+            flex: 0 0 36px;
+            font-size: 18px;
+        }
+
+        .nav-text, .badge {
+            opacity: 0;
+            width: 0;
+            overflow: hidden;
+            transition: opacity .15s ease;
+            white-space: nowrap;
+        }
+
+        .badge {
+            min-width: 26px;
+            height: 26px;
+            border-radius: 999px;
+            display: inline-grid;
+            place-items: center;
+            padding: 0 8px;
+            background: rgba(255,255,255,.14);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .shell.sidebar-open .nav-text, .shell.sidebar-open .badge {
+            opacity: 1;
+            width: auto;
+        }
+
+        .shell.sidebar-open .brand p {
+            opacity: 1;
+            max-height: 40px;
+        }
+
+        .shell:not(.sidebar-open) .brand p {
+            opacity: 0;
+            max-height: 0;
+            overflow: hidden;
+            margin: 0;
+        }
+
+        .shell:not(.sidebar-open) .brand h1 {
+            font-size: 0;
+        }
+
+            .shell:not(.sidebar-open) .brand h1::before {
+                content: "SF";
+                font-size: 22px;
+            }
+
+        .content {
+            padding: 22px;
             display: grid;
             gap: 20px;
         }
 
         .topbar, .panel, .metric-card {
-            background: #fff;
-            border-radius: 18px;
-            padding: 20px;
-            box-shadow: 0 12px 28px rgba(0,0,0,.06);
+            background: var(--card);
+            border-radius: 20px;
+            box-shadow: 0 14px 32px rgba(25, 35, 48, .08);
         }
 
         .topbar {
+            padding: 20px 22px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-        }
-
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(4,1fr);
             gap: 16px;
         }
 
-        .metric-card p {
-            margin: 0;
-            color: #6f7b8c;
-            font-size: 14px;
-        }
-
-        .metric-card strong {
-            display: block;
-            margin-top: 10px;
-            font-size: 34px;
-        }
-
-        .layout {
-            display: grid;
-            grid-template-columns: 1.2fr .95fr;
-            gap: 20px;
-        }
-
-        .group {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            margin-bottom: 14px;
-        }
-
-        .row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-
-        input, textarea, select {
-            width: 100%;
-            border: 1px solid #dfe5ec;
-            border-radius: 12px;
-            padding: 12px 14px;
-            font: inherit;
-            background: #fff;
-        }
-
-        textarea {
-            min-height: 110px;
-            resize: vertical;
-        }
-
-        #map {
-            width: 100%;
-            height: 560px;
-            border-radius: 14px;
-            border: 1px solid #dfe5ec;
-        }
-
-        .search-row {
-            display: grid;
-            grid-template-columns: 1fr 86px 160px;
-            gap: 8px;
-        }
-
-        .btn {
-            border: none;
-            border-radius: 12px;
-            padding: 12px 14px;
-            font: inherit;
-            font-weight: 700;
-            cursor: pointer;
-        }
-
-        .btn-primary {
-            background: #ef8f2a;
-            color: #fff;
-        }
-
-        .btn-ghost {
-            background: #eef2f7;
-            color: #243041;
-        }
-
-        .gps-note {
-            color: #6f7b8c;
-            font-size: 13px;
-            margin-top: 6px;
-            min-height: 18px;
-        }
-
-        .preview {
-            border: 1px dashed #dfe5ec;
-            border-radius: 14px;
-            min-height: 180px;
-            display: grid;
-            place-items: center;
-            background: #fafbfd;
-            overflow: hidden;
-        }
-
-            .preview img {
-                max-width: 100%;
-                max-height: 220px;
-                display: none;
-                object-fit: cover;
+            .topbar h2 {
+                margin: 0;
+                font-size: 28px;
             }
+
+            .topbar p {
+                margin: 6px 0 0;
+                color: var(--muted);
+            }
+
+        .view {
+            display: none;
+        }
+
+            .view.active {
+                display: block;
+            }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+        }
+
+        .metric-card {
+            padding: 18px;
+        }
+
+            .metric-card p {
+                margin: 0;
+                color: var(--muted);
+                font-size: 14px;
+            }
+
+            .metric-card strong {
+                display: block;
+                margin-top: 10px;
+                font-size: 34px;
+            }
+
+        .panel {
+            padding: 20px;
+        }
+
+            .panel h3 {
+                margin-top: 0;
+            }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
 
         .status {
             display: none;
             padding: 12px 14px;
             border-radius: 12px;
             font-size: 14px;
-            margin-bottom: 12px;
+            margin-top: 12px;
         }
 
             .status.show.ok {
@@ -161,67 +263,211 @@
                 color: #9a2d2d;
             }
 
-        .history {
-            margin-top: 18px;
-            border-top: 1px solid #e7edf4;
-            padding-top: 18px;
+        table {
+            width: 100%;
+            border-collapse: collapse;
         }
 
-        .history-item {
-            border: 1px solid #e1e7ef;
-            border-radius: 14px;
-            padding: 14px;
-            margin-top: 12px;
-            background: #fbfcfe;
+        th, td {
+            text-align: left;
+            padding: 12px 10px;
+            border-bottom: 1px solid var(--line);
+            font-size: 14px;
+            vertical-align: top;
         }
 
-        .history-top {
-            display: flex;
-            justify-content: space-between;
+        th {
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .group {
+            margin-bottom: 14px;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 12px;
-            align-items: center;
         }
 
-        .history-meta {
-            color: #6f7b8c;
-            font-size: 13px;
-            margin-top: 4px;
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
         }
 
-        .pill {
+        input, textarea, select {
+            width: 100%;
+            padding: 11px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            font: inherit;
+            background: white;
+        }
+
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 12px;
+            padding: 11px 14px;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+            .btn-primary:hover {
+                background: var(--primary-dark);
+            }
+
+        .btn-ghost {
+            background: #eef2f7;
+            color: var(--ink);
+        }
+
+        .preview {
+            border: 1px dashed var(--line);
+            border-radius: 14px;
+            min-height: 180px;
+            display: grid;
+            place-items: center;
+            background: #fafbfd;
+            overflow: hidden;
+        }
+
+            .preview img {
+                max-width: 100%;
+                max-height: 220px;
+                display: none;
+                object-fit: cover;
+            }
+
+        .action-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .mini-muted {
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .two-col {
+            display: grid;
+            grid-template-columns: 1.2fr .9fr;
+            gap: 20px;
+        }
+
+        #map {
+            width: 100%;
+            height: 560px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+        }
+
+        .search-row {
+            display: grid;
+            grid-template-columns: 1fr 86px;
+            gap: 8px;
+        }
+
+        .timeline-card {
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 12px;
+            background: #fff;
+        }
+
+            .timeline-card.unread {
+                border-color: #f1bf7e;
+                background: #fffaf3;
+            }
+
+        .change-pill {
             display: inline-block;
-            padding: 6px 10px;
+            background: #fff0d9;
+            color: #b85d00;
             border-radius: 999px;
+            padding: 4px 10px;
             font-size: 12px;
             font-weight: 700;
         }
 
-            .pill.pending {
-                background: #fff4e8;
-                color: #a35d15;
-            }
-
-            .pill.approved {
-                background: #ecf8ef;
-                color: #24663b;
-            }
-
-            .pill.rejected {
-                background: #fff0f0;
-                color: #9a2d2d;
-            }
+        .empty-box {
+            border: 1px dashed var(--line);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+            color: var(--muted);
+        }
 
         dialog {
             border: none;
             border-radius: 18px;
             padding: 0;
-            width: min(860px, calc(100vw - 32px));
+            width: min(760px, calc(100vw - 32px));
+            max-height: min(90vh, 900px);
+            overflow: hidden;
             box-shadow: 0 20px 40px rgba(0,0,0,.22);
         }
 
             dialog::backdrop {
-                background: rgba(15, 23, 35, .45);
+                background: rgba(15,23,35,.45);
             }
+
+        .dialog-panel {
+            display: flex;
+            flex-direction: column;
+            max-height: min(90vh, 900px);
+            background: white;
+        }
+
+        .dialog-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 18px 22px 14px;
+            border-bottom: 1px solid var(--line);
+            background: white;
+            flex: 0 0 auto;
+        }
+
+            .dialog-head h3 {
+                margin: 0;
+            }
+
+        .dialog-close {
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: #f7f9fc;
+            color: #243041;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+            .dialog-close:hover {
+                background: #eef3f8;
+            }
+
+        .dialog-scroll {
+            padding: 18px 22px 22px;
+            overflow: auto;
+            flex: 1 1 auto;
+        }
 
         .dialog-body {
             padding: 22px;
@@ -231,571 +477,220 @@
             display: flex;
             justify-content: flex-end;
             gap: 10px;
-            margin-top: 18px;
+            margin-top: 16px;
         }
 
-        .compare-grid {
-            display: grid;
-            gap: 12px;
-            margin-top: 14px;
-        }
-
-        .compare-row {
-            border: 1px solid #e1e7ef;
-            border-radius: 14px;
-            overflow: hidden;
-        }
-
-            .compare-row.changed {
-                border-color: #ef8f2a;
-            }
-
-        .compare-label {
-            padding: 10px 14px;
-            background: #f5f7fb;
-            font-weight: 700;
-        }
-
-        .compare-cols {
+        .detail-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
+            gap: 16px;
         }
 
-        .compare-cell {
-            padding: 12px 14px;
-            border-top: 1px solid #edf1f5;
-            min-height: 54px;
-        }
-
-            .compare-cell + .compare-cell {
-                border-left: 1px solid #edf1f5;
-            }
-
-        .compare-new strong {
-            color: #1b2d42;
-        }
-
-        .note-block {
-            margin-top: 14px;
-            padding: 12px 14px;
-            border-radius: 12px;
-            background: #fff6ec;
-            border: 1px solid #f3d0aa;
-            color: #8a4f14;
-        }
-
-        .toast-stack {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            display: grid;
-            gap: 12px;
-            z-index: 9999;
-        }
-
-        .toast {
-            min-width: 300px;
-            max-width: 380px;
-            padding: 14px 16px;
+        .detail-card {
+            border: 1px solid var(--line);
             border-radius: 16px;
-            box-shadow: 0 16px 34px rgba(24,32,45,.18);
-            background: #fff;
-            border: 1px solid #dfe5ec;
-            opacity: 0;
-            transform: translateY(-8px);
-            transition: opacity .2s ease, transform .2s ease;
+            padding: 16px;
+            background: #fbfcfe;
         }
 
-            .toast.show {
-                opacity: 1;
-                transform: translateY(0);
+            .detail-card h4 {
+                margin: 0 0 12px;
             }
 
-            .toast.warn {
-                border-color: #f3d0aa;
-                background: #fff8ee;
-                color: #8a4f14;
+        .detail-row {
+            padding: 10px 12px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            background: white;
+            border: 1px solid var(--line);
+        }
+
+            .detail-row.changed {
+                border-color: #f3c078;
+                background: #fff7ea;
             }
 
-            .toast.ok {
-                border-color: #caead0;
-                background: #f4fbf6;
-                color: #24663b;
-            }
+        .detail-label {
+            display: block;
+            color: var(--muted);
+            font-size: 12px;
+            margin-bottom: 6px;
+        }
 
-        @media (max-width:1000px) {
-            .stats, .layout {
+        @media (max-width:1180px) {
+            .shell, .shell.sidebar-open {
                 grid-template-columns: 1fr;
             }
 
-            #map {
-                height: 420px;
+            .metric-grid, .two-col, .detail-grid, .row {
+                grid-template-columns: 1fr;
             }
+
+            .nav-text, .badge {
+                opacity: 1;
+                width: auto;
+            }
+
+            .brand p {
+                opacity: 1 !important;
+                max-height: 40px !important;
+            }
+
+            .shell:not(.sidebar-open) .brand h1 {
+                font-size: 24px;
+            }
+
+                .shell:not(.sidebar-open) .brand h1::before {
+                    content: none;
+                }
         }
     </style>
 </head>
 <body>
-    <div class="toast-stack" id="toastStack"></div>
-    <div class="shell">
-        <div class="topbar">
-            <div>
-                <h1 id="pageTitle" style="margin:0;">Bảng điều khiển gian hàng</h1>
-                <div id="welcome" style="color:#6f7b8c;margin-top:4px;"></div>
+    <div id="shell" class="shell">
+        <aside id="sidebar" class="sidebar">
+            <div class="brand-row">
+                <div class="brand">
+                    <h1>StreetFeast</h1>
+                    <p>Quản lý gian hàng</p>
+                </div>
+                <button class="brand-logout" type="button" onclick="logout()" title="Đăng xuất">⇦</button>
             </div>
-            <button class="btn btn-ghost" onclick="logout()">Đăng xuất</button>
-        </div>
-
-        <section class="stats">
-            <div class="metric-card"><p>Tổng lượt nghe</p><strong id="m1">0</strong></div>
-            <div class="metric-card"><p>7 ngày gần đây</p><strong id="m2">0</strong></div>
-            <div class="metric-card"><p>30 ngày gần đây</p><strong id="m3">0</strong></div>
-            <div class="metric-card"><p>Yêu cầu đang chờ</p><strong id="m4">0</strong></div>
-        </section>
-
-        <div class="layout">
-            <section class="panel">
-                <h2 style="margin-top:0;">Chỉnh sửa thông tin gian hàng</h2>
-                <p style="color:#6f7b8c;">Đây là màn hình quản lý dành cho những lần đăng nhập sau. Mọi thay đổi sẽ được gửi lên admin để duyệt.</p>
-                <div id="map"></div>
-            </section>
-
-            <section class="panel">
-                <div id="statusBox" class="status"></div>
-
-                <form id="stallForm">
-                    <div class="group">
-                        <label for="name">Tên gian hàng</label>
-                        <input id="name" type="text">
+            <nav class="nav">
+                <button class="nav-button active" type="button" data-view="tong-quan" onclick="showView('tong-quan', this)">
+                    <span class="nav-icon">⌂</span>
+                    <span class="nav-text">Tổng hợp</span>
+                </button>
+                <button class="nav-button" type="button" data-view="thong-bao" onclick="showView('thong-bao', this)">
+                    <span class="nav-icon">✉</span>
+                    <span class="nav-text">Thông báo</span>
+                    <span id="mailBadge" class="badge">0</span>
+                </button>
+                <button class="nav-button" type="button" data-view="chinh-sua" onclick="showView('chinh-sua', this)">
+                    <span class="nav-icon">✎</span>
+                    <span class="nav-text">Chỉnh sửa thông tin</span>
+                </button>
+            </nav>
+        </aside>
+        <main class="content">
+            <div class="topbar">
+                <div>
+                    <h2>Owner Dashboard</h2>
+                    <p id="welcome"></p>
+                </div>
+            </div>
+            <section id="view-tong-quan" class="view active">
+                <div class="metric-grid">
+                    <div class="metric-card"><p>Tổng lượt nghe</p><strong id="metricTotal">0</strong></div>
+                    <div class="metric-card"><p>7 ngày gần đây</p><strong id="metric7Days">0</strong></div>
+                    <div class="metric-card"><p>30 ngày gần đây</p><strong id="metric30Days">0</strong></div>
+                    <div class="metric-card"><p>Tổng đánh giá</p><strong id="metricReviews">0</strong></div>
+                    <div class="metric-card"><p>Yêu cầu chờ duyệt</p><strong id="metricPending">0</strong></div>
+                </div>
+                <div class="two-col" style="margin-top:20px;">
+                    <div class="panel">
+                        <h3>Tóm tắt gian hàng</h3>
+                        <table><tbody id="overviewBody"></tbody></table>
                     </div>
-
-                    <div class="group">
-                        <label for="category_id">Danh mục</label>
-                        <select id="category_id"></select>
+                    <div class="panel">
+                        <h3>Yêu cầu gần nhất</h3>
+                        <div id="latestRequestBox" class="empty-box">Chưa có yêu cầu cập nhật nào.</div>
                     </div>
-
-                    <div class="group">
-                        <label for="image_file">Ảnh gian hàng</label>
-                        <input id="image_file" type="file" accept="image/*">
-                        <div class="preview">
-                            <span id="preview_text">Ảnh xem trước sẽ hiện ở đây</span>
-                            <img id="img_preview" alt="Preview">
-                        </div>
-                    </div>
-
-                    <div class="group">
-                        <label for="address_search">Tìm địa chỉ</label>
-                        <div class="search-row">
-                            <input id="address_search" type="text">
-                            <button class="btn btn-ghost" type="button" onclick="geocode()">Tìm</button>
-                            <button class="btn btn-ghost" type="button" onclick="captureCurrentLocation()">Lấy vị trí hiện tại</button>
-                        </div>
-                        <div id="gps_accuracy" class="gps-note"></div>
-                    </div>
-
-                    <div class="row">
-                        <div class="group">
-                            <label for="lat">Vĩ độ</label>
-                            <input id="lat" type="text" readonly>
-                        </div>
-                        <div class="group">
-                            <label for="lng">Kinh độ</label>
-                            <input id="lng" type="text" readonly>
-                        </div>
-                    </div>
-
-                    <div class="group">
-                        <label for="opening_hours">Giờ mở cửa</label>
-                        <input id="opening_hours" type="text">
-                    </div>
-
-                    <div class="group">
-                        <label for="poi_radius_m">Bán kính tự phát POI (m)</label>
-                        <input id="poi_radius_m" type="number" min="10" step="1" value="30">
-                    </div>
-
-                    <div class="group">
-                        <label>3 món đặc sản</label>
-                        <div class="row">
-                            <div class="group" style="margin-bottom:0;">
-                                <input id="specialty_1" type="text" placeholder="Món đặc sản 1">
-                            </div>
-                            <div class="group" style="margin-bottom:0;">
-                                <input id="specialty_2" type="text" placeholder="Món đặc sản 2">
-                            </div>
-                        </div>
-                        <div class="group" style="margin-bottom:0;">
-                            <input id="specialty_3" type="text" placeholder="Món đặc sản 3">
-                        </div>
-                    </div>
-
-                    <div id="editOnlyBlock" style="display:none;">
-                        <div class="group">
-                            <label for="is_open">Trạng thái mở cửa</label>
-                            <select id="is_open">
-                                <option value="true">Đang mở</option>
-                                <option value="false">Đang đóng</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="group">
-                        <label for="script_vi">Script tiếng Việt cho TTS</label>
-                        <textarea id="script_vi"></textarea>
-                    </div>
-
-                    <button id="saveButton" class="btn btn-primary" type="submit">Lưu vào hệ thống</button>
-                </form>
-
-                <div class="history">
-                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-                        <h2 style="margin:0;">Thông báo yêu cầu</h2>
-                        <button class="btn btn-ghost" type="button" onclick="loadRequestHistory()">Làm mới</button>
-                    </div>
-                    <p style="margin:10px 0 0;color:#6f7b8c;">Các yêu cầu mới nhất của bạn và phản hồi từ admin.</p>
-                    <div id="requestHistory" style="margin-top:12px;color:#6f7b8c;">Chưa có yêu cầu cập nhật nào.</div>
                 </div>
             </section>
-        </div>
+            <section id="view-thong-bao" class="view">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>Hòm thư thông báo</h3>
+                        <span class="mini-muted">Xem kết quả phê duyệt và lý do từ chối</span>
+                    </div>
+                    <div id="requestInbox"></div>
+                </div>
+            </section>
+            <section id="view-chinh-sua" class="view">
+                <div class="two-col">
+                    <section class="panel">
+                        <h3>Bản đồ vị trí</h3>
+                        <p class="mini-muted">Bản đồ chỉ hoạt động trong phạm vi TP.HCM.</p>
+                        <div id="map"></div>
+                    </section>
+                    <section class="panel">
+                        <div id="statusBox" class="status"></div>
+                        <form id="stallForm">
+                            <div class="group"><label for="name">Tên gian hàng</label><input id="name" type="text"></div>
+                            <div class="group"><label for="category_id">Danh mục</label><select id="category_id"></select></div>
+                            <div class="group"><label for="image_file">Ảnh gian hàng</label><input id="image_file" type="file" accept="image/*"><div class="preview"><span id="preview_text">Ảnh xem trước sẽ hiện ở đây</span><img id="img_preview" alt="Preview"></div></div>
+                            <div class="group"><label for="address_search">Tìm địa chỉ</label><div class="search-row"><input id="address_search" type="text"><button class="btn btn-ghost" type="button" onclick="geocode()">Tìm</button></div></div>
+                            <div class="row"><div class="group"><label for="lat">Vĩ độ</label><input id="lat" type="text" readonly></div><div class="group"><label for="lng">Kinh độ</label><input id="lng" type="text" readonly></div></div>
+                            <div class="row"><div class="group"><label for="opening_time">Giờ mở cửa</label><input id="opening_time" type="time"></div><div class="group"><label for="closing_time">Giờ đóng cửa</label><input id="closing_time" type="time"></div></div>
+                            <div class="row"><div class="group"><label for="poi_radius_m">Bán kính POI (m)</label><input id="poi_radius_m" type="number" min="1" step="1" value="30"></div><div class="group"><label for="is_open">Trạng thái mở cửa</label><select id="is_open"><option value="true">Đang mở</option><option value="false">Đang đóng</option></select></div></div>
+                            <div class="group"><label>3 món đặc sản</label><div class="row"><input id="specialty_1" type="text" placeholder="Món đặc sản 1"><input id="specialty_2" type="text" placeholder="Món đặc sản 2"></div><div style="margin-top:12px;"><input id="specialty_3" type="text" placeholder="Món đặc sản 3"></div></div>
+                            <div class="group"><label for="script_vi">Script tiếng Việt</label><textarea id="script_vi"></textarea></div>
+                            <button class="btn btn-primary" type="submit">Gửi yêu cầu duyệt</button>
+                        </form>
+                    </section>
+                </div>
+            </section>
+        </main>
     </div>
-
     <dialog id="requestDetailDialog">
-        <div class="dialog-body">
-            <h3 style="margin-top:0;">Chi tiết yêu cầu cập nhật</h3>
-            <div id="requestDetailMeta" style="color:#6f7b8c;"></div>
-            <div id="requestDetailNote" class="note-block" style="display:none;"></div>
-            <div id="requestDetailCompare" class="compare-grid"></div>
-            <div class="dialog-actions">
-                <button class="btn btn-ghost" type="button" onclick="closeRequestDetail()">Đóng</button>
+        <div class="dialog-panel">
+            <div class="dialog-head">
+                <h3 id="requestDetailTitle">Chi tiết yêu cầu</h3>
+                <button class="dialog-close" type="button" aria-label="Đóng" onclick="closeRequestDetail()">×</button>
+            </div>
+            <div class="dialog-scroll">
+                <div id="requestDetailMeta" class="mini-muted" style="margin-bottom:16px;"></div>
+                <div id="requestDetailGrid" class="detail-grid"></div>
+                <div class="dialog-actions"><button class="btn btn-ghost" type="button" onclick="closeRequestDetail()">Đóng</button></div>
             </div>
         </div>
     </dialog>
-
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        const shell = document.getElementById("shell");
+        const sidebar = document.getElementById("sidebar");
+        const requestDetailDialog = document.getElementById("requestDetailDialog");
+        const HCMC_BOUNDS = L.latLngBounds([[10.34, 106.22], [11.15, 107.02]]);
+        const HCMC_CENTER = [10.7769, 106.7009];
+        let collapseTimer = null;
         let marker = null;
-        let mode = "edit";
-        let requestHistoryItems = [];
-        let dashboardPayload = null;
-        const map = L.map("map").setView([10.7626, 106.7045], 15);
-
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            attribution: "&copy; OpenStreetMap contributors"
-        }).addTo(map);
-
+        let map = null;
+        let ownerStall = null;
+        let requestItems = [];
         document.getElementById("image_file").addEventListener("change", previewImage);
         document.getElementById("stallForm").addEventListener("submit", saveStall);
-        map.on("click", e => updateMarker(e.latlng.lat, e.latlng.lng));
-
-        async function api(path, options = {}) {
-            const res = await fetch(path, { ...options, cache: "no-store", credentials: "include" });
-            const body = await safeJson(res);
-            if (res.status === 401 || res.status === 403) {
-                location.href = "/login";
-                return null;
-            }
-            if (!res.ok) throw new Error(body?.detail || "Request failed");
-            return body;
-        }
-
-        async function safeJson(response) {
-            try { return await response.json(); } catch { return null; }
-        }
-
-        async function bootstrap() {
-            const me = await api("/auth/me");
-            if (!me || me.user.role !== "stall_owner") return;
-            document.getElementById("welcome").textContent = `Xin chào ${me.user.full_name || me.user.username}`;
-
-            const categories = await api("/categories");
-            document.getElementById("category_id").innerHTML = categories.map(item => `<option value="${item.id}">${item.name}</option>`).join("");
-
-            dashboardPayload = await api("/owner/dashboard");
-            if (!dashboardPayload?.stall) {
-                location.href = "/owner";
-                return;
-            }
-
-            fillDashboard(dashboardPayload);
-            await loadRequestHistory(true);
-        }
-
-        function fillDashboard(data) {
-            fillForm(data.stall);
-            fillMetrics(data.metrics || {});
-            document.getElementById("saveButton").textContent = "Gửi yêu cầu duyệt";
-            document.getElementById("editOnlyBlock").style.display = "block";
-        }
-
-        function fillMetrics(metrics) {
-            document.getElementById("m1").textContent = Number(metrics.total_listens || 0);
-            document.getElementById("m2").textContent = Number(metrics.listens_7_days || 0);
-            document.getElementById("m3").textContent = Number(metrics.listens_30_days || 0);
-            document.getElementById("m4").textContent = Number(metrics.pending_requests || 0);
-        }
-
-        function fillForm(stall) {
-            document.getElementById("name").value = stall.name || "";
-            document.getElementById("category_id").value = String(stall.category_id || "");
-            document.getElementById("lat").value = Number(stall.lat).toFixed(6);
-            document.getElementById("lng").value = Number(stall.lng).toFixed(6);
-            document.getElementById("opening_hours").value = stall.opening_hours || "";
-            document.getElementById("poi_radius_m").value = Math.round(stall.poi_radius_m || 30);
-            setGpsAccuracy("");
-            const specialties = Array.isArray(stall.specialties) ? stall.specialties : [];
-            document.getElementById("specialty_1").value = specialties[0] || "";
-            document.getElementById("specialty_2").value = specialties[1] || "";
-            document.getElementById("specialty_3").value = specialties[2] || "";
-            document.getElementById("script_vi").value = stall.script_vi || "";
-            document.getElementById("is_open").value = String(Boolean(stall.is_open));
-            updateMarker(stall.lat, stall.lng);
-            if (stall.image_url) {
-                document.getElementById("img_preview").src = stall.image_url;
-                document.getElementById("img_preview").style.display = "block";
-                document.getElementById("preview_text").style.display = "none";
-            }
-        }
-
-        function previewImage(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function () {
-                document.getElementById("img_preview").src = reader.result;
-                document.getElementById("img_preview").style.display = "block";
-                document.getElementById("preview_text").style.display = "none";
-            };
-            reader.readAsDataURL(file);
-        }
-
-        async function geocode() {
-            const address = document.getElementById("address_search").value.trim();
-            if (!address) return showStatus("Nhập địa chỉ trước khi tìm.", true);
-
-            try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ", Vietnam")}&limit=1`);
-                const data = await res.json();
-                if (!data.length) return showStatus("Không tìm thấy địa chỉ.", true);
-                updateMarker(Number(data[0].lat), Number(data[0].lon));
-                map.setView([data[0].lat, data[0].lon], 17);
-                setGpsAccuracy("");
-            } catch {
-                showStatus("Không thể tìm địa chỉ.", true);
-            }
-        }
-
-        async function captureCurrentLocation() {
-            if (!navigator.geolocation) {
-                showStatus("Trình duyệt không hỗ trợ lấy GPS hiện tại.", true);
-                return;
-            }
-
-            navigator.geolocation.getCurrentPosition(
-                position => {
-                    const { latitude, longitude, accuracy } = position.coords;
-                    updateMarker(latitude, longitude);
-                    map.setView([latitude, longitude], 18);
-                    setGpsAccuracy(`Độ chính xác GPS hiện tại: khoảng ${Math.round(accuracy)}m`);
-                    showStatus("Đã lấy vị trí hiện tại.");
-                },
-                () => showStatus("Không thể lấy vị trí hiện tại. Hãy bật quyền vị trí trên trình duyệt.", true),
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-            );
-        }
-
-        function updateMarker(lat, lng) {
-            if (marker) map.removeLayer(marker);
-            marker = L.marker([lat, lng]).addTo(map);
-            document.getElementById("lat").value = Number(lat).toFixed(6);
-            document.getElementById("lng").value = Number(lng).toFixed(6);
-        }
-
-        function setGpsAccuracy(message) {
-            document.getElementById("gps_accuracy").textContent = message;
-        }
-
-        async function saveStall(event) {
-            event.preventDefault();
-            if (!document.getElementById("name").value.trim()) return showStatus("Nhập tên gian hàng.", true);
-            if (!document.getElementById("lat").value.trim() || !document.getElementById("lng").value.trim()) return showStatus("Chọn vị trí trên bản đồ trước khi lưu.", true);
-            if (!document.getElementById("poi_radius_m").value.trim() || Number(document.getElementById("poi_radius_m").value) < 10) return showStatus("Nhập bán kính POI tối thiểu 10m.", true);
-            if (!document.getElementById("specialty_1").value.trim() || !document.getElementById("specialty_2").value.trim() || !document.getElementById("specialty_3").value.trim()) return showStatus("Nhập đủ 3 món đặc sản.", true);
-            if (!document.getElementById("script_vi").value.trim()) return showStatus("Nhập script tiếng Việt cho TTS.", true);
-
-            const formData = new FormData();
-            formData.append("name", document.getElementById("name").value.trim());
-            formData.append("category_id", document.getElementById("category_id").value);
-            formData.append("lat", document.getElementById("lat").value.trim());
-            formData.append("lng", document.getElementById("lng").value.trim());
-            formData.append("opening_hours", document.getElementById("opening_hours").value.trim());
-            formData.append("poi_radius_m", document.getElementById("poi_radius_m").value.trim());
-            formData.append("specialty_1", document.getElementById("specialty_1").value.trim());
-            formData.append("specialty_2", document.getElementById("specialty_2").value.trim());
-            formData.append("specialty_3", document.getElementById("specialty_3").value.trim());
-            formData.append("script_vi", document.getElementById("script_vi").value.trim());
-
-            if (mode === "edit") {
-                formData.append("is_open", document.getElementById("is_open").value);
-            }
-
-            const file = document.getElementById("image_file").files[0];
-            if (file) formData.append("image", file);
-
-            try {
-                const path = mode === "create" ? "/owner/stall" : "/owner/stall-update-request";
-                await api(path, { method: "POST", body: formData });
-                showStatus(mode === "create" ? "Tạo gian hàng thành công." : "Đã gửi yêu cầu cập nhật để admin duyệt.");
-                showToast(mode === "create" ? "Đã tạo gian hàng thành công." : "Đã gửi yêu cầu cập nhật thành công.", "ok");
-                if (mode === "edit") {
-                    dashboardPayload = await api("/owner/dashboard");
-                    if (dashboardPayload?.stall) fillDashboard(dashboardPayload);
-                    await loadRequestHistory(false);
-                }
-            } catch (error) {
-                showStatus(error.message, true);
-            }
-        }
-
-        async function loadRequestHistory(showPopup = true) {
-            try {
-                const data = await api("/owner/update-requests");
-                requestHistoryItems = data?.items || [];
-                renderRequestHistory(requestHistoryItems);
-                const latest = requestHistoryItems[0];
-                if (showPopup && latest && latest.status === "rejected") {
-                    showToast(`Yêu cầu gần nhất bị từ chối.${latest.admin_note ? ` Lý do: ${latest.admin_note}` : ""}`, "warn");
-                }
-            } catch (error) {
-                requestHistoryItems = [];
-                renderRequestHistory([]);
-                showStatus(error.message, true);
-            }
-        }
-
-        function renderRequestHistory(items) {
-            const host = document.getElementById("requestHistory");
-            if (!Array.isArray(items) || !items.length) {
-                host.innerHTML = "Chưa có yêu cầu cập nhật nào.";
-                return;
-            }
-
-            host.innerHTML = items.map(item => `
-                    <div class="history-item ${escapeHtml(item.status)}">
-                        <div class="history-top">
-                            <div>
-                                <strong>${escapeHtml(item.stall_name || "Yêu cầu cập nhật")}</strong>
-                                <div class="history-meta">Gửi lúc: ${formatDateTime(item.submitted_at)}${item.reviewed_at ? ` · Xử lý lúc: ${formatDateTime(item.reviewed_at)}` : ""}</div>
-                            </div>
-                            <span class="pill ${escapeHtml(item.status)}">${statusLabel(item.status)}</span>
-                        </div>
-                        ${item.status === "rejected" && item.admin_note ? `<div class="note-block">Lý do từ chối: ${escapeHtml(item.admin_note)}</div>` : ""}
-                        <div style="margin-top:12px;">
-                            <button class="btn btn-ghost" type="button" onclick="openRequestDetail(${item.id})">Xem chi tiết</button>
-                        </div>
-                    </div>
-                `).join("");
-        }
-
-        function openRequestDetail(id) {
-            const item = requestHistoryItems.find(entry => entry.id === id);
-            if (!item) return;
-            document.getElementById("requestDetailMeta").textContent = `Trạng thái: ${statusLabel(item.status)} · Gửi lúc: ${formatDateTime(item.submitted_at)}`;
-            const note = document.getElementById("requestDetailNote");
-            if (item.admin_note) {
-                note.style.display = "block";
-                note.textContent = item.status === "rejected" ? `Lý do từ chối: ${item.admin_note}` : item.admin_note;
-            } else {
-                note.style.display = "none";
-                note.textContent = "";
-            }
-            document.getElementById("requestDetailCompare").innerHTML = renderCompareRows(item.field_changes || []);
-            document.getElementById("requestDetailDialog").showModal();
-        }
-
-        function closeRequestDetail() {
-            document.getElementById("requestDetailDialog").close();
-        }
-
-        function renderCompareRows(changes) {
-            if (!Array.isArray(changes) || !changes.length) return '<div style="color:#6f7b8c;">Không có dữ liệu so sánh.</div>';
-            return changes.map(item => `
-                    <div class="compare-row ${item.changed ? "changed" : ""}">
-                        <div class="compare-label">${escapeHtml(item.label)}${item.changed ? " · Đã yêu cầu chỉnh sửa" : ""}</div>
-                        <div class="compare-cols">
-                            <div class="compare-cell">
-                                <div style="color:#6f7b8c;font-size:12px;margin-bottom:6px;">Bản hiện tại</div>
-                                ${formatCompareValue(item.old_value)}
-                            </div>
-                            <div class="compare-cell compare-new">
-                                <div style="color:#6f7b8c;font-size:12px;margin-bottom:6px;">Bản yêu cầu</div>
-                                ${item.changed ? `<strong>${formatCompareValue(item.new_value)}</strong>` : formatCompareValue(item.new_value)}
-                            </div>
-                        </div>
-                    </div>
-                `).join("");
-        }
-
-        function formatCompareValue(value) {
-            if (Array.isArray(value)) {
-                if (!value.length) return "<span style='color:#98a3af;'>Trống</span>";
-                return value.map(item => escapeHtml(item)).join("<br>");
-            }
-            if (typeof value === "boolean") {
-                return value ? "Đang mở" : "Đang đóng";
-            }
-            if (value === null || value === undefined || value === "") {
-                return "<span style='color:#98a3af;'>Trống</span>";
-            }
-            if (typeof value === "number") {
-                return escapeHtml(String(value));
-            }
-            if (String(value).startsWith("http")) {
-                return `<a href="${escapeHtml(value)}" target="_blank" rel="noreferrer">Xem ảnh</a>`;
-            }
-            return escapeHtml(String(value));
-        }
-
-        function statusLabel(status) {
-            if (status === "pending") return "Chờ duyệt";
-            if (status === "approved") return "Đã duyệt";
-            if (status === "rejected") return "Bị từ chối";
-            return status || "";
-        }
-
-        function formatDateTime(value) {
-            if (!value) return "";
-            const date = new Date(value);
-            if (Number.isNaN(date.getTime())) return value;
-            return date.toLocaleString("vi-VN");
-        }
-
-        function escapeHtml(text) {
-            return String(text ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
-        }
-
-        function showStatus(message, isError = false) {
-            const box = document.getElementById("statusBox");
-            box.textContent = message;
-            box.className = `status show ${isError ? "err" : "ok"}`;
-        }
-
-        function showToast(message, type = "ok") {
-            const stack = document.getElementById("toastStack");
-            const toast = document.createElement("div");
-            toast.className = `toast ${type}`;
-            toast.textContent = message;
-            stack.appendChild(toast);
-            requestAnimationFrame(() => toast.classList.add("show"));
-            setTimeout(() => {
-                toast.classList.remove("show");
-                setTimeout(() => toast.remove(), 220);
-            }, 3200);
-        }
-
-        async function logout() {
-            await fetch("/auth/logout", { method: "POST", credentials: "include" });
-            location.href = "/login";
-        }
-
+        sidebar.addEventListener("mouseenter", openSidebar);
+        sidebar.addEventListener("mouseleave", scheduleSidebarClose);
+        sidebar.addEventListener("focusin", openSidebar);
+        sidebar.addEventListener("focusout", scheduleSidebarClose);
+        wireDialogDismiss(requestDetailDialog, closeRequestDetail);
+        function openSidebar() { clearTimeout(collapseTimer); shell.classList.add("sidebar-open"); }
+        function scheduleSidebarClose() { clearTimeout(collapseTimer); collapseTimer = setTimeout(() => { if (!sidebar.matches(":hover") && !sidebar.contains(document.activeElement)) shell.classList.remove("sidebar-open"); }, 160); }
+        function showView(viewName, button = null) { document.querySelectorAll(".view").forEach(item => item.classList.remove("active")); document.getElementById(`view-${viewName}`).classList.add("active"); document.querySelectorAll(".nav-button").forEach(item => item.classList.remove("active")); const target = button || document.querySelector(`.nav-button[data-view="${viewName}"]`); if (target) target.classList.add("active"); if (viewName === "chinh-sua" && map) setTimeout(() => map.invalidateSize(), 120); }
+        async function api(path, options = {}) { const res = await fetch(path, { ...options, credentials: "include" }); const body = await safeJson(res); const fallbackText = !body ? await safeText(res) : ""; if (res.status === 401 || res.status === 403) { location.href = "/login"; return null; } if (!res.ok) throw new Error(formatApiError(body) || fallbackText || "Request failed"); return body; }
+        async function safeJson(response) { try { return await response.json(); } catch { return null; } }
+        async function safeText(response) { try { const clone = response.clone(); return (await clone.text()).trim(); } catch { return ""; } }
+        function formatApiError(body) { const detail = body?.detail; if (!detail) return ""; if (typeof detail === "string") return detail; if (Array.isArray(detail)) return detail.map(item => item?.msg || String(item)).join("\n"); if (typeof detail === "object") return Object.entries(detail).map(([key, value]) => `${key}: ${value}`).join("\n"); return String(detail); }
+        function wireDialogDismiss(dialog, closeHandler) { dialog.addEventListener("click", (event) => { const rect = dialog.getBoundingClientRect(); const inside = event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom; if (!inside) closeHandler(); }); dialog.addEventListener("cancel", (event) => { event.preventDefault(); closeHandler(); }); }
+        function splitOpeningHours(value) { const normalized = (value || "").trim().replace(/\s*[–—-]\s*/g, "-"); if (!normalized) return { openingTime: "", closingTime: "" }; const parts = normalized.split("-").map(part => part.trim()).filter(Boolean); if (parts.length >= 2) return { openingTime: parts[0], closingTime: parts[1] }; return { openingTime: normalized, closingTime: "" }; }
+        function isClosingTimeAfterOpeningTime(openingTime, closingTime) { return Boolean(openingTime && closingTime) && closingTime > openingTime; }
+        function ensureMap() { if (map) return; map = L.map("map", { maxBounds: HCMC_BOUNDS, maxBoundsViscosity: 1.0, minZoom: 11, maxZoom: 18 }).setView(HCMC_CENTER, 13); L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap contributors" }).addTo(map); map.on("click", e => updateMarker(e.latlng.lat, e.latlng.lng)); }
+        async function bootstrap() { ensureMap(); const me = await api("/auth/me"); if (!me || me.user.role !== "stall_owner") return; document.getElementById("welcome").textContent = `Xin chào ${me.user.full_name || me.user.username}`; const categories = await api("/categories"); document.getElementById("category_id").innerHTML = categories.map(item => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join(""); const [owner, dashboard, requests] = await Promise.all([api("/owner/stall"), api("/owner/dashboard"), api("/owner/update-requests")]); if (!owner?.stall) { location.replace("/owner"); return; } ownerStall = owner.stall; requestItems = requests?.items || []; fillForm(owner.stall); renderOverview(dashboard); renderInbox(requestItems); }
+        function renderOverview(data) { const metrics = data?.metrics || {}; document.getElementById("metricTotal").textContent = metrics.total_listens || 0; document.getElementById("metric7Days").textContent = metrics.listens_7_days || 0; document.getElementById("metric30Days").textContent = metrics.listens_30_days || 0; document.getElementById("metricReviews").textContent = metrics.total_reviews || ownerStall?.reviews_count || 0; document.getElementById("metricPending").textContent = metrics.pending_requests || 0; document.getElementById("mailBadge").textContent = requestItems.filter(item => item.status !== "approved").length || 0; const rows = [["Tên gian hàng", ownerStall?.name || ""], ["Giờ mở cửa", ownerStall?.opening_hours || ""], ["Đánh giá", `${Number(ownerStall?.rating_avg || 0).toFixed(1)} / 5 (${ownerStall?.reviews_count || 0} lượt)`], ["Bán kính POI", `${Math.round(ownerStall?.poi_radius_m || 0)}m`], ["Trạng thái", ownerStall?.is_open ? "Đang mở" : "Đang đóng"]]; document.getElementById("overviewBody").innerHTML = rows.map(row => `<tr><td>${escapeHtml(row[0])}</td><td>${escapeHtml(String(row[1] || ""))}</td></tr>`).join(""); const latest = data?.latest_request; const latestBox = document.getElementById("latestRequestBox"); if (!latest) { latestBox.className = "empty-box"; latestBox.innerHTML = "Chưa có yêu cầu cập nhật nào."; return; } latestBox.className = "timeline-card"; latestBox.innerHTML = `<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;"><div><strong>${escapeHtml(latest.status === "approved" ? "Đã được duyệt" : latest.status === "rejected" ? "Bị từ chối" : "Đang chờ duyệt")}</strong><div class="mini-muted" style="margin-top:6px;">${formatDateTime(latest.submitted_at)}</div></div><span class="change-pill">${latest.field_changes.filter(item => item.changed).length} thay đổi</span></div>${latest.admin_note ? `<div style="margin-top:12px;"><strong>Lý do / ghi chú:</strong><div class="mini-muted" style="margin-top:4px;">${escapeHtml(latest.admin_note)}</div></div>` : ""}<div style="margin-top:14px;"><button class="btn btn-ghost" type="button" onclick="openRequestDetailById(${latest.id})">Xem chi tiết</button></div>`; }
+        function renderInbox(items) { const inbox = document.getElementById("requestInbox"); if (!Array.isArray(items) || !items.length) { inbox.innerHTML = `<div class="empty-box">Chưa có thông báo nào.</div>`; return; } inbox.innerHTML = items.map(item => `<div class="timeline-card ${item.status !== "approved" ? "unread" : ""}"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;"><div><strong>${escapeHtml(item.status === "approved" ? "Yêu cầu đã được duyệt" : item.status === "rejected" ? "Yêu cầu bị từ chối" : "Yêu cầu đang chờ duyệt")}</strong><div class="mini-muted" style="margin-top:6px;">${formatDateTime(item.submitted_at)}</div></div><span class="change-pill">${item.field_changes.filter(change => change.changed).length} thay đổi</span></div>${item.admin_note ? `<div style="margin-top:12px;color:#9a2d2d;"><strong>Lý do từ chối:</strong> ${escapeHtml(item.admin_note)}</div>` : ""}<div class="action-group" style="margin-top:14px;"><button class="btn btn-ghost" type="button" onclick="openRequestDetailById(${item.id})">Xem chi tiết</button></div></div>`).join(""); }
+        function fillForm(stall) { document.getElementById("name").value = stall.name || ""; document.getElementById("category_id").value = String(stall.category_id || ""); document.getElementById("lat").value = Number(stall.lat).toFixed(6); document.getElementById("lng").value = Number(stall.lng).toFixed(6); const { openingTime, closingTime } = splitOpeningHours(stall.opening_hours || ""); document.getElementById("opening_time").value = openingTime; document.getElementById("closing_time").value = closingTime; document.getElementById("poi_radius_m").value = Math.round(stall.poi_radius_m || 30); document.getElementById("is_open").value = String(Boolean(stall.is_open)); const specialties = Array.isArray(stall.specialties) ? stall.specialties : []; document.getElementById("specialty_1").value = specialties[0] || ""; document.getElementById("specialty_2").value = specialties[1] || ""; document.getElementById("specialty_3").value = specialties[2] || ""; document.getElementById("script_vi").value = stall.script_vi || ""; updateMarker(stall.lat, stall.lng); if (stall.image_url) { document.getElementById("img_preview").src = stall.image_url; document.getElementById("img_preview").style.display = "block"; document.getElementById("preview_text").style.display = "none"; } }
+        function previewImage(event) { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = function () { document.getElementById("img_preview").src = reader.result; document.getElementById("img_preview").style.display = "block"; document.getElementById("preview_text").style.display = "none"; }; reader.readAsDataURL(file); }
+        async function geocode() { const address = document.getElementById("address_search").value.trim(); if (!address) return showStatus("Nhập địa chỉ trước khi tìm.", true); try { const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ", Ho Chi Minh City, Vietnam")}&limit=1`); const data = await res.json(); if (!data.length) return showStatus("Không tìm thấy địa chỉ.", true); const lat = Number(data[0].lat); const lng = Number(data[0].lon); if (!HCMC_BOUNDS.contains([lat, lng])) return showStatus("Địa chỉ phải nằm trong TP.HCM.", true); updateMarker(lat, lng); map.setView([lat, lng], 17); } catch { showStatus("Không thể tìm địa chỉ.", true); } }
+        function updateMarker(lat, lng) { if (!HCMC_BOUNDS.contains([lat, lng])) { showStatus("Vị trí phải nằm trong phạm vi TP.HCM.", true); return; } if (marker) map.removeLayer(marker); marker = L.marker([lat, lng]).addTo(map); document.getElementById("lat").value = Number(lat).toFixed(6); document.getElementById("lng").value = Number(lng).toFixed(6); map.panTo([lat, lng]); }
+        async function saveStall(event) { event.preventDefault(); if (!document.getElementById("name").value.trim()) return showStatus("Nhập tên gian hàng.", true); if (!document.getElementById("lat").value.trim() || !document.getElementById("lng").value.trim()) return showStatus("Chọn vị trí trên bản đồ trước khi lưu.", true); if (!document.getElementById("poi_radius_m").value.trim() || Number(document.getElementById("poi_radius_m").value) <= 0) return showStatus("Nhập bán kính POI lớn hơn 0.", true); if (!document.getElementById("specialty_1").value.trim() || !document.getElementById("specialty_2").value.trim() || !document.getElementById("specialty_3").value.trim()) return showStatus("Nhập đủ 3 món đặc sản.", true); if (!document.getElementById("script_vi").value.trim()) return showStatus("Nhập script tiếng Việt cho TTS.", true); const openingTime = document.getElementById("opening_time").value.trim(); const closingTime = document.getElementById("closing_time").value.trim(); if (!openingTime || !closingTime) return showStatus("Chọn đầy đủ giờ mở cửa và giờ đóng cửa.", true); if (!isClosingTimeAfterOpeningTime(openingTime, closingTime)) return showStatus("Giờ đóng cửa phải muộn hơn giờ mở cửa.", true); const formData = new FormData(); formData.append("name", document.getElementById("name").value.trim()); formData.append("category_id", document.getElementById("category_id").value); formData.append("lat", document.getElementById("lat").value.trim()); formData.append("lng", document.getElementById("lng").value.trim()); formData.append("opening_time", openingTime); formData.append("closing_time", closingTime); formData.append("poi_radius_m", document.getElementById("poi_radius_m").value.trim()); formData.append("specialty_1", document.getElementById("specialty_1").value.trim()); formData.append("specialty_2", document.getElementById("specialty_2").value.trim()); formData.append("specialty_3", document.getElementById("specialty_3").value.trim()); formData.append("script_vi", document.getElementById("script_vi").value.trim()); formData.append("is_open", document.getElementById("is_open").value); const file = document.getElementById("image_file").files[0]; if (file) formData.append("image", file); try { await api("/owner/stall-update-request", { method: "POST", body: formData }); showStatus("Đã gửi yêu cầu cập nhật để admin duyệt."); alert("Đã gửi yêu cầu cập nhật để admin duyệt."); const requests = await api("/owner/update-requests"); const dashboard = await api("/owner/dashboard"); requestItems = requests?.items || []; renderInbox(requestItems); renderOverview(dashboard); showView("thong-bao"); } catch (error) { showStatus(error.message, true); } }
+        function openRequestDetailById(id) { const item = requestItems.find(request => request.id === id); if (!item) return; document.getElementById("requestDetailTitle").textContent = `Chi tiết yêu cầu #${item.id}`; document.getElementById("requestDetailMeta").textContent = `Trạng thái: ${item.status} • Gửi lúc: ${formatDateTime(item.submitted_at)}${item.reviewed_at ? ` • Xử lý lúc: ${formatDateTime(item.reviewed_at)}` : ""}`; const left = []; const right = []; item.field_changes.forEach(change => { const rowClass = change.changed ? "detail-row changed" : "detail-row"; left.push(`<div class="${rowClass}"><span class="detail-label">${escapeHtml(change.label)}</span>${formatValue(change.old_value)}</div>`); right.push(`<div class="${rowClass}"><span class="detail-label">${escapeHtml(change.label)}</span>${formatValue(change.new_value)}</div>`); }); document.getElementById("requestDetailGrid").innerHTML = `<div class="detail-card"><h4>Thông tin hiện tại</h4>${left.join("")}</div><div class="detail-card"><h4>Sau chỉnh sửa</h4>${right.join("")}</div>`; requestDetailDialog.showModal(); }
+        function closeRequestDetail() { requestDetailDialog.close(); }
+        function formatValue(value) { if (Array.isArray(value)) return value.length ? value.map(item => `<div>${escapeHtml(String(item))}</div>`).join("") : "<em>Trống</em>"; if (value === null || value === undefined || value === "") return "<em>Trống</em>"; if (typeof value === "boolean") return value ? "Đang mở" : "Đang đóng"; return escapeHtml(String(value)); }
+        function formatDateTime(value) { if (!value) return ""; try { return new Date(value).toLocaleString("vi-VN"); } catch { return value; } }
+        function showStatus(message, isError = false) { const box = document.getElementById("statusBox"); box.innerHTML = String(message || "").replace(/\n/g, "<br>"); box.className = `status show ${isError ? "err" : "ok"}`; }
+        async function logout() { await fetch("/auth/logout", { method: "POST", credentials: "include" }); location.href = "/login"; }
+        function escapeHtml(text) { return String(text ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
         bootstrap();
     </script>
 </body>

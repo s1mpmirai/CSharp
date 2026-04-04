@@ -52,53 +52,42 @@
             overflow: hidden;
         }
 
-        .brand {
+        .brand-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
             padding: 8px 10px 18px;
             border-bottom: 1px solid rgba(255,255,255,.12);
         }
 
-        .brand-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-        }
-
-        .brand-copy {
-            min-width: 0;
+        .brand {
             white-space: nowrap;
         }
 
-        .brand h1 {
-            margin: 0;
-            font-size: 24px;
-        }
+            .brand h1 {
+                margin: 0;
+                font-size: 24px;
+            }
 
-        .brand p {
-            margin: 8px 0 0;
-            color: rgba(255,255,255,.72);
-            font-size: 14px;
-        }
+            .brand p {
+                margin: 8px 0 0;
+                color: rgba(255,255,255,.72);
+                font-size: 14px;
+            }
 
         .brand-logout {
-            width: 40px;
-            height: 40px;
             border: none;
-            border-radius: 12px;
             background: rgba(255,255,255,.08);
             color: white;
-            font: inherit;
-            font-size: 18px;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
             cursor: pointer;
-            display: inline-grid;
+            display: grid;
             place-items: center;
-            flex: 0 0 auto;
-            transition: background .18s ease;
+            flex: 0 0 40px;
         }
-
-            .brand-logout:hover {
-                background: rgba(255,255,255,.16);
-            }
 
         .nav {
             display: grid;
@@ -162,7 +151,14 @@
             transition: opacity .15s ease;
         }
 
-        .shell.sidebar-open .nav-text, .shell.sidebar-open .badge {
+        .logout-text {
+            opacity: 0;
+            width: 0;
+            overflow: hidden;
+            transition: opacity .15s ease;
+        }
+
+        .shell.sidebar-open .nav-text, .shell.sidebar-open .badge, .shell.sidebar-open .logout-text {
             opacity: 1;
             width: auto;
         }
@@ -170,12 +166,6 @@
         .shell.sidebar-open .brand p {
             opacity: 1;
             max-height: 40px;
-        }
-
-        .shell.sidebar-open .brand-logout {
-            opacity: 1;
-            pointer-events: auto;
-            transform: scale(1);
         }
 
         .shell:not(.sidebar-open) .brand p {
@@ -194,11 +184,19 @@
                 font-size: 22px;
             }
 
-        .shell:not(.sidebar-open) .brand-logout {
-            opacity: 0;
-            pointer-events: none;
-            transform: scale(.82);
+        .sidebar-actions {
+            margin-top: auto;
         }
+
+            .sidebar-actions button {
+                width: 100%;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                justify-content: flex-start;
+                background: rgba(255,255,255,.08);
+                color: white;
+            }
 
         .content {
             padding: 22px;
@@ -396,6 +394,8 @@
             border-radius: 18px;
             padding: 0;
             width: min(480px, calc(100vw - 32px));
+            max-height: min(90vh, 900px);
+            overflow: hidden;
             box-shadow: 0 20px 40px rgba(0,0,0,.22);
         }
 
@@ -407,6 +407,49 @@
                 background: rgba(15, 23, 35, .45);
             }
 
+        .dialog-panel {
+            display: flex;
+            flex-direction: column;
+            max-height: min(90vh, 900px);
+            background: white;
+        }
+
+        .dialog-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 18px 22px 14px;
+            border-bottom: 1px solid var(--line);
+            background: white;
+            flex: 0 0 auto;
+        }
+
+            .dialog-head h3 {
+                margin: 0;
+            }
+
+        .dialog-close {
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: #f7f9fc;
+            color: #243041;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+            .dialog-close:hover {
+                background: #eef3f8;
+            }
+
+        .dialog-scroll {
+            padding: 18px 22px 22px;
+            overflow: auto;
+            flex: 1 1 auto;
+        }
+
         .dialog-body {
             padding: 22px;
         }
@@ -416,6 +459,43 @@
             justify-content: flex-end;
             gap: 10px;
             margin-top: 16px;
+        }
+
+        .compare-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .compare-card {
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 16px;
+            background: #fbfcfe;
+        }
+
+            .compare-card h4 {
+                margin: 0 0 12px;
+            }
+
+        .compare-row {
+            padding: 10px 12px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            background: white;
+            border: 1px solid var(--line);
+        }
+
+            .compare-row.changed {
+                border-color: #f3c078;
+                background: #fff7ea;
+            }
+
+        .compare-label {
+            display: block;
+            color: var(--muted);
+            font-size: 12px;
+            margin-bottom: 6px;
         }
 
         .form-grid {
@@ -463,63 +543,6 @@
             font-size: 14px;
         }
 
-        .gps-note {
-            color: var(--muted);
-            font-size: 13px;
-            margin-top: 6px;
-            min-height: 18px;
-        }
-
-        .compare-grid {
-            display: grid;
-            gap: 12px;
-            margin-top: 14px;
-        }
-
-        .compare-row {
-            border: 1px solid var(--line);
-            border-radius: 14px;
-            overflow: hidden;
-        }
-
-            .compare-row.changed {
-                border-color: var(--primary);
-            }
-
-        .compare-label {
-            padding: 10px 14px;
-            background: #f5f7fb;
-            font-weight: 700;
-        }
-
-        .compare-cols {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-        }
-
-        .compare-cell {
-            padding: 12px 14px;
-            border-top: 1px solid #edf1f5;
-            min-height: 54px;
-        }
-
-            .compare-cell + .compare-cell {
-                border-left: 1px solid #edf1f5;
-            }
-
-        .compare-new strong {
-            color: #1b2d42;
-        }
-
-        .note-block {
-            margin-top: 14px;
-            padding: 12px 14px;
-            border-radius: 12px;
-            background: #fff6ec;
-            border: 1px solid #f3d0aa;
-            color: #8a4f14;
-        }
-
         @media (max-width: 1180px) {
             .shell, .shell.sidebar-open {
                 grid-template-columns: 1fr;
@@ -529,7 +552,7 @@
                 grid-template-columns: 1fr;
             }
 
-            .nav-text, .badge {
+            .nav-text, .badge, .logout-text {
                 opacity: 1;
                 width: auto;
             }
@@ -557,14 +580,12 @@
 <body>
     <div id="shell" class="shell">
         <aside id="sidebar" class="sidebar">
-            <div class="brand">
-                <div class="brand-row">
-                    <div class="brand-copy">
-                        <h1>StreetFeast</h1>
-                        <p>Khu vực quản trị hệ thống</p>
-                    </div>
-                    <button class="brand-logout" type="button" onclick="logout()" aria-label="Đăng xuất" title="Đăng xuất">⇦</button>
+            <div class="brand-row">
+                <div class="brand">
+                    <h1>StreetFeast</h1>
+                    <p>Khu vực quản trị hệ thống</p>
                 </div>
+                <button class="brand-logout" type="button" onclick="logout()" title="Đăng xuất">⇦</button>
             </div>
 
             <nav class="nav">
@@ -600,6 +621,8 @@
                     <div class="metric-card"><p>Tổng chủ gian hàng</p><strong id="m3">0</strong></div>
                     <div class="metric-card"><p>Tổng lượt nghe</p><strong id="m4">0</strong></div>
                     <div class="metric-card"><p>Yêu cầu chờ duyệt</p><strong id="m5">0</strong></div>
+                    <div class="metric-card"><p>Nghe trung bình / POI</p><strong id="m6">0s</strong></div>
+                    <div class="metric-card"><p>Người dùng hoạt động / 5 phút</p><strong id="m7">0</strong></div>
                 </div>
 
                 <div class="two-col" style="margin-top:20px;">
@@ -607,7 +630,7 @@
                         <h3>Top gian hàng theo lượt nghe</h3>
                         <table>
                             <thead>
-                                <tr><th>Gian hàng</th><th>Lượt nghe</th></tr>
+                                <tr><th>Gian hàng</th><th>Lượt nghe</th><th>Nghe TB</th></tr>
                             </thead>
                             <tbody id="topBody"></tbody>
                         </table>
@@ -627,11 +650,11 @@
 
                 <div class="panel" style="margin-top:20px;">
                     <div class="panel-header">
-                        <h3>Heatmap lượt nghe</h3>
-                        <span id="heatmapHint" style="color:var(--muted);font-size:14px;">Chưa có dữ liệu nghe</span>
+                        <h3>Heatmap người dùng đang hoạt động</h3>
+                        <span id="heatmapHint" style="color:var(--muted);font-size:14px;">Chưa có người dùng đang hoạt động</span>
                     </div>
                     <div id="heatmap"></div>
-                    <div class="map-caption">Điểm nóng hơn tương ứng với gian hàng có nhiều lượt nghe hơn.</div>
+                    <div class="map-caption">Điểm nóng hơn tương ứng với khu vực có nhiều người dùng đang mở app trong 5 phút gần nhất.</div>
                 </div>
             </section>
 
@@ -641,7 +664,6 @@
                         <h3>Danh sách người dùng</h3>
                         <button class="btn btn-primary" type="button" onclick="openCreateOwnerModal()">Thêm chủ gian hàng</button>
                     </div>
-                    <p style="margin:0 0 14px;color:var(--muted);">Bấm <strong>Sửa</strong> để chỉnh cả tài khoản chủ gian hàng và thông tin gian hàng hiện có.</p>
                     <table>
                         <thead>
                             <tr>
@@ -669,7 +691,7 @@
                                 <th>Tên mới</th>
                                 <th>3 món đặc sản</th>
                                 <th>Bán kính POI</th>
-                                <th>Khung giờ</th>
+                                <th>Giờ mở cửa</th>
                                 <th>Trạng thái mở</th>
                                 <th>Thao tác</th>
                             </tr>
@@ -682,76 +704,89 @@
     </div>
 
     <dialog id="createOwnerDialog">
-        <div class="dialog-body">
-            <h3 style="margin-top:0;">Thêm chủ gian hàng</h3>
-            <form id="createOwnerForm">
-                <div class="group"><label for="full_name">Họ tên</label><input id="full_name" type="text"></div>
-                <div class="group"><label for="username">Tên đăng nhập</label><input id="username" type="text"></div>
-                <div class="group"><label for="password">Mật khẩu</label><input id="password" type="password"></div>
-                <div class="group"><label for="email">Email</label><input id="email" type="email"></div>
-                <div class="dialog-actions">
-                    <button class="btn btn-ghost" type="button" onclick="closeCreateOwnerModal()">Đóng</button>
-                    <button class="btn btn-primary" type="submit">Tạo chủ gian hàng</button>
-                </div>
-            </form>
-            <div id="createStatus" class="status"></div>
-        </div>
-    </dialog>
-
-    <dialog id="editUserDialog" class="dialog-wide">
-        <div class="dialog-body">
-            <h3 style="margin-top:0;">Chỉnh sửa thông tin</h3>
-            <form id="editUserForm">
-                <input id="edit_user_id" type="hidden">
-                <div class="section-title">Thông tin tài khoản</div>
-                <div class="form-grid">
-                    <div class="group"><label for="edit_full_name">Họ tên</label><input id="edit_full_name" type="text"></div>
-                    <div class="group"><label for="edit_username">Tên đăng nhập</label><input id="edit_username" type="text"></div>
-                    <div class="group"><label for="edit_email">Email</label><input id="edit_email" type="email"></div>
-                    <div class="group"><label for="edit_password">Mật khẩu mới</label><input id="edit_password" type="password" placeholder="Để trống nếu không đổi"></div>
-                </div>
-
-                <div class="section-title">Thông tin gian hàng</div>
-                <p id="editStallEmpty" class="section-note" style="display:none;">Người dùng này chưa có gian hàng để chỉnh sửa trực tiếp.</p>
-                <div id="editStallSection" class="form-grid">
-                    <div class="group full-span"><label for="edit_stall_name">Tên gian hàng</label><input id="edit_stall_name" type="text"></div>
-                    <div class="group"><label for="edit_category_id">Danh mục</label><select id="edit_category_id"></select></div>
-                    <div class="group"><label for="edit_is_open">Trạng thái mở cửa</label><select id="edit_is_open"><option value="true">Đang mở</option><option value="false">Đang đóng</option></select></div>
-                    <div class="group"><label for="edit_lat">Vĩ độ</label><input id="edit_lat" type="number" step="any"></div>
-                    <div class="group"><label for="edit_lng">Kinh độ</label><input id="edit_lng" type="number" step="any"></div>
-                    <div class="group full-span"><button class="btn btn-ghost" type="button" onclick="captureEditCurrentLocation()">Lấy vị trí hiện tại</button><div id="edit_gps_accuracy" class="gps-note"></div></div>
-                    <div class="group full-span"><label for="edit_poi_radius_m">Bán kính tự phát POI (m)</label><input id="edit_poi_radius_m" type="number" min="10" step="1"></div>
-                    <div class="group"><label for="edit_opening_time">Giờ mở</label><input id="edit_opening_time" type="time"></div>
-                    <div class="group"><label for="edit_closing_time">Giờ đóng</label><input id="edit_closing_time" type="time"></div>
-                    <div class="group"><label for="edit_specialty_1">Món đặc sản 1</label><input id="edit_specialty_1" type="text"></div>
-                    <div class="group"><label for="edit_specialty_2">Món đặc sản 2</label><input id="edit_specialty_2" type="text"></div>
-                    <div class="group full-span"><label for="edit_specialty_3">Món đặc sản 3</label><input id="edit_specialty_3" type="text"></div>
-                    <div class="group full-span"><label for="edit_script_vi">Script tiếng Việt</label><textarea id="edit_script_vi" rows="5"></textarea></div>
-                    <div class="group full-span"><label for="edit_image_file">Ảnh gian hàng mới</label><input id="edit_image_file" type="file" accept="image/*"></div>
-                    <div class="group full-span">
-                        <label>Ảnh hiện tại</label>
-                        <img id="edit_image_preview" class="image-preview" alt="Ảnh gian hàng" style="display:none;">
+        <div class="dialog-panel">
+            <div class="dialog-head">
+                <h3>Thêm chủ gian hàng</h3>
+                <button class="dialog-close" type="button" aria-label="Đóng" onclick="closeCreateOwnerModal()">×</button>
+            </div>
+            <div class="dialog-scroll">
+                <form id="createOwnerForm">
+                    <div class="group"><label for="full_name">Họ tên</label><input id="full_name" type="text"></div>
+                    <div class="group"><label for="username">Tên đăng nhập</label><input id="username" type="text"></div>
+                    <div class="group"><label for="password">Mật khẩu</label><input id="password" type="password"></div>
+                    <div class="group"><label for="email">Email</label><input id="email" type="email"></div>
+                    <div class="dialog-actions">
+                        <button class="btn btn-ghost" type="button" onclick="closeCreateOwnerModal()">Đóng</button>
+                        <button class="btn btn-primary" type="submit">Tạo chủ gian hàng</button>
                     </div>
-                </div>
-                <div class="dialog-actions">
-                    <button class="btn btn-ghost" type="button" onclick="closeEditUserModal()">Đóng</button>
-                    <button class="btn btn-primary" type="submit">Lưu thay đổi</button>
-                </div>
-            </form>
-            <div id="editStatus" class="status"></div>
+                </form>
+                <div id="createStatus" class="status"></div>
+            </div>
         </div>
     </dialog>
 
     <dialog id="requestDetailDialog" class="dialog-wide">
-        <div class="dialog-body">
-            <h3 style="margin-top:0;">Chi tiết yêu cầu cập nhật</h3>
-            <div id="requestDetailMeta" style="color:var(--muted);"></div>
-            <div id="requestDetailNote" class="note-block" style="display:none;"></div>
-            <div id="requestDetailCompare" class="compare-grid"></div>
-            <div class="dialog-actions">
-                <button class="btn btn-ghost" type="button" onclick="closeRequestDetailModal()">Đóng</button>
-                <button id="requestApproveButton" class="btn btn-ok" type="button">Duyệt</button>
-                <button id="requestRejectButton" class="btn btn-no" type="button">Từ chối</button>
+        <div class="dialog-panel">
+            <div class="dialog-head">
+                <h3 id="requestDetailTitle">Chi tiết yêu cầu</h3>
+                <button class="dialog-close" type="button" aria-label="Đóng" onclick="closeRequestDetailModal()">×</button>
+            </div>
+            <div class="dialog-scroll">
+                <div id="requestDetailMeta" class="section-note"></div>
+                <div id="requestDetailGrid" class="compare-grid"></div>
+                <div id="requestDetailNote" class="status"></div>
+                <div class="dialog-actions">
+                    <button class="btn btn-ghost" type="button" onclick="closeRequestDetailModal()">Đóng</button>
+                    <button id="requestRejectButton" class="btn btn-no" type="button" onclick="rejectCurrentRequest()">Từ chối</button>
+                    <button id="requestApproveButton" class="btn btn-ok" type="button" onclick="approveCurrentRequest()">Duyệt</button>
+                </div>
+            </div>
+        </div>
+    </dialog>
+
+    <dialog id="editUserDialog" class="dialog-wide">
+        <div class="dialog-panel">
+            <div class="dialog-head">
+                <h3>Sửa chủ gian hàng</h3>
+                <button class="dialog-close" type="button" aria-label="Đóng" onclick="closeEditUserModal()">×</button>
+            </div>
+            <div class="dialog-scroll">
+                <form id="editUserForm">
+                    <input id="edit_user_id" type="hidden">
+                    <div class="section-title">Thông tin tài khoản</div>
+                    <div class="form-grid">
+                        <div class="group"><label for="edit_full_name">Họ tên</label><input id="edit_full_name" type="text"></div>
+                        <div class="group"><label for="edit_username">Tên đăng nhập</label><input id="edit_username" type="text"></div>
+                        <div class="group"><label for="edit_email">Email</label><input id="edit_email" type="email"></div>
+                        <div class="group"><label for="edit_password">Mật khẩu mới</label><input id="edit_password" type="password" placeholder="Để trống nếu không đổi"></div>
+                    </div>
+
+                    <div class="section-title">Thông tin gian hàng</div>
+                    <p id="editStallEmpty" class="section-note" style="display:none;">Người dùng này chưa có gian hàng để chỉnh sửa trực tiếp.</p>
+                    <div id="editStallSection" class="form-grid">
+                        <div class="group full-span"><label for="edit_stall_name">Tên gian hàng</label><input id="edit_stall_name" type="text"></div>
+                        <div class="group"><label for="edit_category_id">Danh mục</label><select id="edit_category_id"></select></div>
+                        <div class="group"><label for="edit_is_open">Trạng thái mở cửa</label><select id="edit_is_open"><option value="true">Đang mở</option><option value="false">Đang đóng</option></select></div>
+                        <div class="group"><label for="edit_lat">Vĩ độ</label><input id="edit_lat" type="number" step="any"></div>
+                        <div class="group"><label for="edit_lng">Kinh độ</label><input id="edit_lng" type="number" step="any"></div>
+                        <div class="group full-span"><label for="edit_poi_radius_m">Bán kính tự phát POI (m)</label><input id="edit_poi_radius_m" type="number" min="1" step="1"></div>
+                        <div class="group full-span"><label for="edit_opening_hours">Giờ mở cửa</label><input id="edit_opening_hours" type="text"></div>
+                        <div class="group"><label for="edit_specialty_1">Món đặc sản 1</label><input id="edit_specialty_1" type="text"></div>
+                        <div class="group"><label for="edit_specialty_2">Món đặc sản 2</label><input id="edit_specialty_2" type="text"></div>
+                        <div class="group full-span"><label for="edit_specialty_3">Món đặc sản 3</label><input id="edit_specialty_3" type="text"></div>
+                        <div class="group full-span"><label for="edit_script_vi">Script tiếng Việt</label><textarea id="edit_script_vi" rows="5"></textarea></div>
+                        <div class="group full-span"><label for="edit_image_file">Ảnh gian hàng mới</label><input id="edit_image_file" type="file" accept="image/*"></div>
+                        <div class="group full-span">
+                            <label>Ảnh hiện tại</label>
+                            <img id="edit_image_preview" class="image-preview" alt="Ảnh gian hàng" style="display:none;">
+                        </div>
+                    </div>
+                    <div class="dialog-actions">
+                        <button class="btn btn-ghost" type="button" onclick="closeEditUserModal()">Đóng</button>
+                        <button class="btn btn-primary" type="submit">Lưu thay đổi</button>
+                    </div>
+                </form>
+                <div id="editStatus" class="status"></div>
             </div>
         </div>
     </dialog>
@@ -763,29 +798,29 @@
         const sidebar = document.getElementById("sidebar");
         const createOwnerDialog = document.getElementById("createOwnerDialog");
         const editUserDialog = document.getElementById("editUserDialog");
+        const requestDetailDialog = document.getElementById("requestDetailDialog");
+        const requestApproveButton = document.getElementById("requestApproveButton");
+        const requestRejectButton = document.getElementById("requestRejectButton");
         let collapseTimer = null;
         let cachedUsers = [];
         let cachedCategories = [];
-        let cachedRequests = [];
-        let activeRequestDetailId = null;
         let heatmapMap = null;
         let heatLayer = null;
         let heatMarkers = null;
+        let currentRequestDetail = null;
+        let requestActionInFlight = false;
 
         document.getElementById("createOwnerForm").addEventListener("submit", createOwner);
         document.getElementById("editUserForm").addEventListener("submit", updateUser);
         document.getElementById("edit_image_file").addEventListener("change", previewEditImage);
-        document.getElementById("requestApproveButton").addEventListener("click", () => {
-            if (activeRequestDetailId != null) approveRequest(activeRequestDetailId);
-        });
-        document.getElementById("requestRejectButton").addEventListener("click", () => {
-            if (activeRequestDetailId != null) rejectRequest(activeRequestDetailId);
-        });
 
         sidebar.addEventListener("mouseenter", openSidebar);
         sidebar.addEventListener("mouseleave", scheduleSidebarClose);
         sidebar.addEventListener("focusin", openSidebar);
         sidebar.addEventListener("focusout", scheduleSidebarClose);
+        wireDialogDismiss(createOwnerDialog, closeCreateOwnerModal);
+        wireDialogDismiss(editUserDialog, closeEditUserModal);
+        wireDialogDismiss(requestDetailDialog, closeRequestDetailModal);
 
         function openSidebar() {
             clearTimeout(collapseTimer);
@@ -824,18 +859,8 @@
 
         function closeCreateOwnerModal() { createOwnerDialog.close(); }
 
-        async function openEditUserModal(userId) {
-            const cachedUser = cachedUsers.find(item => item.id === userId);
-            let user = cachedUser;
-            let detailLoadFailed = false;
-            try {
-                const userResponse = await api(`/admin/users/${userId}`);
-                user = userResponse?.user || cachedUser;
-            } catch (error) {
-                detailLoadFailed = true;
-                console.error("Khong tai duoc chi tiet nguoi dung:", error);
-            }
-
+        function openEditUserModal(userId) {
+            const user = cachedUsers.find(item => item.id === userId);
             if (!user) return;
             document.getElementById("editStatus").className = "status";
             document.getElementById("edit_user_id").value = user.id;
@@ -859,9 +884,7 @@
                 document.getElementById("edit_lat").value = stall.lat ?? "";
                 document.getElementById("edit_lng").value = stall.lng ?? "";
                 document.getElementById("edit_poi_radius_m").value = Math.round(stall.poi_radius_m || 30);
-                setEditGpsAccuracy("");
-                document.getElementById("edit_opening_time").value = stall.opening_time || "";
-                document.getElementById("edit_closing_time").value = stall.closing_time || "";
+                document.getElementById("edit_opening_hours").value = stall.opening_hours || "";
                 const specialties = Array.isArray(stall.specialties) ? stall.specialties : [];
                 document.getElementById("edit_specialty_1").value = specialties[0] || "";
                 document.getElementById("edit_specialty_2").value = specialties[1] || "";
@@ -883,18 +906,13 @@
                 document.getElementById("edit_lat").value = "";
                 document.getElementById("edit_lng").value = "";
                 document.getElementById("edit_poi_radius_m").value = "30";
-                setEditGpsAccuracy("");
-                document.getElementById("edit_opening_time").value = "";
-                document.getElementById("edit_closing_time").value = "";
+                document.getElementById("edit_opening_hours").value = "";
                 document.getElementById("edit_specialty_1").value = "";
                 document.getElementById("edit_specialty_2").value = "";
                 document.getElementById("edit_specialty_3").value = "";
                 document.getElementById("edit_script_vi").value = "";
                 preview.removeAttribute("src");
                 preview.style.display = "none";
-                if (detailLoadFailed || user.stall_name) {
-                    showStatus("editStatus", "Không tải được chi tiết gian hàng từ backend đang chạy. Hãy restart backend, rồi tải lại trang bằng Ctrl + F5.", true);
-                }
             }
             editUserDialog.showModal();
         }
@@ -902,20 +920,50 @@
         function closeEditUserModal() { editUserDialog.close(); }
 
         async function api(path, options = {}) {
-            const res = await fetch(path, {
-                ...options,
-                cache: "no-store",
-                credentials: "include",
-                headers: { ...(options.headers || {}) }
-            });
+            const res = await fetch(path, { ...options, credentials: "include", headers: { ...(options.headers || {}) } });
             const body = await safeJson(res);
             if (res.status === 401 || res.status === 403) { location.href = "/login"; return null; }
-            if (!res.ok) throw new Error(body?.detail || "Request failed");
+            if (!res.ok) throw new Error(formatApiError(body) || "Request failed");
             return body;
         }
 
         async function safeJson(response) {
             try { return await response.json(); } catch { return null; }
+        }
+
+        function formatApiError(body) {
+            const detail = body?.detail;
+            if (!detail) return "";
+            if (typeof detail === "string") return detail;
+            if (Array.isArray(detail)) return detail.map(item => item?.msg || String(item)).join("\n");
+            if (typeof detail === "object") return Object.entries(detail).map(([key, value]) => `${key}: ${value}`).join("\n");
+            return String(detail);
+        }
+
+        function wireDialogDismiss(dialog, closeHandler) {
+            dialog.addEventListener("click", (event) => {
+                const rect = dialog.getBoundingClientRect();
+                const inside = event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+                if (!inside) closeHandler();
+            });
+            dialog.addEventListener("cancel", (event) => {
+                event.preventDefault();
+                closeHandler();
+            });
+        }
+
+        function setRequestDetailState(message = "", isError = false) {
+            const note = document.getElementById("requestDetailNote");
+            note.textContent = message;
+            note.className = message ? `status show ${isError ? "err" : "ok"}` : "status";
+        }
+
+        function setRequestActionBusy(isBusy) {
+            requestActionInFlight = isBusy;
+            requestApproveButton.disabled = isBusy;
+            requestRejectButton.disabled = isBusy;
+            requestApproveButton.textContent = isBusy ? "Đang xử lý..." : "Duyệt";
+            requestRejectButton.textContent = isBusy ? "Đang xử lý..." : "Từ chối";
         }
 
         async function bootstrap() {
@@ -952,16 +1000,16 @@
             heatMarkers.clearLayers();
 
             if (!Array.isArray(points) || !points.length) {
-                document.getElementById("heatmapHint").textContent = "Chưa có dữ liệu nghe";
+                document.getElementById("heatmapHint").textContent = "Chưa có người dùng đang hoạt động";
                 heatmapMap.setView([10.7626, 106.7045], 13);
                 return;
             }
 
-            const maxListens = Math.max(...points.map(item => item.listens || 0), 1);
+            const maxUsers = Math.max(...points.map(item => item.users || 0), 1);
             const heatPoints = points.map(item => [
                 item.lat,
                 item.lng,
-                Math.max(0.2, (item.listens || 0) / maxListens)
+                Math.max(0.2, (item.users || 0) / maxUsers)
             ]);
 
             heatLayer = L.heatLayer(heatPoints, {
@@ -978,13 +1026,14 @@
                     fillColor: "#f59e0b",
                     fillOpacity: 0.9
                 })
-                    .bindPopup(`<strong>${escapeHtml(item.name)}</strong><br>Lượt nghe: ${item.listens}`)
+                    .bindPopup(`<strong>Khu vực hoạt động</strong><br>Người dùng đang mở app: ${item.users || 0}<br>Lượt ping: ${item.hits || 0}`)
                     .addTo(heatMarkers);
             });
 
             const bounds = L.latLngBounds(points.map(item => [item.lat, item.lng]));
             heatmapMap.fitBounds(bounds, { padding: [24, 24] });
-            document.getElementById("heatmapHint").textContent = `${points.length} gian hàng có dữ liệu nghe`;
+            const totalActiveUsers = points.reduce((sum, item) => sum + (item.users || 0), 0);
+            document.getElementById("heatmapHint").textContent = `${totalActiveUsers} người dùng đang hoạt động trong 5 phút gần nhất`;
         }
 
         async function loadAllData() {
@@ -1002,7 +1051,9 @@
             document.getElementById("summaryOwners").textContent = data.metrics.total_owners;
             document.getElementById("summaryActive").textContent = data.metrics.active_stalls;
             document.getElementById("pendingBadge").textContent = data.metrics.pending_updates;
-            document.getElementById("topBody").innerHTML = data.top_stalls.map(item => `<tr><td>${escapeHtml(item.name)}</td><td>${item.listens}</td></tr>`).join("") || `<tr><td colspan="2">Chưa có dữ liệu nghe</td></tr>`;
+            document.getElementById("m6").textContent = `${data.metrics.average_listen_seconds || 0}s`;
+            document.getElementById("m7").textContent = `${data.metrics.active_users_5m || 0}`;
+            document.getElementById("topBody").innerHTML = data.top_stalls.map(item => `<tr><td>${escapeHtml(item.name)}</td><td>${item.listens}</td><td>${item.avg_duration || 0}s</td></tr>`).join("") || `<tr><td colspan="3">Chưa có dữ liệu nghe</td></tr>`;
             renderHeatmap(data.heatmap_points || []);
         }
 
@@ -1026,8 +1077,7 @@
 
         async function loadRequests() {
             const data = await api("/admin/update-requests");
-            cachedRequests = data.items || [];
-            document.getElementById("requestsBody").innerHTML = cachedRequests.map(item => `<tr><td>${escapeHtml(item.stall_name)}</td><td>${escapeHtml(item.name)}</td><td>${formatSpecialties(item.specialties)}</td><td>${Math.round(item.poi_radius_m || 0)}m</td><td>${escapeHtml(item.opening_hours || "")}</td><td>${item.is_open ? "Đang mở" : "Đang đóng"}</td><td><div class="action-group"><button class="btn btn-ghost btn-small" type="button" onclick="openRequestDetailModal(${item.id})">Xem chi tiết</button><button class="btn btn-ok btn-small" type="button" onclick="approveRequest(${item.id})">Duyệt</button><button class="btn btn-no btn-small" type="button" onclick="rejectRequest(${item.id})">Từ chối</button></div></td></tr>`).join("") || `<tr><td colspan="7">Hiện chưa có yêu cầu chờ duyệt</td></tr>`;
+            document.getElementById("requestsBody").innerHTML = data.items.map(item => `<tr><td>${escapeHtml(item.stall_name)}</td><td>${escapeHtml(item.name)}</td><td>${formatSpecialties(item.specialties)}</td><td>${Math.round(item.poi_radius_m || 0)}m</td><td>${escapeHtml(item.opening_hours || "")}</td><td>${item.is_open ? "Đang mở" : "Đang đóng"}</td><td><div class="action-group"><button class="btn btn-ok btn-small" type="button" onclick="openRequestDetail(${item.id})">Xem chi tiết</button><button class="btn btn-no btn-small" type="button" onclick="rejectRequest(${item.id})">Từ chối</button></div></td></tr>`).join("") || `<tr><td colspan="7">Hiện chưa có yêu cầu chờ duyệt</td></tr>`;
         }
 
         async function createOwner(event) {
@@ -1061,8 +1111,7 @@
             if (stallVisible) {
                 if (!document.getElementById("edit_stall_name").value.trim()) return showStatus("editStatus", "Nhập tên gian hàng.", true);
                 if (!document.getElementById("edit_lat").value.trim() || !document.getElementById("edit_lng").value.trim()) return showStatus("editStatus", "Nhập đầy đủ tọa độ gian hàng.", true);
-                if (!document.getElementById("edit_opening_time").value || !document.getElementById("edit_closing_time").value) return showStatus("editStatus", "Nhập đầy đủ giờ mở và giờ đóng.", true);
-                if (!document.getElementById("edit_poi_radius_m").value.trim() || Number(document.getElementById("edit_poi_radius_m").value) < 10) return showStatus("editStatus", "Nhập bán kính POI tối thiểu 10m.", true);
+                if (!document.getElementById("edit_poi_radius_m").value.trim() || Number(document.getElementById("edit_poi_radius_m").value) <= 0) return showStatus("editStatus", "Nhập bán kính POI lớn hơn 0.", true);
                 if (!document.getElementById("edit_specialty_1").value.trim() || !document.getElementById("edit_specialty_2").value.trim() || !document.getElementById("edit_specialty_3").value.trim()) return showStatus("editStatus", "Nhập đủ 3 món đặc sản.", true);
                 if (!document.getElementById("edit_script_vi").value.trim()) return showStatus("editStatus", "Nhập script tiếng Việt.", true);
             }
@@ -1078,8 +1127,7 @@
                 formData.append("lat", document.getElementById("edit_lat").value.trim());
                 formData.append("lng", document.getElementById("edit_lng").value.trim());
                 formData.append("poi_radius_m", document.getElementById("edit_poi_radius_m").value.trim());
-                formData.append("opening_time", document.getElementById("edit_opening_time").value);
-                formData.append("closing_time", document.getElementById("edit_closing_time").value);
+                formData.append("opening_hours", document.getElementById("edit_opening_hours").value.trim());
                 formData.append("is_open", document.getElementById("edit_is_open").value);
                 formData.append("specialty_1", document.getElementById("edit_specialty_1").value.trim());
                 formData.append("specialty_2", document.getElementById("edit_specialty_2").value.trim());
@@ -1107,29 +1155,6 @@
             preview.style.display = "block";
         }
 
-        function setEditGpsAccuracy(message) {
-            document.getElementById("edit_gps_accuracy").textContent = message;
-        }
-
-        async function captureEditCurrentLocation() {
-            if (!navigator.geolocation) {
-                showStatus("editStatus", "Trình duyệt không hỗ trợ lấy GPS hiện tại.", true);
-                return;
-            }
-
-            navigator.geolocation.getCurrentPosition(
-                position => {
-                    const { latitude, longitude, accuracy } = position.coords;
-                    document.getElementById("edit_lat").value = Number(latitude).toFixed(6);
-                    document.getElementById("edit_lng").value = Number(longitude).toFixed(6);
-                    setEditGpsAccuracy(`Độ chính xác GPS hiện tại: khoảng ${Math.round(accuracy)}m`);
-                    showStatus("editStatus", "Đã lấy vị trí hiện tại.");
-                },
-                () => showStatus("editStatus", "Không thể lấy vị trí hiện tại. Hãy bật quyền vị trí trên trình duyệt.", true),
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-            );
-        }
-
         async function hideUser(id, displayName) {
             const confirmed = confirm(`Bạn có muốn vô hiệu hóa người dùng ${displayName} không?`);
             if (!confirmed) return;
@@ -1144,48 +1169,99 @@
             await loadAllData();
         }
 
-        async function approveRequest(id) {
-            const confirmed = confirm("Bạn có muốn duyệt yêu cầu này không?");
-            if (!confirmed) return;
-            await api(`/admin/update-requests/${id}/approve`, { method: "POST" });
-            closeRequestDetailModal();
-            await loadAllData();
+        async function openRequestDetail(id) {
+            const data = await api(`/admin/update-requests/${id}`);
+            currentRequestDetail = data?.item || null;
+            if (!currentRequestDetail) return;
+
+            document.getElementById("requestDetailTitle").textContent = `Chi tiết yêu cầu #${currentRequestDetail.id}`;
+            document.getElementById("requestDetailMeta").textContent = `${currentRequestDetail.stall_name} • Gửi lúc ${formatDateTime(currentRequestDetail.submitted_at)}`;
+            setRequestDetailState();
+            setRequestActionBusy(false);
+
+            const currentRows = [];
+            const requestedRows = [];
+            currentRequestDetail.field_changes.forEach(item => {
+                const rowClass = item.changed ? "compare-row changed" : "compare-row";
+                currentRows.push(`<div class="${rowClass}"><span class="compare-label">${escapeHtml(item.label)}</span>${formatDetailValue(item.old_value)}</div>`);
+                requestedRows.push(`<div class="${rowClass}"><span class="compare-label">${escapeHtml(item.label)}</span>${formatDetailValue(item.new_value)}</div>`);
+            });
+
+            document.getElementById("requestDetailGrid").innerHTML = `
+                    <div class="compare-card">
+                        <h4>Bản hiện tại</h4>
+                        ${currentRows.join("")}
+                    </div>
+                    <div class="compare-card">
+                        <h4>Bản sau chỉnh sửa</h4>
+                        ${requestedRows.join("")}
+                    </div>
+                `;
+
+            requestDetailDialog.showModal();
+        }
+
+        function closeRequestDetailModal() {
+            currentRequestDetail = null;
+            setRequestDetailState();
+            setRequestActionBusy(false);
+            requestDetailDialog.close();
+        }
+
+        async function approveCurrentRequest() {
+            if (!currentRequestDetail || requestActionInFlight) return;
+            setRequestActionBusy(true);
+            setRequestDetailState("Đang duyệt yêu cầu...");
+            try {
+                await api(`/admin/update-requests/${currentRequestDetail.id}/approve`, { method: "POST" });
+                setRequestDetailState("Đã duyệt yêu cầu thành công.");
+                await Promise.all([loadDashboard(), loadRequests()]);
+                loadUsers().catch(() => { });
+                setTimeout(() => closeRequestDetailModal(), 500);
+            } catch (error) {
+                setRequestDetailState(error.message, true);
+                await Promise.all([loadDashboard(), loadRequests()]);
+            } finally {
+                setRequestActionBusy(false);
+            }
         }
 
         async function rejectRequest(id) {
+            if (requestActionInFlight) return;
             const confirmed = confirm("Bạn có muốn từ chối yêu cầu này không?");
             if (!confirmed) return;
             const note = prompt("Lý do từ chối:", "") || "";
             const form = new FormData();
             form.append("admin_note", note);
-            await api(`/admin/update-requests/${id}/reject`, { method: "POST", body: form });
-            closeRequestDetailModal();
-            await loadAllData();
-        }
-
-        async function openRequestDetailModal(id) {
-            const response = await api(`/admin/update-requests/${id}`);
-            const item = response?.item;
-            if (!item) return;
-            activeRequestDetailId = id;
-            document.getElementById("requestDetailMeta").textContent = `Gian hàng: ${item.stall_name || ""} · Gửi lúc: ${formatDateTime(item.submitted_at)}`;
-            const note = document.getElementById("requestDetailNote");
-            if (item.admin_note) {
-                note.style.display = "block";
-                note.textContent = item.admin_note;
-            } else {
-                note.style.display = "none";
-                note.textContent = "";
+            setRequestActionBusy(true);
+            if (currentRequestDetail && currentRequestDetail.id === id) {
+                setRequestDetailState("Đang từ chối yêu cầu...");
             }
-            document.getElementById("requestDetailCompare").innerHTML = renderCompareRows(item.field_changes || []);
-            document.getElementById("requestApproveButton").style.display = item.status === "pending" ? "inline-block" : "none";
-            document.getElementById("requestRejectButton").style.display = item.status === "pending" ? "inline-block" : "none";
-            document.getElementById("requestDetailDialog").showModal();
+            try {
+                await api(`/admin/update-requests/${id}/reject`, { method: "POST", body: form });
+                if (currentRequestDetail && currentRequestDetail.id === id) {
+                    setRequestDetailState("Đã từ chối yêu cầu.");
+                }
+                await Promise.all([loadDashboard(), loadRequests()]);
+                loadUsers().catch(() => { });
+                if (currentRequestDetail && currentRequestDetail.id === id) {
+                    setTimeout(() => closeRequestDetailModal(), 500);
+                }
+            } catch (error) {
+                if (currentRequestDetail && currentRequestDetail.id === id) {
+                    setRequestDetailState(error.message, true);
+                } else {
+                    alert(error.message);
+                }
+                await Promise.all([loadDashboard(), loadRequests()]);
+            } finally {
+                setRequestActionBusy(false);
+            }
         }
 
-        function closeRequestDetailModal() {
-            activeRequestDetailId = null;
-            document.getElementById("requestDetailDialog").close();
+        async function rejectCurrentRequest() {
+            if (!currentRequestDetail) return;
+            await rejectRequest(currentRequestDetail.id);
         }
 
         function showStatus(id, message, isError = false) {
@@ -1212,57 +1288,21 @@
             return items.map(item => escapeHtml(item)).join("<br>");
         }
 
-        function renderCompareRows(changes) {
-            if (!Array.isArray(changes) || !changes.length) return '<div style="color:var(--muted);">Không có dữ liệu so sánh.</div>';
-            return changes.map(item => `
-                    <div class="compare-row ${item.changed ? "changed" : ""}">
-                        <div class="compare-label">${escapeHtml(item.label)}${item.changed ? " · Đã chỉnh sửa" : ""}</div>
-                        <div class="compare-cols">
-                            <div class="compare-cell">
-                                <div style="color:var(--muted);font-size:12px;margin-bottom:6px;">Bản hiện tại</div>
-                                ${formatCompareValue(item.old_value)}
-                            </div>
-                            <div class="compare-cell compare-new">
-                                <div style="color:var(--muted);font-size:12px;margin-bottom:6px;">Bản yêu cầu</div>
-                                ${item.changed ? `<strong>${formatCompareValue(item.new_value)}</strong>` : formatCompareValue(item.new_value)}
-                            </div>
-                        </div>
-                    </div>
-                `).join("");
-        }
-
-        function formatCompareValue(value) {
+        function formatDetailValue(value) {
             if (Array.isArray(value)) {
-                if (!value.length) return "<span style='color:#98a3af;'>Trống</span>";
-                return value.map(item => escapeHtml(item)).join("<br>");
+                return value.length ? value.map(item => `<div>${escapeHtml(item)}</div>`).join("") : "<em>Trống</em>";
             }
-            if (typeof value === "boolean") {
-                return value ? "Đang mở" : "Đang đóng";
-            }
-            if (value === null || value === undefined || value === "") {
-                return "<span style='color:#98a3af;'>Trống</span>";
-            }
-            if (typeof value === "number") {
-                if (Number.isFinite(value)) return escapeHtml(String(value));
-                return "<span style='color:#98a3af;'>Trống</span>";
-            }
-            if (String(value).startsWith("http")) {
-                return `<a href="${escapeHtml(value)}" target="_blank" rel="noreferrer">Xem ảnh</a>`;
-            }
+            if (value === null || value === undefined || value === "") return "<em>Trống</em>";
+            if (typeof value === "boolean") return value ? "Đang mở" : "Đang đóng";
             return escapeHtml(String(value));
         }
 
         function formatDateTime(value) {
             if (!value) return "";
-            const date = new Date(value);
-            if (Number.isNaN(date.getTime())) return value;
-            return date.toLocaleString("vi-VN");
+            try { return new Date(value).toLocaleString("vi-VN"); } catch { return value; }
         }
 
         bootstrap();
     </script>
 </body>
 </html>
-
-
-
