@@ -839,6 +839,10 @@ def get_request_ip(request: Request) -> str:
     return request.client.host if request.client else ""
 
 
+def get_location_log_user_key(row: "LocationLog") -> str:
+    return row.device_id or row.session_id or f"anon:{row.id}"
+
+
 def compute_search_score(stall: Stall, query_terms: list[str]) -> int:
     if not query_terms:
         return 0
@@ -1845,7 +1849,7 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
     )
 
     active_user_keys = {
-        (row.device_id or row.session_id or f"anon:{row.id}")
+        get_location_log_user_key(row)
         for row in recent_location_rows
         if row.latitude is not None and row.longitude is not None
     }
@@ -1855,7 +1859,7 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
         if row.latitude is None or row.longitude is None:
             continue
 
-        user_key = row.device_id or row.session_id or f"anon:{row.id}"
+        user_key = get_location_log_user_key(row)
         if user_key in latest_positions_by_user:
             continue
 
@@ -1888,7 +1892,7 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
         lat_key = round(float(row.latitude), 4)
         lng_key = round(float(row.longitude), 4)
         group_key = (lat_key, lng_key)
-        device_key = row.device_id or row.session_id or f"anon:{row.id}"
+        device_key = get_location_log_user_key(row)
         bucket = heatmap_groups.setdefault(group_key, {"lat": lat_key, "lng": lng_key, "users": set(), "hits": 0})
         bucket["users"].add(device_key)
         bucket["hits"] += 1

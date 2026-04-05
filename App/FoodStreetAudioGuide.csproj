@@ -43,12 +43,6 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<Compile Remove="Models\StallItem.cs" />
-		<Compile Remove="LanguageSelectionPage.redesign.xaml" />
-		<MauiXaml Remove="LanguageSelectionPage.redesign.xaml" />
-		<EmbeddedResource Remove="LanguageSelectionPage.redesign.xaml" />
-		<None Remove="LanguageSelectionPage.redesign.xaml" />
-
 		<!-- App Icon -->
 		<MauiIcon Include="Resources\AppIcon\hoafoodaudioicon.png" />
 

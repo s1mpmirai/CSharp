@@ -1,3 +1,224 @@
+-- Consolidated database setup for FoodStreet Audio Guide
+-- This file supersedes the old fragmented SQL scripts.
+-- Recommended order:
+--   1. Base schema
+--   2. Current-model supplements
+--   3. Seed content
+--   4. Seed users
+--   5. Normalize/reset current product flow
+BEGIN;
+
+DROP TABLE IF EXISTS listening_logs CASCADE;
+DROP TABLE IF EXISTS reviews CASCADE;
+DROP TABLE IF EXISTS stall_translations CASCADE;
+DROP TABLE IF EXISTS stalls CASCADE;
+DROP TABLE IF EXISTS categories CASCADE;
+DROP TABLE IF EXISTS languages CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS roles CASCADE;
+
+CREATE TABLE roles (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    description TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    role_id INTEGER NOT NULL REFERENCES roles(id),
+    username VARCHAR(100) NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    full_name VARCHAR(150),
+    email VARCHAR(150) UNIQUE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE languages (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(16) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL,
+    native_name VARCHAR(100) NOT NULL,
+    locale_code VARCHAR(20) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE categories (
+    id SERIAL PRIMARY KEY,
+    slug VARCHAR(100) NOT NULL UNIQUE,
+    name VARCHAR(120) NOT NULL,
+    icon_url TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE stalls (
+    id SERIAL PRIMARY KEY,
+    category_id INTEGER REFERENCES categories(id),
+    name VARCHAR(200) NOT NULL,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    image_url TEXT,
+    opening_hours VARCHAR(255),
+    is_open BOOLEAN NOT NULL DEFAULT TRUE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    rating_avg NUMERIC(2,1) NOT NULL DEFAULT 0,
+    reviews_count INTEGER NOT NULL DEFAULT 0,
+    created_by_user_id INTEGER REFERENCES users(id),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    is_deleted BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE TABLE stall_translations (
+    id SERIAL PRIMARY KEY,
+    stall_id INTEGER NOT NULL REFERENCES stalls(id) ON DELETE CASCADE,
+    language_id INTEGER NOT NULL REFERENCES languages(id),
+    title VARCHAR(200),
+    description TEXT,
+    script_text TEXT NOT NULL,
+    is_auto_generated BOOLEAN NOT NULL DEFAULT TRUE,
+    translation_status VARCHAR(30) NOT NULL DEFAULT 'draft',
+    source_version INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_stall_translation UNIQUE (stall_id, language_id)
+);
+
+CREATE TABLE reviews (
+    id SERIAL PRIMARY KEY,
+    stall_id INTEGER NOT NULL REFERENCES stalls(id) ON DELETE CASCADE,
+    rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment TEXT,
+    reviewer_name VARCHAR(120),
+    is_approved BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    is_deleted BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE TABLE listening_logs (
+    id BIGSERIAL PRIMARY KEY,
+    stall_id INTEGER NOT NULL REFERENCES stalls(id) ON DELETE CASCADE,
+    language_id INTEGER NOT NULL REFERENCES languages(id),
+    session_id VARCHAR(120),
+    device_id VARCHAR(120),
+    duration_seconds INTEGER NOT NULL DEFAULT 0,
+    source VARCHAR(30) NOT NULL DEFAULT 'app',
+    listened_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX ix_users_role_id ON users(role_id);
+
+CREATE INDEX ix_stalls_category_id ON stalls(category_id);
+CREATE INDEX ix_stalls_is_active ON stalls(is_active);
+CREATE INDEX ix_stalls_is_deleted ON stalls(is_deleted);
+
+CREATE INDEX ix_stall_translations_stall_id ON stall_translations(stall_id);
+CREATE INDEX ix_stall_translations_language_id ON stall_translations(language_id);
+
+CREATE INDEX ix_reviews_stall_id ON reviews(stall_id);
+CREATE INDEX ix_reviews_is_approved_created_at ON reviews(is_approved, created_at);
+
+CREATE INDEX ix_listening_logs_stall_language_time
+ON listening_logs(stall_id, language_id, listened_at);
+
+INSERT INTO roles (name, description) VALUES
+('super_admin', 'Toan quyen he thong'),
+('stall_owner', 'Chu gian hang')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO languages (code, name, native_name, locale_code, sort_order) VALUES
+('vi', 'Vietnamese', 'Tiếng Việt', 'vi-VN', 1),
+('en', 'English', 'English', 'en-US', 2),
+('zh-CN', 'Chinese', '中文', 'zh-CN', 3),
+('ja', 'Japanese', '日本語', 'ja-JP', 4),
+('ko', 'Korean', '한국어', 'ko-KR', 5)
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO categories (slug, name, icon_url) VALUES
+('seafood', 'Hải sản', NULL),
+('grilled', 'Đồ nướng', NULL),
+('noodles', 'Món nước', NULL),
+('snacks', 'Ăn vặt', NULL),
+('desserts', 'Tráng miệng', NULL)
+ON CONFLICT (slug) DO NOTHING;
+
+COMMIT;
+
+
+BEGIN;
+
+-- Current backend model supplements (kept in sync with Backend/main.py)
+CREATE TABLE IF NOT EXISTS stall_audio_assets (
+    id SERIAL PRIMARY KEY,
+    stall_id INTEGER NOT NULL REFERENCES stalls(id) ON DELETE CASCADE,
+    language_id INTEGER NOT NULL REFERENCES languages(id),
+    script_hash VARCHAR(64) NOT NULL,
+    mime_type VARCHAR(120) NOT NULL DEFAULT 'audio/mpeg',
+    audio_data BYTEA NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS ix_stall_audio_assets_stall_id ON stall_audio_assets (stall_id);
+CREATE INDEX IF NOT EXISTS ix_stall_audio_assets_language_id ON stall_audio_assets (language_id);
+
+CREATE TABLE IF NOT EXISTS stall_update_requests (
+    id SERIAL PRIMARY KEY,
+    stall_id INTEGER NOT NULL REFERENCES stalls(id) ON DELETE CASCADE,
+    submitted_by_user_id INTEGER NOT NULL REFERENCES users(id),
+    category_id INTEGER REFERENCES categories(id),
+    name VARCHAR(200) NOT NULL,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    specialty_1 TEXT,
+    specialty_2 TEXT,
+    specialty_3 TEXT,
+    poi_radius_m DOUBLE PRECISION NOT NULL DEFAULT 30,
+    opening_hours VARCHAR(255),
+    is_open BOOLEAN NOT NULL DEFAULT TRUE,
+    script_vi TEXT NOT NULL,
+    image_url TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    admin_note TEXT,
+    submitted_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    reviewed_at TIMESTAMP,
+    reviewed_by_user_id INTEGER REFERENCES users(id),
+    owner_read_at TIMESTAMP,
+    owner_deleted BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE INDEX IF NOT EXISTS ix_stall_update_requests_stall_id ON stall_update_requests (stall_id);
+CREATE INDEX IF NOT EXISTS ix_stall_update_requests_status ON stall_update_requests (status);
+
+CREATE TABLE IF NOT EXISTS location_logs (
+    id BIGSERIAL PRIMARY KEY,
+    session_id VARCHAR(120),
+    device_id VARCHAR(120),
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    source VARCHAR(30) NOT NULL DEFAULT 'app',
+    recorded_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE stalls ADD COLUMN IF NOT EXISTS specialty_1 TEXT;
+ALTER TABLE stalls ADD COLUMN IF NOT EXISTS specialty_2 TEXT;
+ALTER TABLE stalls ADD COLUMN IF NOT EXISTS specialty_3 TEXT;
+ALTER TABLE stalls ADD COLUMN IF NOT EXISTS poi_radius_m DOUBLE PRECISION DEFAULT 30;
+ALTER TABLE listening_logs ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+ALTER TABLE listening_logs ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+ALTER TABLE reviews ADD COLUMN IF NOT EXISTS ip_address VARCHAR(64);
+
+COMMIT;
+
 BEGIN;
 
 ALTER TABLE stalls ADD COLUMN IF NOT EXISTS specialty_1 TEXT;
@@ -198,3 +419,257 @@ JOIN languages l ON l.code IN ('vi', 'en', 'zh-CN', 'ja', 'ko');
 DROP TABLE import_stalls;
 
 COMMIT;
+
+
+BEGIN;
+
+INSERT INTO users (
+    role_id,
+    username,
+    password_hash,
+    full_name,
+    email,
+    is_active,
+    created_at,
+    updated_at
+)
+SELECT r.id, 'admin', 'pbkdf2_sha256$390000$SHGU1N51AvWzZqNDolhXeA$JKlMGBHNFqXIXeM2SJU08lbOJneu_JUwqq9tg-K_aRs',
+       'Qu?n tr? h? th?ng', 'admin@streetfeast.local', TRUE, NOW(), NOW()
+FROM roles r
+WHERE r.name = 'super_admin'
+ON CONFLICT (username) DO NOTHING;
+
+COMMIT;
+
+
+BEGIN;
+
+-- =========================================================
+-- StreetFeast DB reset/cleanup for the current product flow
+-- Target flow:
+-- 1. Only `super_admin` is seeded by default.
+-- 2. New stall owners are created from superadmin UI.
+-- 3. First stall submission creates a pending approval request.
+-- 4. Owners waiting for first approval must not have an active stall.
+-- 5. App/web read scripts from `stall_translations`, not legacy seed helpers.
+-- =========================================================
+
+-- ---------------------------------------------------------
+-- 1. Normalize roles
+-- ---------------------------------------------------------
+INSERT INTO roles (name, description, created_at, updated_at)
+VALUES
+    ('super_admin', 'Quản trị hệ thống', NOW(), NOW()),
+    ('stall_owner', 'Chủ gian hàng', NOW(), NOW())
+ON CONFLICT (name) DO UPDATE
+SET
+    description = EXCLUDED.description,
+    updated_at = NOW();
+
+-- ---------------------------------------------------------
+-- 2. Normalize languages
+-- ---------------------------------------------------------
+INSERT INTO languages (code, name, native_name, locale_code, sort_order, is_active, created_at, updated_at)
+VALUES
+    ('vi', 'Vietnamese', 'Tiếng Việt', 'vi-VN', 1, TRUE, NOW(), NOW()),
+    ('en', 'English', 'English', 'en-US', 2, TRUE, NOW(), NOW()),
+    ('zh-CN', 'Chinese', '中文', 'zh-CN', 3, TRUE, NOW(), NOW()),
+    ('ja', 'Japanese', '日本語', 'ja-JP', 4, TRUE, NOW(), NOW()),
+    ('ko', 'Korean', '한국어', 'ko-KR', 5, TRUE, NOW(), NOW())
+ON CONFLICT (code) DO UPDATE
+SET
+    name = EXCLUDED.name,
+    native_name = EXCLUDED.native_name,
+    locale_code = EXCLUDED.locale_code,
+    sort_order = EXCLUDED.sort_order,
+    is_active = TRUE,
+    updated_at = NOW();
+
+-- ---------------------------------------------------------
+-- 3. Normalize categories used by app/web
+-- ---------------------------------------------------------
+INSERT INTO categories (slug, name, is_active, created_at, updated_at)
+VALUES
+    ('cat-1', 'Hải sản', TRUE, NOW(), NOW()),
+    ('cat-2', 'Đồ nướng', TRUE, NOW(), NOW()),
+    ('cat-3', 'Món nước', TRUE, NOW(), NOW()),
+    ('cat-4', 'Ăn vặt', TRUE, NOW(), NOW()),
+    ('cat-5', 'Tráng miệng', TRUE, NOW(), NOW())
+ON CONFLICT (slug) DO UPDATE
+SET
+    name = EXCLUDED.name,
+    is_active = TRUE,
+    updated_at = NOW();
+
+-- ---------------------------------------------------------
+-- 4. Ensure default admin exists and is active
+-- ---------------------------------------------------------
+INSERT INTO users (role_id, username, password_hash, full_name, email, is_active, created_at, updated_at)
+SELECT
+    r.id,
+    'admin',
+    'pbkdf2_sha256$390000$SHGU1N51AvWzZqNDolhXeA$JKlMGBHNFqXIXeM2SJU08lbOJneu_JUwqq9tg-K_aRs',
+    'Quản trị hệ thống',
+    'admin@streetfeast.local',
+    TRUE,
+    NOW(),
+    NOW()
+FROM roles r
+WHERE r.name = 'super_admin'
+ON CONFLICT (username) DO UPDATE
+SET
+    role_id = EXCLUDED.role_id,
+    full_name = EXCLUDED.full_name,
+    email = EXCLUDED.email,
+    is_active = TRUE,
+    updated_at = NOW();
+
+-- ---------------------------------------------------------
+-- 5. Remove legacy seeded owners from old flow
+--    These users used to be auto-created and auto-bound to stalls.
+--    We keep the stalls, but detach ownership so the current owner
+--    onboarding flow is not polluted by historical seed data.
+-- ---------------------------------------------------------
+WITH legacy_users AS (
+    SELECT id, username
+    FROM users
+    WHERE username IN ('chuoc', 'chubanhtrang', 'chupho', 'chukem')
+       OR username ~ '^owner[0-9]{3}(_[0-9]+)?$'
+)
+UPDATE stalls
+SET
+    created_by_user_id = NULL,
+    updated_at = NOW()
+WHERE created_by_user_id IN (SELECT id FROM legacy_users);
+
+DELETE FROM stall_update_requests
+WHERE submitted_by_user_id IN (
+    SELECT id
+    FROM users
+    WHERE username IN ('chuoc', 'chubanhtrang', 'chupho', 'chukem')
+       OR username ~ '^owner[0-9]{3}(_[0-9]+)?$'
+);
+
+DELETE FROM users
+WHERE username IN ('chuoc', 'chubanhtrang', 'chupho', 'chukem')
+   OR username ~ '^owner[0-9]{3}(_[0-9]+)?$';
+
+-- ---------------------------------------------------------
+-- 6. Repair owner accounts against current onboarding flow
+--    - if owner has an active stall, account must be active
+--    - if owner has no active stall but has a pending first request,
+--      account should stay locked until reviewed
+--    - otherwise owner can log in and create/resubmit
+-- ---------------------------------------------------------
+WITH owner_role AS (
+    SELECT id FROM roles WHERE name = 'stall_owner'
+),
+owner_status AS (
+    SELECT
+        u.id AS user_id,
+        EXISTS (
+            SELECT 1
+            FROM stalls s
+            WHERE s.created_by_user_id = u.id
+              AND s.is_deleted = FALSE
+              AND s.is_active = TRUE
+        ) AS has_active_stall,
+        EXISTS (
+            SELECT 1
+            FROM stalls s
+            JOIN stall_update_requests r ON r.stall_id = s.id
+            WHERE s.created_by_user_id = u.id
+              AND s.is_deleted = FALSE
+              AND s.is_active = FALSE
+              AND r.status = 'pending'
+        ) AS waiting_first_approval
+    FROM users u
+    JOIN owner_role r ON u.role_id = r.id
+)
+UPDATE users u
+SET
+    is_active = CASE
+        WHEN os.has_active_stall THEN TRUE
+        WHEN os.waiting_first_approval THEN FALSE
+        ELSE TRUE
+    END,
+    updated_at = NOW()
+FROM owner_status os
+WHERE u.id = os.user_id;
+
+-- ---------------------------------------------------------
+-- 7. Ensure active stalls have a Vietnamese translation row
+--    App/audio/UI rely on translations rather than legacy script columns.
+-- ---------------------------------------------------------
+INSERT INTO stall_translations (
+    stall_id,
+    language_id,
+    title,
+    description,
+    script_text,
+    is_auto_generated,
+    translation_status,
+    source_version,
+    created_at,
+    updated_at
+)
+SELECT
+    s.id,
+    l.id,
+    s.name,
+    NULL,
+    COALESCE(
+        NULLIF(src.script_vi, ''),
+        'Nội dung thuyết minh đang được cập nhật.'
+    ),
+    FALSE,
+    'approved',
+    1,
+    NOW(),
+    NOW()
+FROM stalls s
+CROSS JOIN languages l
+LEFT JOIN stall_update_requests src
+    ON src.stall_id = s.id
+   AND src.status IN ('approved', 'pending')
+LEFT JOIN stall_translations t
+    ON t.stall_id = s.id
+   AND t.language_id = l.id
+WHERE l.code = 'vi'
+  AND s.is_deleted = FALSE
+  AND t.id IS NULL;
+
+-- ---------------------------------------------------------
+-- 8. Make sure all translation rows have clean version timestamps
+--    so /sync/version changes are visible to the app.
+-- ---------------------------------------------------------
+UPDATE stall_translations
+SET updated_at = NOW()
+WHERE updated_at IS NULL;
+
+UPDATE stalls
+SET updated_at = NOW()
+WHERE updated_at IS NULL;
+
+UPDATE categories
+SET updated_at = NOW()
+WHERE updated_at IS NULL;
+
+-- ---------------------------------------------------------
+-- 9. When approved/rejected requests still have null review timestamps,
+--    backfill them for cleaner admin/owner history.
+-- ---------------------------------------------------------
+UPDATE stall_update_requests
+SET reviewed_at = COALESCE(reviewed_at, NOW())
+WHERE status IN ('approved', 'rejected')
+  AND reviewed_at IS NULL;
+
+COMMIT;
+
+
+-- Retired standalone SQL files:
+-- - add_update_requests.sql
+-- - create_missing_stall_owners.sql
+-- - migrate_stall_translations.sql
+-- - seed_admin_samples.sql
+-- Their intent is covered by the consolidated sections above/below.
