@@ -290,7 +290,11 @@ namespace FoodStreetAudioGuide
                     }
                     else if (Stalls.Count == 0)
                     {
-                        LoadMockData();
+                        if (!CanAttemptBackendRequest())
+                        {
+                            LoadMockData();
+                        }
+
                         HideInitialLoading();
                     }
                     else
@@ -313,7 +317,10 @@ namespace FoodStreetAudioGuide
                 {
                     if (Stalls.Count == 0)
                     {
-                        LoadMockData();
+                        if (!CanAttemptBackendRequest())
+                        {
+                            LoadMockData();
+                        }
                     }
 
                     HideInitialLoading();

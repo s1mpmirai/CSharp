@@ -29,31 +29,44 @@ namespace FoodStreetAudioGuide
                 return await _offlineCache.LoadStallsAsync();
             }
 
-            try
+            for (var attempt = 1; attempt <= 2; attempt++)
             {
-                var response = await _httpClient.PostAsJsonAsync("nearby", new { lat, lng });
-
-                if (response.IsSuccessStatusCode)
+                try
                 {
-                    var sourceStalls = await response.Content.ReadFromJsonAsync<List<StallItem>>() ?? new List<StallItem>();
-                    var stalls = NormalizeStalls(sourceStalls);
-                    CacheMapStalls(stalls);
-                    await _offlineCache.SaveStallsAsync(stalls);
-                    _ = Task.Run(() => PrimeImageCacheAsync(sourceStalls));
-                    _ = Task.Run(FlushPendingListeningLogsAsync);
-                    _ = Task.Run(FlushPendingLocationLogsAsync);
-                    return stalls;
+                    var response = await _httpClient.PostAsJsonAsync("nearby", new { lat, lng });
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var sourceStalls = await response.Content.ReadFromJsonAsync<List<StallItem>>() ?? new List<StallItem>();
+                        var stalls = NormalizeStalls(sourceStalls);
+                        CacheMapStalls(stalls);
+                        await _offlineCache.SaveStallsAsync(stalls);
+                        _ = Task.Run(() => PrimeImageCacheAsync(sourceStalls));
+                        _ = Task.Run(FlushPendingListeningLogsAsync);
+                        _ = Task.Run(FlushPendingLocationLogsAsync);
+                        return stalls;
+                    }
+
+                    Debug.WriteLine($"--- API Tra ve loi: {response.StatusCode}");
+                }
+                catch (TaskCanceledException ex)
+                {
+                    Debug.WriteLine($@"--- LOI TIMEOUT NEARBY (lan {attempt}): {ex.Message}");
+                }
+                catch (HttpRequestException ex)
+                {
+                    Debug.WriteLine($@"--- LOI KET NOI NEARBY (lan {attempt}): {ex.Message}");
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($@"--- LOI HE THONG NEARBY (lan {attempt}): {ex.Message}");
+                    break;
                 }
 
-                Debug.WriteLine($"--- API Tra ve loi: {response.StatusCode}");
-            }
-            catch (HttpRequestException ex)
-            {
-                Debug.WriteLine(@"--- LOI KET NOI (Kiem tra Docker/Backend): " + ex.Message);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine(@"--- LOI HE THONG: " + ex.Message);
+                if (attempt < 2)
+                {
+                    await Task.Delay(600);
+                }
             }
 
             return await _offlineCache.LoadStallsAsync();

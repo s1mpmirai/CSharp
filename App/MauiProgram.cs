@@ -5,6 +5,8 @@ using ZXing.Net.Maui.Controls;
 
 public static class MauiProgram
 {
+    private static readonly TimeSpan DefaultApiTimeout = TimeSpan.FromSeconds(12);
+
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder();
@@ -23,13 +25,13 @@ public static class MauiProgram
         builder.Services.AddHttpClient<StallService>(client =>
         {
             client.BaseAddress = new Uri(ApiSettings.GetBaseUrl());
-            client.Timeout = TimeSpan.FromSeconds(4);
+            client.Timeout = DefaultApiTimeout;
         });
 
         builder.Services.AddHttpClient<AudioCacheService>(client =>
         {
             client.BaseAddress = new Uri(ApiSettings.GetBaseUrl());
-            client.Timeout = TimeSpan.FromSeconds(4);
+            client.Timeout = DefaultApiTimeout;
         });
 
         builder.Services.AddTransient<LanguageSelectionPage>();
