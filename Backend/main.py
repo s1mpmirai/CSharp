@@ -247,7 +247,6 @@ def ensure_schema_columns():
 
 
 ensure_schema_columns()
-repair_legacy_review_aggregates()
 
 app = FastAPI()
 app.add_middleware(
@@ -801,6 +800,9 @@ def repair_legacy_review_aggregates():
         raise
     finally:
         db.close()
+
+
+repair_legacy_review_aggregates()
 
 
 def get_request_ip(request: Request) -> str:
