@@ -1570,6 +1570,33 @@ def owner_delete_update_request(request_id: int, request: Request, db: Session =
     return {"status": "success"}
 
 
+@app.delete("/owner/update-requests")
+def owner_delete_all_update_requests(request: Request, db: Session = Depends(get_db)):
+    user = require_auth_page(request, db)
+    require_role(user, "stall_owner")
+
+    stall = get_owner_stall(db, user.id)
+    if not stall:
+        raise HTTPException(status_code=404, detail="Bạn chưa có gian hàng")
+
+    rows = (
+        db.query(StallUpdateRequest)
+        .filter(
+            StallUpdateRequest.stall_id == stall.id,
+            StallUpdateRequest.owner_deleted == False
+        )
+        .all()
+    )
+
+    for row in rows:
+        row.owner_deleted = True
+        if row.owner_read_at is None:
+            row.owner_read_at = datetime.utcnow()
+
+    db.commit()
+    return {"status": "success", "deleted_count": len(rows)}
+
+
 @app.post("/owner/stall")
 async def owner_create_stall(
     request: Request,
@@ -1806,6 +1833,23 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
         if row.latitude is not None and row.longitude is not None
     }
 
+    latest_positions_by_user = {}
+    for row in recent_location_rows:
+        if row.latitude is None or row.longitude is None:
+            continue
+
+        user_key = row.device_id or row.session_id or f"anon:{row.id}"
+        if user_key in latest_positions_by_user:
+            continue
+
+        latest_positions_by_user[user_key] = {
+            "user_key": user_key,
+            "lat": float(row.latitude),
+            "lng": float(row.longitude),
+            "source": row.source or "app",
+            "recorded_at": row.recorded_at.isoformat() if row.recorded_at else None
+        }
+
     top_rows = (
         db.query(
             Stall.name,
@@ -1858,7 +1902,8 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
             ],
             key=lambda item: (item["users"], item["hits"]),
             reverse=True
-        )[:300]
+        )[:300],
+        "active_user_positions": list(latest_positions_by_user.values())[:500]
     }
 
 

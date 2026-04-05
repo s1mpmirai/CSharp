@@ -201,6 +201,17 @@
         .table-shell table { background: transparent; }
         .table-shell thead { background: rgba(245, 238, 229, 0.72); }
         .table-shell tbody tr:hover { background: rgba(255, 248, 241, 0.9); }
+        .pagination {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 10px;
+            margin-top: 14px;
+        }
+        .pagination-info {
+            color: var(--muted);
+            font-size: 14px;
+        }
         .summary-list {
             display: grid;
             gap: 12px;
@@ -263,6 +274,15 @@
         .section-title { margin: 18px 0 12px; font-size: 16px; font-weight: 700; }
         .section-note { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
         .image-preview { width: 100%; max-height: 220px; object-fit: cover; border-radius: 18px; border: 1px solid var(--line); background: #f3f6fa; }
+        .detail-image {
+            width: 100%;
+            max-height: 220px;
+            object-fit: cover;
+            border-radius: 16px;
+            border: 1px solid var(--line);
+            background: #f3f6fa;
+            display: block;
+        }
         #heatmap { width: 100%; height: 380px; border-radius: 20px; border: 1px solid var(--line); overflow: hidden; }
         .map-caption { margin-top: 10px; color: var(--muted); font-size: 14px; }
         @media (max-width: 1180px) {
@@ -392,6 +412,11 @@
                             <tbody id="usersBody"></tbody>
                         </table>
                     </div>
+                    <div id="usersPagination" class="pagination" style="display:none;">
+                        <span id="usersPaginationInfo" class="pagination-info"></span>
+                        <button id="usersPrevButton" class="btn btn-ghost btn-small" type="button" onclick="changeUsersPage(-1)">Trước</button>
+                        <button id="usersNextButton" class="btn btn-ghost btn-small" type="button" onclick="changeUsersPage(1)">Sau</button>
+                    </div>
                 </div>
             </section>
 
@@ -520,14 +545,19 @@
         const requestDetailDialog = document.getElementById("requestDetailDialog");
         const requestApproveButton = document.getElementById("requestApproveButton");
         const requestRejectButton = document.getElementById("requestRejectButton");
+        const HCMC_BOUNDS = L.latLngBounds([[10.34, 106.22], [11.15, 107.02]]);
+        const HCMC_CENTER = [10.7626, 106.7045];
+        const USERS_PER_PAGE = 10;
         let collapseTimer = null;
         let cachedUsers = [];
         let cachedCategories = [];
         let heatmapMap = null;
         let heatLayer = null;
         let heatMarkers = null;
+        let activeUserMarkers = null;
         let currentRequestDetail = null;
         let requestActionInFlight = false;
+        let currentUsersPage = 1;
 
         document.getElementById("createOwnerForm").addEventListener("submit", createOwner);
         document.getElementById("editUserForm").addEventListener("submit", updateUser);
@@ -678,6 +708,52 @@
             return `Chủ gian hàng ${index + 1}`;
         }
 
+        function renderUsersTable() {
+            const totalUsers = cachedUsers.length;
+            const totalPages = Math.max(1, Math.ceil(totalUsers / USERS_PER_PAGE));
+            currentUsersPage = Math.min(Math.max(1, currentUsersPage), totalPages);
+
+            const startIndex = (currentUsersPage - 1) * USERS_PER_PAGE;
+            const pagedUsers = cachedUsers.slice(startIndex, startIndex + USERS_PER_PAGE);
+
+            document.getElementById("usersBody").innerHTML = pagedUsers.map((user, pageIndex) => {
+                const absoluteIndex = startIndex + pageIndex;
+                const displayName = formatOwnerFullName(user, absoluteIndex);
+                let actionHtml = "";
+                if (user.role === "stall_owner") {
+                    const statusButton = user.is_active
+                        ? `<button class="btn btn-no btn-small" type="button" onclick="hideUser(${user.id}, '${escapeJs(displayName)}')">Ẩn</button>`
+                        : `<button class="btn btn-ok btn-small" type="button" onclick="activateUser(${user.id}, '${escapeJs(displayName)}')">Khôi phục</button>`;
+                    actionHtml = `<div class="action-group"><button class="btn btn-ghost btn-small" type="button" onclick="openEditUserModal(${user.id})">Sửa</button>${statusButton}</div>`;
+                } else {
+                    actionHtml = `<button class="btn btn-ghost btn-small" type="button" onclick="openEditUserModal(${user.id})">Sửa</button>`;
+                }
+
+                return `<tr><td>${absoluteIndex + 1}</td><td>${escapeHtml(displayName)}</td><td>${escapeHtml(user.username)}</td><td>${escapeHtml(vietHoaVaiTro(user.role))}</td><td>${user.is_active ? "Đang hoạt động" : "Đã ẩn"}</td><td>${escapeHtml(user.stall_name || "")}</td><td>${actionHtml}</td></tr>`;
+            }).join("") || `<tr><td colspan="7">Chưa có người dùng nào</td></tr>`;
+
+            const pagination = document.getElementById("usersPagination");
+            const info = document.getElementById("usersPaginationInfo");
+            const prevButton = document.getElementById("usersPrevButton");
+            const nextButton = document.getElementById("usersNextButton");
+
+            pagination.style.display = totalUsers > USERS_PER_PAGE ? "flex" : "none";
+            info.textContent = totalUsers ? `Trang ${currentUsersPage}/${totalPages} • ${totalUsers} người dùng` : "0 người dùng";
+            prevButton.disabled = currentUsersPage <= 1;
+            nextButton.disabled = currentUsersPage >= totalPages;
+        }
+
+        function changeUsersPage(offset) {
+            const totalPages = Math.max(1, Math.ceil(cachedUsers.length / USERS_PER_PAGE));
+            const nextPage = currentUsersPage + offset;
+            if (nextPage < 1 || nextPage > totalPages) {
+                return;
+            }
+
+            currentUsersPage = nextPage;
+            renderUsersTable();
+        }
+
         async function api(path, options = {}) {
             const res = await fetch(path, { ...options, credentials: "include", headers: { ...(options.headers || {}) } });
             const body = await safeJson(res);
@@ -725,6 +801,10 @@
             requestRejectButton.textContent = isBusy ? "Đang xử lý..." : "Từ chối";
         }
 
+        function notifyAdminAction(message) {
+            window.alert(message);
+        }
+
         async function bootstrap() {
             const me = await api("/auth/me");
             if (!me || me.user.role !== "super_admin") return;
@@ -742,14 +822,20 @@
 
         function ensureHeatmap() {
             if (heatmapMap) return;
-            heatmapMap = L.map("heatmap").setView([10.7626, 106.7045], 13);
+            heatmapMap = L.map("heatmap", {
+                maxBounds: HCMC_BOUNDS,
+                maxBoundsViscosity: 1.0,
+                minZoom: 11,
+                maxZoom: 18
+            }).setView(HCMC_CENTER, 13);
             L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
                 attribution: "&copy; OpenStreetMap contributors"
             }).addTo(heatmapMap);
             heatMarkers = L.layerGroup().addTo(heatmapMap);
+            activeUserMarkers = L.layerGroup().addTo(heatmapMap);
         }
 
-        function renderHeatmap(points) {
+        function renderHeatmap(points, activeUsers = []) {
             ensureHeatmap();
 
             if (heatLayer) {
@@ -757,42 +843,63 @@
                 heatLayer = null;
             }
             heatMarkers.clearLayers();
+            activeUserMarkers.clearLayers();
 
-            if (!Array.isArray(points) || !points.length) {
+            const hasHeatPoints = Array.isArray(points) && points.length;
+            const hasActiveUsers = Array.isArray(activeUsers) && activeUsers.length;
+
+            if (!hasHeatPoints && !hasActiveUsers) {
                 document.getElementById("heatmapHint").textContent = "Chưa có người dùng đang hoạt động";
-                heatmapMap.setView([10.7626, 106.7045], 13);
+                heatmapMap.setView(HCMC_CENTER, 13);
                 return;
             }
 
-            const maxUsers = Math.max(...points.map(item => item.users || 0), 1);
-            const heatPoints = points.map(item => [
-                item.lat,
-                item.lng,
-                Math.max(0.2, (item.users || 0) / maxUsers)
-            ]);
+            if (hasHeatPoints) {
+                const maxUsers = Math.max(...points.map(item => item.users || 0), 1);
+                const heatPoints = points.map(item => [
+                    item.lat,
+                    item.lng,
+                    Math.max(0.2, (item.users || 0) / maxUsers)
+                ]);
 
-            heatLayer = L.heatLayer(heatPoints, {
-                radius: 28,
-                blur: 24,
-                maxZoom: 17
-            }).addTo(heatmapMap);
+                heatLayer = L.heatLayer(heatPoints, {
+                    radius: 28,
+                    blur: 24,
+                    maxZoom: 17
+                }).addTo(heatmapMap);
 
-            points.forEach(item => {
+                points.forEach(item => {
+                    L.circleMarker([item.lat, item.lng], {
+                        radius: 6,
+                        color: "#b45309",
+                        weight: 1,
+                        fillColor: "#f59e0b",
+                        fillOpacity: 0.9
+                    })
+                        .bindPopup(`<strong>Khu vực hoạt động</strong><br>Người dùng đang mở app: ${item.users || 0}<br>Lượt ping: ${item.hits || 0}`)
+                        .addTo(heatMarkers);
+                });
+            }
+
+            activeUsers.forEach((item, index) => {
                 L.circleMarker([item.lat, item.lng], {
-                    radius: 6,
-                    color: "#b45309",
-                    weight: 1,
-                    fillColor: "#f59e0b",
-                    fillOpacity: 0.9
+                    radius: 5,
+                    color: "#0f766e",
+                    weight: 2,
+                    fillColor: "#2dd4bf",
+                    fillOpacity: 0.95
                 })
-                    .bindPopup(`<strong>Khu vực hoạt động</strong><br>Người dùng đang mở app: ${item.users || 0}<br>Lượt ping: ${item.hits || 0}`)
-                    .addTo(heatMarkers);
+                    .bindPopup(`<strong>Người dùng đang hoạt động</strong><br>Vị trí #${index + 1}<br>Nguồn: ${escapeHtml(item.source || "app")}<br>Thời gian: ${escapeHtml(formatDateTime(item.recorded_at))}`)
+                    .addTo(activeUserMarkers);
             });
 
-            const bounds = L.latLngBounds(points.map(item => [item.lat, item.lng]));
-            heatmapMap.fitBounds(bounds, { padding: [24, 24] });
-            const totalActiveUsers = points.reduce((sum, item) => sum + (item.users || 0), 0);
-            document.getElementById("heatmapHint").textContent = `${totalActiveUsers} người dùng đang hoạt động trong 5 phút gần nhất`;
+            const boundsSource = [
+                ...(hasHeatPoints ? points.map(item => [item.lat, item.lng]) : []),
+                ...(hasActiveUsers ? activeUsers.map(item => [item.lat, item.lng]) : [])
+            ];
+            const bounds = L.latLngBounds(boundsSource);
+            heatmapMap.fitBounds(bounds.pad(0.1), { padding: [24, 24] });
+            document.getElementById("heatmapHint").textContent = `${activeUsers.length} người dùng đang hoạt động trong 5 phút gần nhất`;
         }
 
         async function loadAllData() {
@@ -813,26 +920,15 @@
             document.getElementById("m6").textContent = `${data.metrics.average_listen_seconds || 0}s`;
             document.getElementById("m7").textContent = `${data.metrics.active_users_5m || 0}`;
             document.getElementById("topBody").innerHTML = data.top_stalls.map(item => `<tr><td>${escapeHtml(item.name)}</td><td>${item.listens}</td><td>${item.avg_duration || 0}s</td></tr>`).join("") || `<tr><td colspan="3">Chưa có dữ liệu nghe</td></tr>`;
-            renderHeatmap(data.heatmap_points || []);
+            renderHeatmap(data.heatmap_points || [], data.active_user_positions || []);
         }
 
         async function loadUsers() {
             const data = await api("/admin/users");
             cachedUsers = data.users || [];
-            document.getElementById("usersBody").innerHTML = cachedUsers.map((user, index) => {
-                const displayName = formatOwnerFullName(user, index);
-                let actionHtml = "";
-                if (user.role === "stall_owner") {
-                    const statusButton = user.is_active
-                        ? `<button class="btn btn-no btn-small" type="button" onclick="hideUser(${user.id}, '${escapeJs(displayName)}')">Ẩn</button>`
-                        : `<button class="btn btn-ok btn-small" type="button" onclick="activateUser(${user.id}, '${escapeJs(displayName)}')">Khôi phục</button>`;
-                    actionHtml = `<div class="action-group"><button class="btn btn-ghost btn-small" type="button" onclick="openEditUserModal(${user.id})">Sửa</button>${statusButton}</div>`;
-                } else {
-                    actionHtml = `<button class="btn btn-ghost btn-small" type="button" onclick="openEditUserModal(${user.id})">Sửa</button>`;
-                }
-
-                return `<tr><td>${index + 1}</td><td>${escapeHtml(displayName)}</td><td>${escapeHtml(user.username)}</td><td>${escapeHtml(vietHoaVaiTro(user.role))}</td><td>${user.is_active ? "Đang hoạt động" : "Đã ẩn"}</td><td>${escapeHtml(user.stall_name || "")}</td><td>${actionHtml}</td></tr>`;
-            }).join("");
+            const totalPages = Math.max(1, Math.ceil(cachedUsers.length / USERS_PER_PAGE));
+            currentUsersPage = Math.min(currentUsersPage, totalPages);
+            renderUsersTable();
         }
 
         async function loadRequests() {
@@ -980,6 +1076,7 @@
             try {
                 await api(`/admin/update-requests/${currentRequestDetail.id}/approve`, { method: "POST" });
                 setRequestDetailState("Đã duyệt yêu cầu thành công.");
+                notifyAdminAction("Đã duyệt yêu cầu thành công.");
                 await Promise.all([loadDashboard(), loadRequests()]);
                 loadUsers().catch(() => {});
                 setTimeout(() => closeRequestDetailModal(), 500);
@@ -995,7 +1092,8 @@
             if (requestActionInFlight) return;
             const confirmed = confirm("Bạn có muốn từ chối yêu cầu này không?");
             if (!confirmed) return;
-            const note = prompt("Lý do từ chối:", "") || "";
+            const note = prompt("Lý do từ chối:", "");
+            if (note === null) return;
             const form = new FormData();
             form.append("admin_note", note);
             setRequestActionBusy(true);
@@ -1007,6 +1105,7 @@
                 if (currentRequestDetail && currentRequestDetail.id === id) {
                     setRequestDetailState("Đã từ chối yêu cầu.");
                 }
+                notifyAdminAction("Đã từ chối yêu cầu.");
                 await Promise.all([loadDashboard(), loadRequests()]);
                 loadUsers().catch(() => {});
                 if (currentRequestDetail && currentRequestDetail.id === id) {
@@ -1053,12 +1152,27 @@
             return items.map(item => escapeHtml(item)).join("<br>");
         }
 
+        function isImageUrl(value) {
+            const normalized = String(value || "").trim().toLowerCase();
+            return Boolean(normalized) && (
+                normalized.includes("/uploads/") ||
+                normalized.endsWith(".png") ||
+                normalized.endsWith(".jpg") ||
+                normalized.endsWith(".jpeg") ||
+                normalized.endsWith(".webp") ||
+                normalized.endsWith(".gif")
+            );
+        }
+
         function formatDetailValue(value) {
             if (Array.isArray(value)) {
                 return value.length ? value.map(item => `<div>${escapeHtml(item)}</div>`).join("") : "<em>Trống</em>";
             }
             if (value === null || value === undefined || value === "") return "<em>Trống</em>";
             if (typeof value === "boolean") return value ? "Đang mở" : "Đang đóng";
+            if (typeof value === "string" && isImageUrl(value)) {
+                return `<img class="detail-image" src="${escapeHtml(value)}" alt="Ảnh gian hàng">`;
+            }
             return escapeHtml(String(value));
         }
 
