@@ -831,7 +831,13 @@
             const raw = String(value || "").trim();
             if (!raw) return "";
             if (raw.startsWith("blob:") || raw.startsWith("data:")) return raw;
-            if (/^https?:\/\//i.test(raw)) return raw;
+            if (/^https?:\/\//i.test(raw)) {
+                try {
+                    const parsed = new URL(raw);
+                    if (parsed.pathname) return `${parsed.pathname}${parsed.search || ""}`;
+                } catch {}
+                return raw;
+            }
             if (raw.startsWith("/uploads/")) return raw;
             if (raw.startsWith("uploads/")) return `/${raw}`;
             if (!raw.includes("/") && /\.(png|jpg|jpeg|webp|gif)$/i.test(raw)) return `/uploads/${raw}`;

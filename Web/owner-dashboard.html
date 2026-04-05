@@ -248,7 +248,6 @@
                     <h1>Hoa Food Audio</h1>
                     <p>TRANG CHỦ GIAN HÀNG</p>
                 </div>
-                <button class="brand-logout" type="button" onclick="logout()" title="Đăng xuất">⇦</button>
             </div>
             <nav class="nav">
                 <button class="nav-button active" type="button" data-view="tong-quan" onclick="showView('tong-quan', this)">
@@ -395,7 +394,7 @@
         function isClosingTimeAfterOpeningTime(openingTime, closingTime) { return Boolean(openingTime && closingTime) && closingTime > openingTime; }
         function getUnreadRequestCount() { return requestItems.filter(item => !item.is_read).length; }
         function refreshNotificationBadge() { document.getElementById("mailBadge").textContent = getUnreadRequestCount(); }
-        function normalizeImageUrl(value) { const raw = String(value || "").trim(); if (!raw) return ""; if (raw.startsWith("blob:") || raw.startsWith("data:")) return raw; if (/^https?:\/\//i.test(raw)) return raw; if (raw.startsWith("/uploads/")) return raw; if (raw.startsWith("uploads/")) return `/${raw}`; if (!raw.includes("/") && /\.(png|jpg|jpeg|webp|gif)$/i.test(raw)) return `/uploads/${raw}`; if (raw.startsWith("/")) return raw; return `/${raw}`; }
+        function normalizeImageUrl(value) { const raw = String(value || "").trim(); if (!raw) return ""; if (raw.startsWith("blob:") || raw.startsWith("data:")) return raw; if (/^https?:\/\//i.test(raw)) { try { const parsed = new URL(raw); if (parsed.pathname) return `${parsed.pathname}${parsed.search || ""}`; } catch {} return raw; } if (raw.startsWith("/uploads/")) return raw; if (raw.startsWith("uploads/")) return `/${raw}`; if (!raw.includes("/") && /\.(png|jpg|jpeg|webp|gif)$/i.test(raw)) return `/uploads/${raw}`; if (raw.startsWith("/")) return raw; return `/${raw}`; }
         function isImageUrl(value) { const normalized = normalizeImageUrl(value).toLowerCase(); return Boolean(normalized) && (normalized.includes("/uploads/") || normalized.startsWith("blob:") || normalized.startsWith("data:") || normalized.endsWith(".png") || normalized.endsWith(".jpg") || normalized.endsWith(".jpeg") || normalized.endsWith(".webp") || normalized.endsWith(".gif")); }
         function updateOwnerImagePreview(src = "") { const preview = document.getElementById("img_preview"); const previewText = document.getElementById("preview_text"); const normalizedSrc = normalizeImageUrl(src); if (ownerPreviewObjectUrl && normalizedSrc !== ownerPreviewObjectUrl) { URL.revokeObjectURL(ownerPreviewObjectUrl); ownerPreviewObjectUrl = ""; } if (!normalizedSrc) { preview.removeAttribute("src"); preview.style.display = "none"; previewText.style.display = "block"; return; } preview.onerror = () => { preview.removeAttribute("src"); preview.style.display = "none"; previewText.style.display = "block"; }; preview.src = normalizedSrc; preview.style.display = "block"; previewText.style.display = "none"; }
         function ensureMap() { if (map) return; map = L.map("map", { maxBounds: HCMC_BOUNDS, maxBoundsViscosity: 1.0, minZoom: 11, maxZoom: 18 }).setView(HCMC_CENTER, 13); L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap contributors" }).addTo(map); map.on("click", e => updateMarker(e.latlng.lat, e.latlng.lng)); }
