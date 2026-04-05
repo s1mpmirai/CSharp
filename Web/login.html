@@ -3,101 +3,454 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Đăng nhập</title>
+    <title>Dang nhap</title>
     <style>
+        :root {
+            --panel: rgba(255, 255, 255, 0.92);
+            --panel-solid: #ffffff;
+            --text: #1a1714;
+            --muted: #75685c;
+            --line: rgba(133, 112, 90, 0.16);
+            --field: #f3f0ec;
+            --field-focus: #ffffff;
+            --brand-start: #9d4300;
+            --brand-end: #ff8f3f;
+            --shadow: 0 24px 70px rgba(96, 72, 48, 0.12);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             margin: 0;
             min-height: 100vh;
+            color: var(--text);
+            font-family: "Segoe UI", sans-serif;
+            background:
+                radial-gradient(circle at 16% 100%, rgba(186, 250, 173, 0.55), transparent 20%),
+                radial-gradient(circle at 82% 18%, rgba(255, 184, 122, 0.22), transparent 22%),
+                linear-gradient(180deg, #fbfaf7 0%, #f8f6f2 100%);
+        }
+
+        .page {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 24px 32px;
+        }
+
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            color: #a54700;
+            font-size: 21px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .brand-mark {
+            width: 26px;
+            height: 26px;
+        }
+
+        .topbar-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .icon-badge {
+            width: 32px;
+            height: 32px;
             display: grid;
             place-items: center;
-            background: #f4f6fb;
-            font-family: "Segoe UI",sans-serif;
+            border-radius: 999px;
+            color: #746c66;
+            background: rgba(255, 255, 255, 0.82);
+            border: 1px solid rgba(117, 104, 92, 0.14);
+            box-shadow: 0 10px 25px rgba(126, 110, 92, 0.08);
+        }
+
+        .hero {
+            flex: 1;
+            display: grid;
+            place-items: center;
+            padding: 8px 24px 24px;
+        }
+
+        .hero-shell {
+            width: min(1120px, 100%);
+            min-height: 700px;
+            position: relative;
+            border: 1px solid rgba(255, 255, 255, 0.55);
+            border-radius: 32px;
+            overflow: visible;
+            background:
+                radial-gradient(circle at 85% 20%, rgba(255, 194, 146, 0.18), transparent 18%),
+                linear-gradient(135deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.38));
+            backdrop-filter: blur(14px);
+        }
+
+        .hero-shell::before,
+        .hero-shell::after {
+            content: "";
+            position: absolute;
+            border-radius: 999px;
+            filter: blur(24px);
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .hero-shell::before {
+            width: 250px;
+            height: 250px;
+            left: -60px;
+            bottom: -60px;
+            background: rgba(191, 255, 187, 0.55);
+        }
+
+        .hero-shell::after {
+            width: 220px;
+            height: 220px;
+            right: 40px;
+            top: 26px;
+            background: rgba(255, 202, 156, 0.3);
+        }
+
+        .logo-chip {
+            position: absolute;
+            top: 22px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid rgba(145, 119, 95, 0.14);
+            border-radius: 24px;
+            box-shadow: 0 18px 42px rgba(88, 68, 49, 0.12);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+        }
+
+        .logo-badge {
+            width: 74px;
+            height: 74px;
+            object-fit: cover;
+            display: block;
+            border-radius: 18px;
+            overflow: hidden;
+        }
+
+        .content {
+            min-height: 700px;
+            display: grid;
+            place-items: center;
+            padding: 80px 24px 120px;
+            position: relative;
+            z-index: 1;
         }
 
         .card {
-            width: min(420px, calc(100vw - 32px));
-            background: #fff;
+            width: min(500px, 100%);
+            padding: 52px 48px 40px;
             border-radius: 20px;
-            padding: 28px;
-            box-shadow: 0 18px 40px rgba(0,0,0,.12);
+            background: var(--panel);
+            border: 1px solid rgba(255, 255, 255, 0.68);
+            box-shadow: var(--shadow);
+        }
+
+        .eyebrow {
+            margin: 0 0 8px;
+            color: #9b4805;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(36px, 2vw, 50px);
+            line-height: 0.98;
+            letter-spacing: -0.05em;
+        }
+
+        .intro {
+            margin: 16px 0 30px;
+            color: var(--muted);
+            font-size: 18px;
+            line-height: 1.5;
         }
 
         .group {
-            margin-bottom: 14px;
+            margin-bottom: 18px;
         }
 
         label {
             display: block;
-            font-weight: 600;
-            margin-bottom: 6px;
+            margin-bottom: 10px;
+            color: #826f60;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .field {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0 18px;
+            border-radius: 14px;
+            background: var(--field);
+            border: 1px solid transparent;
+            transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .field:focus-within {
+            background: var(--field-focus);
+            border-color: rgba(157, 67, 0, 0.28);
+            box-shadow: 0 0 0 4px rgba(255, 143, 63, 0.12);
+        }
+
+        .field svg {
+            flex: 0 0 auto;
+            color: #a49487;
         }
 
         input {
             width: 100%;
-            padding: 12px 14px;
-            border: 1px solid #dfe5ee;
-            border-radius: 12px;
+            border: none;
+            outline: none;
+            background: transparent;
+            padding: 18px 0;
+            color: var(--text);
             font: inherit;
         }
 
-        button {
+        input::placeholder {
+            color: #9a8f85;
+        }
+
+        .submit-btn {
             width: 100%;
             border: none;
-            border-radius: 12px;
-            padding: 13px 16px;
-            background: #ef8f2a;
+            border-radius: 14px;
+            padding: 20px 18px;
+            margin-top: 6px;
             color: #fff;
             font: inherit;
+            font-size: 17px;
             font-weight: 700;
             cursor: pointer;
+            background: linear-gradient(90deg, var(--brand-start), var(--brand-end));
+            box-shadow: 0 16px 30px rgba(208, 113, 42, 0.28);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 20px 34px rgba(208, 113, 42, 0.32);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.7;
+            cursor: wait;
+            transform: none;
         }
 
         .status {
             display: none;
-            margin-top: 14px;
-            padding: 12px 14px;
-            border-radius: 12px;
-            background: #fff0f0;
+            margin-top: 18px;
+            padding: 14px 16px;
+            border-radius: 14px;
+            background: #fff2f0;
             color: #9c2d2d;
-            border: 1px solid #f3c7c7;
+            border: 1px solid #f2cdc7;
+            line-height: 1.45;
         }
 
-            .status.show {
-                display: block;
+        .status.show {
+            display: block;
+        }
+
+        .note {
+            margin-top: 28px;
+            padding-top: 18px;
+            border-top: 1px solid var(--line);
+            color: #8c7f74;
+            font-size: 14px;
+            line-height: 1.6;
+            text-align: center;
+        }
+
+        .footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 20px 32px 26px;
+            color: #867c74;
+            font-size: 14px;
+        }
+
+        .footer strong {
+            color: #26331d;
+            font-size: 15px;
+        }
+
+        .footer-links {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 28px;
+        }
+
+        .footer a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        @media (max-width: 900px) {
+            .topbar,
+            .footer {
+                padding-left: 18px;
+                padding-right: 18px;
             }
+
+            .hero {
+                padding-left: 14px;
+                padding-right: 14px;
+            }
+
+            .hero-shell,
+            .content {
+                min-height: auto;
+            }
+
+            .content {
+                padding: 88px 16px 56px;
+            }
+
+            .card {
+                padding: 34px 24px 28px;
+            }
+
+            h1 {
+                font-size: 38px;
+            }
+
+            .intro {
+                font-size: 16px;
+            }
+
+            .footer {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h1>Đăng nhập</h1>
-        <p>Đăng nhập để vào khu vực quản trị phù hợp với vai trò của bạn.</p>
-
-        <form id="loginForm">
-            <div class="group">
-                <label for="username">Tên đăng nhập</label>
-                <input id="username" type="text" autocomplete="username">
+    <div class="page">
+        <header class="topbar">
+            <div class="brand">
+                <svg class="brand-mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M4 4c1.9 0 3.2 1 3.9 2.1L11 10l-1.7 1.7L6.1 8.5C5.5 7.9 4.8 7.6 4 7.6V4Zm7.2 7.2L20 20l-1.8 1.8-8.8-8.8 1.8-1.8Zm4.3-5.5c.6-1 1.8-1.7 3.5-1.7v3.6c-.7 0-1.3.3-1.8.9l-2.7 3.3-1.8-1.8 2.8-4.3ZM4 20l5.2-5.2 1.8 1.8L5.8 22 4 20Z" fill="currentColor" />
+                </svg>
+                <span>Hoa Food Audio</span>
             </div>
-            <div class="group">
-                <label for="password">Mật khẩu</label>
-                <input id="password" type="password" autocomplete="current-password">
-            </div>
-            <button type="submit">Đăng nhập</button>
-        </form>
+            <div class="topbar-actions" aria-hidden="true">
 
-        <div id="status" class="status"></div>
+            </div>
+        </header>
+
+        <main class="hero">
+            <section class="hero-shell">
+                <div class="logo-chip" aria-hidden="true">
+                    <img class="logo-badge" src="/uploads/hoafoodaudio.png" alt="Hoa Food Audio logo">
+                </div>
+
+                <div class="content">
+                    <div class="card">
+                        <p class="eyebrow">Hoa Food Audio Portal</p>
+                        <h1>Đăng nhập</h1>
+                        <p class="intro">Đăng nhập để truy cập khu vực quản trị phù hợp với vai trò của bạn.</p>
+
+                        <form id="loginForm" novalidate>
+                            <div class="group">
+                                <label for="username">Tên đăng nhập</label>
+                                <div class="field">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                        <path d="M4 7.75A2.75 2.75 0 0 1 6.75 5h10.5A2.75 2.75 0 0 1 20 7.75v8.5A2.75 2.75 0 0 1 17.25 19H6.75A2.75 2.75 0 0 1 4 16.25v-8.5Zm2.2.13L12 12.1l5.8-4.22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                    <input id="username" type="text" autocomplete="username" placeholder="Nhập tên đăng nhập">
+                                </div>
+                            </div>
+
+                            <div class="group">
+                                <label for="password">Mật khẩu</label>
+                                <div class="field">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                        <path d="M8 11V8.5a4 4 0 1 1 8 0V11m-9 0h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1Zm5 3v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                    <input id="password" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu">
+                                </div>
+                            </div>
+
+                            <button id="submitBtn" class="submit-btn" type="submit">Đăng nhập</button>
+                        </form>
+
+                        <div id="status" class="status" role="alert" aria-live="polite"></div>
+
+                        <div class="note">
+                            Chúc bạn một ngày tốt lành.
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <strong>Hoa Food Audio</strong>
+            <div class="footer-links">
+                <a href="javascript:void(0)">Privacy Policy</a>
+                <a href="javascript:void(0)">Terms of Service</a>
+                <a href="javascript:void(0)">Contact Support</a>
+            </div>
+            <span>&copy; 2026 Hoa Food Audio</span>
+        </footer>
     </div>
 
     <script>
-        document.getElementById("loginForm").addEventListener("submit", async function (event) {
-            event.preventDefault();
+        const form = document.getElementById("loginForm");
+        const usernameInput = document.getElementById("username");
+        const passwordInput = document.getElementById("password");
+        const statusBox = document.getElementById("status");
+        const submitBtn = document.getElementById("submitBtn");
 
-            const username = document.getElementById("username").value.trim();
-            const password = document.getElementById("password").value.trim();
+        form.addEventListener("submit", async function (event) {
+            event.preventDefault();
+            hideError();
+
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value.trim();
 
             if (!username || !password) {
-                showError("Nhập đầy đủ tên đăng nhập và mật khẩu.");
+                showError("Vui lòng nhập đầy đủ thông tin đăng nhập.");
                 return;
             }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Đang đăng nhập...";
 
             try {
                 const res = await fetch("/auth/login", {
@@ -109,7 +462,7 @@
 
                 const body = await res.json();
                 if (!res.ok) {
-                    showError(body.detail || "Đăng nhập thất bại.");
+                    showError(body.detail || "Đăng nhập không thành công.");
                     return;
                 }
 
@@ -119,15 +472,23 @@
                     location.href = "/owner";
                 }
             } catch {
-                showError("Không thể kết nối hệ thống.");
+                showError("Không thể kết nối đến hệ thống.");
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Dang nhap";
             }
         });
 
         function showError(message) {
-            const box = document.getElementById("status");
-            box.textContent = message;
-            box.classList.add("show");
+            statusBox.textContent = message;
+            statusBox.classList.add("show");
+        }
+
+        function hideError() {
+            statusBox.textContent = "";
+            statusBox.classList.remove("show");
         }
     </script>
 </body>
 </html>
+
