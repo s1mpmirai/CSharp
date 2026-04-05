@@ -7,10 +7,13 @@ internal sealed class PoiGeofenceEngine
 {
     private readonly HashSet<int> _insideStalls = new();
     private readonly Dictionary<int, DateTime> _lastTriggeredAtUtc = new();
+    private readonly Dictionary<int, int> _consecutiveInsideSamples = new();
 
     public TimeSpan Cooldown { get; set; } = TimeSpan.FromMinutes(5);
     public double MaxAcceptedAccuracyMeters { get; set; } = 18;
     public double MinimumEntryMarginMeters { get; set; } = 3;
+    public double ExitMarginMeters { get; set; } = 6;
+    public int RequiredConsecutiveSamples { get; set; } = 2;
 
     public StallItem? Evaluate(Location userLocation, IReadOnlyCollection<StallItem> stalls, DateTime utcNow)
     {
@@ -21,7 +24,7 @@ internal sealed class PoiGeofenceEngine
             return null;
         }
 
-        var candidates = stalls
+        var eligibleStalls = stalls
             .Where(stall => stall.Id > 0 && stall.PoiRadiusMeters > 0 && stall.Lat != 0 && stall.Lng != 0)
             .Select(stall => new
             {
@@ -33,25 +36,39 @@ internal sealed class PoiGeofenceEngine
                     stall.Lng,
                     DistanceUnits.Kilometers) * 1000
             })
-            .Where(item =>
-            {
-                var safetyMargin = Math.Max(
-                    MinimumEntryMarginMeters,
-                    Math.Min(accuracyMeters * 0.45, item.Stall.PoiRadiusMeters * 0.35));
-                return item.DistanceMeters <= Math.Max(1, item.Stall.PoiRadiusMeters - safetyMargin);
-            })
             .OrderBy(item => item.DistanceMeters)
             .ThenByDescending(item => item.Stall.PoiRadiusMeters)
             .ToList();
 
-        var currentInsideIds = candidates.Select(item => item.Stall.Id).ToHashSet();
-        _insideStalls.RemoveWhere(id => !currentInsideIds.Contains(id));
+        var persistedInsideIds = eligibleStalls
+            .Where(item => _insideStalls.Contains(item.Stall.Id) && IsInsideExitBoundary(item.DistanceMeters, item.Stall.PoiRadiusMeters))
+            .Select(item => item.Stall.Id)
+            .ToHashSet();
+        _insideStalls.RemoveWhere(id => !persistedInsideIds.Contains(id));
 
-        foreach (var item in candidates)
+        var candidateEntries = eligibleStalls
+            .Where(item => IsInsideEntryBoundary(item.DistanceMeters, item.Stall.PoiRadiusMeters, accuracyMeters))
+            .ToList();
+
+        var candidateIds = candidateEntries.Select(item => item.Stall.Id).ToHashSet();
+        foreach (var stallId in _consecutiveInsideSamples.Keys.Except(candidateIds).ToList())
+        {
+            _consecutiveInsideSamples.Remove(stallId);
+        }
+
+        foreach (var item in candidateEntries)
         {
             var stallId = item.Stall.Id;
-            var justEntered = _insideStalls.Add(stallId);
-            if (!justEntered)
+            _consecutiveInsideSamples[stallId] = _consecutiveInsideSamples.TryGetValue(stallId, out var currentSamples)
+                ? currentSamples + 1
+                : 1;
+
+            if (_insideStalls.Contains(stallId))
+            {
+                continue;
+            }
+
+            if (_consecutiveInsideSamples[stallId] < RequiredConsecutiveSamples)
             {
                 continue;
             }
@@ -62,8 +79,9 @@ internal sealed class PoiGeofenceEngine
                 continue;
             }
 
+            _insideStalls.Add(stallId);
             _lastTriggeredAtUtc[stallId] = utcNow;
-            Debug.WriteLine($"--- POI TRIGGER stall={item.Stall.Id} distance={item.DistanceMeters:0.##}m radius={item.Stall.PoiRadiusMeters:0.##}m accuracy={accuracyMeters:0.##}m");
+            Debug.WriteLine($"--- POI TRIGGER stall={item.Stall.Id} distance={item.DistanceMeters:0.##}m radius={item.Stall.PoiRadiusMeters:0.##}m accuracy={accuracyMeters:0.##}m samples={_consecutiveInsideSamples[stallId]}");
             return item.Stall;
         }
 
@@ -97,5 +115,19 @@ internal sealed class PoiGeofenceEngine
     {
         _insideStalls.Clear();
         _lastTriggeredAtUtc.Clear();
+        _consecutiveInsideSamples.Clear();
+    }
+
+    private bool IsInsideEntryBoundary(double distanceMeters, double poiRadiusMeters, double accuracyMeters)
+    {
+        var safetyMargin = Math.Max(
+            MinimumEntryMarginMeters,
+            Math.Min(accuracyMeters * 0.45, poiRadiusMeters * 0.35));
+        return distanceMeters <= Math.Max(1, poiRadiusMeters - safetyMargin);
+    }
+
+    private bool IsInsideExitBoundary(double distanceMeters, double poiRadiusMeters)
+    {
+        return distanceMeters <= poiRadiusMeters + Math.Max(ExitMarginMeters, MinimumEntryMarginMeters);
     }
 }

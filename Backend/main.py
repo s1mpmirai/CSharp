@@ -2509,6 +2509,7 @@ def create_listening_log(
 
 @app.post("/logs/location")
 def create_location_log(
+    request: Request,
     lat: float = Form(...),
     lng: float = Form(...),
     session_id: str = Form(""),
@@ -2524,9 +2525,16 @@ def create_location_log(
         except ValueError:
             timestamp = datetime.utcnow()
 
+    normalized_session_id = (session_id or "").strip()
+    normalized_device_id = (device_id or "").strip()
+    if not normalized_session_id and not normalized_device_id:
+        request_ip = get_request_ip(request)
+        if request_ip:
+            normalized_session_id = f"ip:{request_ip}"
+
     db.add(LocationLog(
-        session_id=session_id,
-        device_id=device_id,
+        session_id=normalized_session_id,
+        device_id=normalized_device_id,
         latitude=lat,
         longitude=lng,
         source=source,

@@ -33,9 +33,13 @@ namespace FoodStreetAudioGuide
         private CancellationTokenSource? _speechCts;
         private CancellationTokenSource? _poiMonitorCts;
         private readonly PoiGeofenceEngine _poiGeofenceEngine = new();
+        private readonly GpsMonitoringPolicy _gpsMonitoringPolicy = new();
         private bool _hasLoadedInitially;
         private static readonly TimeSpan PoiMonitorInitialDelay = TimeSpan.FromSeconds(3);
         private static readonly TimeSpan PoiMonitorInterval = TimeSpan.FromSeconds(5);
+        private static readonly TimeSpan PoiMonitorCachedLocationWindow = TimeSpan.FromSeconds(2);
+        private static readonly TimeSpan PoiMonitorActiveLocationTimeout = TimeSpan.FromSeconds(4);
+        private const double PoiMonitorAcceptedAccuracyMeters = 20;
         private static readonly TimeSpan PreciseLocationTimeout = TimeSpan.FromSeconds(5);
         private static readonly TimeSpan PreciseLocationSampleDelay = TimeSpan.FromMilliseconds(250);
         private const int PreciseLocationSampleCount = 2;
@@ -53,10 +57,13 @@ namespace FoodStreetAudioGuide
         private string _lastRemoteSearchText = string.Empty;
         private CancellationTokenSource? _searchDebounceCts;
         private Location? _lastKnownLocation;
+        private Location? _lastNearbyFetchLocation;
         private bool _isScriptExpanded;
         private bool _isOpeningMap;
         private bool _isOpeningQr;
         private bool _isSubscribedToConnectivityChanges;
+        private List<StallItem> _visibleStallSource = new();
+        private int _currentPoiPage = 1;
         private string _localizedSnapshotLanguage = string.Empty;
         private int _localizedSnapshotCount = -1;
         private List<StallItem> _localizedNearbySnapshot = new();
@@ -69,6 +76,7 @@ namespace FoodStreetAudioGuide
         private readonly HashSet<int> _ratedStallIds = new();
         private static readonly TimeSpan BackgroundSyncInterval = TimeSpan.FromSeconds(8);
         private static readonly TimeSpan DeferredAudioPreloadDelay = TimeSpan.FromMilliseconds(900);
+        private const int PoiPageSize = 5;
         private const string RatedStallIdsPreferenceKey = "rated_stall_ids";
 #if ANDROID
         private MediaPlayer? _androidMediaPlayer;
@@ -129,6 +137,10 @@ namespace FoodStreetAudioGuide
             StallsCollectionView.ItemsSource = Stalls;
             _poiGeofenceEngine.MaxAcceptedAccuracyMeters = 30;
             _poiGeofenceEngine.MinimumEntryMarginMeters = 2;
+            _poiGeofenceEngine.ExitMarginMeters = 8;
+            _poiGeofenceEngine.RequiredConsecutiveSamples = 2;
+            _gpsMonitoringPolicy.MeaningfulMovementMeters = 2.5;
+            _gpsMonitoringPolicy.NearbyRefreshMovementMeters = 3.0;
             LoadRatedStallIds();
 
             ApplyLanguage(_selectedLanguage);
@@ -137,6 +149,8 @@ namespace FoodStreetAudioGuide
         protected override async void OnAppearing()
         {
             base.OnAppearing();
+            App.AppMovedToBackground -= HandleAppMovedToBackground;
+            App.AppMovedToBackground += HandleAppMovedToBackground;
             EnsureImageCacheSubscription();
             EnsureConnectivitySubscription();
             StartBackgroundSync();
@@ -160,6 +174,7 @@ namespace FoodStreetAudioGuide
 
         protected override void OnDisappearing()
         {
+            App.AppMovedToBackground -= HandleAppMovedToBackground;
             RemoveImageCacheSubscription();
             RemoveConnectivitySubscription();
             _searchDebounceCts?.Cancel();
@@ -172,6 +187,11 @@ namespace FoodStreetAudioGuide
             _deferredAudioPreloadCts = null;
             StopSpeechAndHidePopup();
             base.OnDisappearing();
+        }
+
+        private void HandleAppMovedToBackground()
+        {
+            MainThread.BeginInvokeOnMainThread(StopSpeechAndHidePopup);
         }
 
         private async Task LoadCachedDataAsync()
@@ -248,6 +268,7 @@ namespace FoodStreetAudioGuide
                 if (requestLocation != null)
                 {
                     _lastKnownLocation = requestLocation;
+                    _lastNearbyFetchLocation = requestLocation;
                     data = await _stallService.GetNearbyStallsAsync(requestLocation.Latitude, requestLocation.Longitude);
                 }
                 else
@@ -255,6 +276,7 @@ namespace FoodStreetAudioGuide
                     Debug.WriteLine("--- KHONG LAY DUOC GPS: Thu goi API voi toa do mac dinh hoac hien Mock Data");
                     requestLocation = _lastKnownLocation ?? new Location(10.7626, 106.7064);
                     _lastKnownLocation = requestLocation;
+                    _lastNearbyFetchLocation = requestLocation;
                     data = await _stallService.GetNearbyStallsAsync(requestLocation.Latitude, requestLocation.Longitude);
                 }
 
@@ -412,11 +434,14 @@ namespace FoodStreetAudioGuide
             _nearbyStalls = stalls
                 .Select(AttachOfflineFlag)
                 .Select(LocalizeStall)
+                .Select(UpdateDistanceFromCurrentLocation)
+                .OrderBy(stall => stall.Distance <= 0 ? double.MaxValue : stall.Distance)
+                .ThenBy(stall => stall.Name, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
             InvalidateLocalizedSnapshots();
             if (string.IsNullOrWhiteSpace(_searchText))
             {
-                DisplayVisibleStalls(_nearbyStalls);
+                DisplayVisibleStalls(_nearbyStalls, resetPage: true);
             }
             else
             {
@@ -683,11 +708,11 @@ namespace FoodStreetAudioGuide
 
             if (string.IsNullOrWhiteSpace(_searchText))
             {
-                DisplayVisibleStalls(_nearbyStalls);
+                DisplayVisibleStalls(_nearbyStalls, resetPage: true);
             }
             else if (_remoteSearchStalls.Count > 0)
             {
-                DisplayVisibleStalls(_remoteSearchStalls);
+                DisplayVisibleStalls(_remoteSearchStalls, resetPage: true);
             }
             else
             {
@@ -849,7 +874,7 @@ namespace FoodStreetAudioGuide
             {
                 _lastRemoteSearchText = string.Empty;
                 _remoteSearchStalls.Clear();
-                DisplayVisibleStalls(_nearbyStalls);
+                DisplayVisibleStalls(_nearbyStalls, resetPage: true);
                 previousCts?.Dispose();
                 _searchDebounceCts = null;
                 return;
@@ -875,7 +900,10 @@ namespace FoodStreetAudioGuide
         {
             if (_nearbyStalls.Count == 0)
             {
+                _visibleStallSource = new List<StallItem>();
+                _currentPoiPage = 1;
                 Stalls.ReplaceRange(Array.Empty<StallItem>());
+                UpdatePoiPagination(1);
                 return;
             }
 
@@ -884,7 +912,7 @@ namespace FoodStreetAudioGuide
                 .Where(stall => MatchesSearch(stall, queryTerms))
                 .ToList();
 
-            DisplayVisibleStalls(filtered);
+            DisplayVisibleStalls(filtered, resetPage: true);
         }
 
         private async Task DebouncedBackendSearchAsync(string query, CancellationToken cancellationToken)
@@ -918,13 +946,16 @@ namespace FoodStreetAudioGuide
                 _remoteSearchStalls = searchResults
                     .Select(AttachOfflineFlag)
                     .Select(LocalizeStall)
+                    .Select(UpdateDistanceFromCurrentLocation)
+                    .OrderBy(stall => stall.Distance <= 0 ? double.MaxValue : stall.Distance)
+                    .ThenBy(stall => stall.Name, StringComparer.CurrentCultureIgnoreCase)
                     .ToList();
 
                 MainThread.BeginInvokeOnMainThread(() =>
                 {
                     if (!string.IsNullOrWhiteSpace(_searchText))
                     {
-                        DisplayVisibleStalls(_remoteSearchStalls);
+                        DisplayVisibleStalls(_remoteSearchStalls, resetPage: true);
                     }
                 });
             }
@@ -937,18 +968,168 @@ namespace FoodStreetAudioGuide
             }
         }
 
-        private void DisplayVisibleStalls(IEnumerable<StallItem> stalls)
+        private void DisplayVisibleStalls(IEnumerable<StallItem> stalls, bool resetPage = false)
         {
-            var highlighted = stalls
+            _visibleStallSource = stalls
+                .OrderBy(stall => stall.Distance <= 0 ? double.MaxValue : stall.Distance)
+                .ThenBy(stall => stall.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+
+            if (resetPage)
+            {
+                _currentPoiPage = 1;
+            }
+
+            RenderVisibleStallsPage();
+        }
+
+        private void RenderVisibleStallsPage()
+        {
+            var totalPages = Math.Max(1, (int)Math.Ceiling(_visibleStallSource.Count / (double)PoiPageSize));
+            _currentPoiPage = Math.Min(Math.Max(1, _currentPoiPage), totalPages);
+
+            var highlighted = _visibleStallSource
+                .Skip((_currentPoiPage - 1) * PoiPageSize)
+                .Take(PoiPageSize)
                 .Select(stall => ApplyHighlight(stall, _searchText))
                 .ToList();
 
-            if (AreVisibleStallsEquivalent(highlighted))
+            if (!AreVisibleStallsEquivalent(highlighted))
+            {
+                Stalls.ReplaceRange(highlighted);
+            }
+
+            UpdatePoiPagination(totalPages);
+        }
+
+        private void UpdatePoiPagination(int totalPages)
+        {
+            PoiPaginationBar.IsVisible = _visibleStallSource.Count > PoiPageSize;
+            PoiPrevButton.IsVisible = _currentPoiPage > 1;
+            PoiNextButton.IsVisible = _currentPoiPage < totalPages;
+            PoiPrevButton.IsEnabled = PoiPrevButton.IsVisible;
+            PoiNextButton.IsEnabled = PoiNextButton.IsVisible;
+            PoiPrevButton.Opacity = PoiPrevButton.IsVisible ? 1 : 0;
+            PoiNextButton.Opacity = PoiNextButton.IsVisible ? 1 : 0;
+
+            PoiPageNumbersLayout.Children.Clear();
+            if (totalPages <= 1)
             {
                 return;
             }
 
-            Stalls.ReplaceRange(highlighted);
+            foreach (var item in BuildPoiPaginationItems(totalPages))
+            {
+                if (item is null)
+                {
+                    PoiPageNumbersLayout.Children.Add(new Label
+                    {
+                        Text = "...",
+                        FontSize = 10,
+                        FontAttributes = FontAttributes.Bold,
+                        TextColor = Color.FromArgb("#8C5A27"),
+                        VerticalTextAlignment = TextAlignment.Center,
+                        HorizontalTextAlignment = TextAlignment.Center,
+                        WidthRequest = 16
+                    });
+                    continue;
+                }
+
+                var targetPage = item.Value;
+                var button = new Button
+                {
+                    Text = targetPage.ToString(CultureInfo.InvariantCulture),
+                    Padding = new Thickness(6, 3),
+                    MinimumWidthRequest = 30,
+                    HeightRequest = 26,
+                    CornerRadius = 9,
+                    FontSize = 10,
+                    FontAttributes = FontAttributes.Bold,
+                    BackgroundColor = targetPage == _currentPoiPage ? Color.FromArgb("#E07828") : Color.FromArgb("#F6EFE7"),
+                    TextColor = targetPage == _currentPoiPage ? Colors.White : Color.FromArgb("#8C5A27")
+                };
+                button.Clicked += (_, _) => GoToPoiPage(targetPage);
+                PoiPageNumbersLayout.Children.Add(button);
+            }
+        }
+
+        private IEnumerable<int?> BuildPoiPaginationItems(int totalPages)
+        {
+            if (totalPages <= 3)
+            {
+                for (var page = 1; page <= totalPages; page++)
+                {
+                    yield return page;
+                }
+
+                yield break;
+            }
+
+            if (_currentPoiPage <= 2)
+            {
+                if (_currentPoiPage > 1)
+                {
+                    yield return null;
+                }
+                yield return 1;
+                yield return 2;
+                yield return 3;
+                yield return null;
+                yield break;
+            }
+
+            if (_currentPoiPage >= totalPages - 1)
+            {
+                yield return null;
+                yield return totalPages - 2;
+                yield return totalPages - 1;
+                yield return totalPages;
+                if (_currentPoiPage < totalPages)
+                {
+                    yield return null;
+                }
+                yield break;
+            }
+
+            yield return null;
+            yield return _currentPoiPage - 1;
+            yield return _currentPoiPage;
+            yield return _currentPoiPage + 1;
+            yield return null;
+        }
+
+        private void GoToPoiPage(int page)
+        {
+            if (page <= 0 || page == _currentPoiPage)
+            {
+                return;
+            }
+
+            _currentPoiPage = page;
+            RenderVisibleStallsPage();
+        }
+
+        private void OnPoiPrevClicked(object sender, EventArgs e)
+        {
+            if (_currentPoiPage <= 1)
+            {
+                return;
+            }
+
+            _currentPoiPage = 1;
+            RenderVisibleStallsPage();
+        }
+
+        private void OnPoiNextClicked(object sender, EventArgs e)
+        {
+            var totalPages = Math.Max(1, (int)Math.Ceiling(_visibleStallSource.Count / (double)PoiPageSize));
+            if (_currentPoiPage >= totalPages)
+            {
+                return;
+            }
+
+            _currentPoiPage = totalPages;
+            RenderVisibleStallsPage();
         }
 
         private bool AreVisibleStallsEquivalent(IReadOnlyList<StallItem> candidate)
@@ -967,6 +1148,8 @@ namespace FoodStreetAudioGuide
                     !string.Equals(current.Cuisine, next.Cuisine, StringComparison.Ordinal) ||
                     !string.Equals(current.Rating, next.Rating, StringComparison.Ordinal) ||
                     !string.Equals(current.Reviews, next.Reviews, StringComparison.Ordinal) ||
+                    !string.Equals(current.DistanceText, next.DistanceText, StringComparison.Ordinal) ||
+                    Math.Abs(current.Distance - next.Distance) > 0.005 ||
                     !string.Equals(current.ThumbnailUrl, next.ThumbnailUrl, StringComparison.Ordinal) ||
                     !string.Equals(current.ImageUrl, next.ImageUrl, StringComparison.Ordinal) ||
                     current.HasOfflineAudio != next.HasOfflineAudio)
@@ -1215,12 +1398,29 @@ namespace FoodStreetAudioGuide
                     });
                     if (status == PermissionStatus.Granted && stallSnapshot.Count > 0)
                     {
-                        var location = await GetBestAvailableLocationAsync(cancellationToken);
+                        var location = await GetMonitoringLocationAsync(cancellationToken);
                         if (location != null)
                         {
+                            var previousLocation = _lastKnownLocation;
+                            var monitoringDecision = _gpsMonitoringPolicy.Evaluate(
+                                previousLocation,
+                                location,
+                                _lastNearbyFetchLocation,
+                                _nearbyStalls.Count > 0 && CanAttemptBackendRequest());
                             _lastKnownLocation = location;
-                            _ = _stallService.LogLocationPingAsync(location);
-                            await CheckPoiForLocationAsync(location, stallSnapshot, cancellationToken);
+
+                            if (monitoringDecision.ShouldUpdateUi)
+                            {
+                                MainThread.BeginInvokeOnMainThread(() => RefreshDistancesAndOrdering(location));
+                                _ = _stallService.LogLocationPingAsync(location);
+                                await CheckPoiForLocationAsync(location, stallSnapshot, cancellationToken);
+
+                                if (monitoringDecision.ShouldRefreshNearbyStalls)
+                                {
+                                    _lastNearbyFetchLocation = location;
+                                    _ = LoadDataFromServer(preferResponsiveLocation: true);
+                                }
+                            }
                         }
                         else
                         {
@@ -1356,6 +1556,58 @@ namespace FoodStreetAudioGuide
             }
 
             return _lastKnownLocation;
+        }
+
+        private async Task<Location?> GetMonitoringLocationAsync(CancellationToken cancellationToken = default)
+        {
+            Location? fallbackLocation = null;
+
+            if (IsAcceptableLocation(_lastKnownLocation, SoftRefreshLocationWindow, SoftRefreshAcceptedAccuracyMeters))
+            {
+                fallbackLocation = _lastKnownLocation;
+            }
+
+            try
+            {
+                var lastKnown = await Geolocation.Default.GetLastKnownLocationAsync();
+                if (lastKnown != null && IsBetterLocation(lastKnown, fallbackLocation))
+                {
+                    fallbackLocation = lastKnown;
+                }
+
+                if (IsAcceptableLocation(lastKnown, PoiMonitorCachedLocationWindow, PoiMonitorAcceptedAccuracyMeters))
+                {
+                    return lastKnown;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                // Fall through to an active location request.
+            }
+
+            try
+            {
+                var request = new GeolocationRequest(GeolocationAccuracy.Best, PoiMonitorActiveLocationTimeout);
+                var liveLocation = await Geolocation.Default.GetLocationAsync(request, cancellationToken);
+                if (liveLocation != null)
+                {
+                    return IsBetterLocation(liveLocation, fallbackLocation) ? liveLocation : fallbackLocation ?? liveLocation;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                // Monitoring should stay best-effort.
+            }
+
+            return fallbackLocation;
         }
 
         private static bool IsAcceptableLocation(Location? location, TimeSpan maxAge, double maxAccuracyMeters)
@@ -1803,19 +2055,29 @@ namespace FoodStreetAudioGuide
             if (nearbyIndex >= 0)
             {
                 _nearbyStalls[nearbyIndex] = refreshed;
+                _nearbyStalls = _nearbyStalls
+                    .OrderBy(stall => stall.Distance <= 0 ? double.MaxValue : stall.Distance)
+                    .ThenBy(stall => stall.Name, StringComparer.CurrentCultureIgnoreCase)
+                    .ToList();
             }
 
             var remoteIndex = _remoteSearchStalls.FindIndex(item => item.Id == refreshed.Id);
             if (remoteIndex >= 0)
             {
                 _remoteSearchStalls[remoteIndex] = refreshed;
+                _remoteSearchStalls = _remoteSearchStalls
+                    .OrderBy(stall => stall.Distance <= 0 ? double.MaxValue : stall.Distance)
+                    .ThenBy(stall => stall.Name, StringComparer.CurrentCultureIgnoreCase)
+                    .ToList();
             }
 
-            var visibleIndex = Stalls.ToList().FindIndex(item => item.Id == refreshed.Id);
-            if (visibleIndex >= 0)
-            {
-                Stalls[visibleIndex] = ApplyHighlight(refreshed, _searchText);
-            }
+            var activeSource = string.IsNullOrWhiteSpace(_searchText)
+                ? _nearbyStalls
+                : (_remoteSearchStalls.Count > 0
+                    ? _remoteSearchStalls
+                    : _nearbyStalls.Where(stall => MatchesSearch(stall, SplitSearchTerms(_searchText))));
+
+            DisplayVisibleStalls(activeSource);
 
             InvalidateLocalizedSnapshots();
         }
@@ -1931,6 +2193,83 @@ namespace FoodStreetAudioGuide
                 Distance = currentStall.Distance,
                 DistanceText = currentStall.DistanceText
             };
+        }
+
+        private void RefreshDistancesAndOrdering(Location location)
+        {
+            _nearbyStalls = _nearbyStalls
+                .Select(stall => UpdateDistanceForLocation(stall, location))
+                .OrderBy(stall => stall.Distance <= 0 ? double.MaxValue : stall.Distance)
+                .ThenBy(stall => stall.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+
+            if (_remoteSearchStalls.Count > 0)
+            {
+                _remoteSearchStalls = _remoteSearchStalls
+                    .Select(stall => UpdateDistanceForLocation(stall, location))
+                    .OrderBy(stall => stall.Distance <= 0 ? double.MaxValue : stall.Distance)
+                    .ThenBy(stall => stall.Name, StringComparer.CurrentCultureIgnoreCase)
+                    .ToList();
+            }
+
+            var activeSource = string.IsNullOrWhiteSpace(_searchText)
+                ? _nearbyStalls
+                : (_remoteSearchStalls.Count > 0
+                    ? _remoteSearchStalls
+                    : _nearbyStalls.Where(stall => MatchesSearch(stall, SplitSearchTerms(_searchText))));
+
+            DisplayVisibleStalls(activeSource);
+            RefreshCurrentPopupIfNeeded();
+        }
+
+        private StallItem UpdateDistanceFromCurrentLocation(StallItem stall)
+        {
+            return _lastKnownLocation is null ? stall : UpdateDistanceForLocation(stall, _lastKnownLocation);
+        }
+
+        private static StallItem UpdateDistanceForLocation(StallItem stall, Location location)
+        {
+            if (stall.Lat == 0 || stall.Lng == 0)
+            {
+                return stall;
+            }
+
+            var distanceKm = CalculateDistanceKm(location.Latitude, location.Longitude, stall.Lat, stall.Lng);
+            return stall with
+            {
+                Distance = distanceKm,
+                DistanceText = FormatDistanceText(distanceKm)
+            };
+        }
+
+        private static double CalculateDistanceKm(double lat1, double lng1, double lat2, double lng2)
+        {
+            const double earthRadiusKm = 6371d;
+            var dLat = DegreesToRadians(lat2 - lat1);
+            var dLng = DegreesToRadians(lng2 - lng1);
+            var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2)
+                    + Math.Cos(DegreesToRadians(lat1)) * Math.Cos(DegreesToRadians(lat2))
+                    * Math.Sin(dLng / 2) * Math.Sin(dLng / 2);
+            var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+            return earthRadiusKm * c;
+        }
+
+        private static double DegreesToRadians(double degrees) => degrees * Math.PI / 180d;
+
+        private static string FormatDistanceText(double distanceKm)
+        {
+            if (distanceKm <= 0)
+            {
+                return "0m";
+            }
+
+            var meters = distanceKm * 1000d;
+            if (meters < 1000)
+            {
+                return $"{Math.Round(meters, MidpointRounding.AwayFromZero):0}m";
+            }
+
+            return $"{distanceKm:0.0}km";
         }
 
         private bool HasRatedStall(int stallId)

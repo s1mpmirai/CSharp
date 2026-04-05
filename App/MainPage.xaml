@@ -58,6 +58,7 @@
                     <Button x:Name="RefreshDataButton"
                             Text="Refresh"
                             Clicked="OnRefreshDataClicked"
+                            IsVisible="False"
                             Padding="12,8"
                             HeightRequest="20"
                             MinimumWidthRequest="80"
@@ -144,7 +145,8 @@
                 BackgroundColor="#F3EFE9"
                 Stroke="#E9DED3"
                 StrokeThickness="1"
-                Padding="2,2">
+                Padding="2,1"
+                HeightRequest="48">
             <Border.StrokeShape>
                 <RoundRectangle CornerRadius="24" />
             </Border.StrokeShape>
@@ -154,7 +156,7 @@
                            Placeholder="Search food stalls, cuisines..."
                            TextChanged="OnSearchTextChanged"
                            SearchButtonPressed="OnSearchButtonPressed"
-                           FontSize="16"
+                           FontSize="14"
                            BackgroundColor="Transparent"
                            PlaceholderColor="#7D8795"
                            TextColor="#1E2433"
@@ -166,10 +168,10 @@
         <Grid Grid.Row="2">
             <CollectionView x:Name="StallsCollectionView"
                             SelectionMode="None"
-                            Margin="0,0,0,8"
+                            Margin="0,0,0,0"
                             ItemSizingStrategy="MeasureFirstItem">
                 <CollectionView.ItemsLayout>
-                    <LinearItemsLayout Orientation="Vertical" ItemSpacing="14" />
+                    <LinearItemsLayout Orientation="Vertical" ItemSpacing="10" />
                 </CollectionView.ItemsLayout>
 
                 <CollectionView.ItemTemplate>
@@ -177,100 +179,142 @@
                         <Border BackgroundColor="#FFFFFF"
                                 Stroke="#E9DED3"
                                 StrokeThickness="1"
-                                Padding="14,14">
+                                Padding="12,10"
+                                MinimumHeightRequest="80">
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnStallTapped" CommandParameter="{Binding .}" />
                             </Border.GestureRecognizers>
 
                             <Border.StrokeShape>
-                                <RoundRectangle CornerRadius="28" />
+                                <RoundRectangle CornerRadius="22" />
                             </Border.StrokeShape>
 
                             <Border.Shadow>
-                                <Shadow Brush="#14000000" Offset="0,10" Radius="18" Opacity="0.1" />
+                                <Shadow Brush="#14000000" Offset="0,9" Radius="15" Opacity="0.08" />
                             </Border.Shadow>
 
-                            <Grid ColumnDefinitions="70,1,72,*" ColumnSpacing="12">
+                            <Grid ColumnDefinitions="58,1,62,*" ColumnSpacing="10">
                                 <VerticalStackLayout VerticalOptions="Center" Spacing="0">
                                     <Label Text="{Binding DistanceText}"
                                            TextColor="#D87321"
-                                           FontSize="18"
+                                           FontSize="14"
                                            FontAttributes="Bold"
                                            HorizontalTextAlignment="Center" />
 
                                     <Label x:DataType="local:MainPage"
                                            Text="{Binding Source={x:Reference MainPageRoot}, Path=AwayLabel}"
                                            TextColor="#8C837C"
-                                           FontSize="10"
+                                           FontSize="8"
                                            FontAttributes="Bold"
                                            HorizontalTextAlignment="Center" />
                                 </VerticalStackLayout>
 
                                 <BoxView Grid.Column="1"
                                          WidthRequest="1"
-                                         HeightRequest="50"
+                                         HeightRequest="44"
                                          Color="#EFE5DB"
                                          VerticalOptions="Center" />
 
                                 <Border Grid.Column="2"
-                                        WidthRequest="72"
-                                        HeightRequest="72"
+                                        WidthRequest="62"
+                                        HeightRequest="62"
                                         BackgroundColor="#F1ECE5"
                                         StrokeThickness="0"
                                         HorizontalOptions="Center"
                                         VerticalOptions="Center">
                                     <Border.StrokeShape>
-                                        <RoundRectangle CornerRadius="24" />
+                                        <RoundRectangle CornerRadius="20" />
                                     </Border.StrokeShape>
                                     <Image Source="{Binding ThumbnailUrl}" Aspect="AspectFill" />
                                 </Border>
 
-                                <VerticalStackLayout Grid.Column="3" VerticalOptions="Center" Spacing="3">
-                                    <HorizontalStackLayout Spacing="6">
+                                <VerticalStackLayout Grid.Column="3" VerticalOptions="Center" Spacing="1">
+                                    <HorizontalStackLayout Spacing="4">
                                         <Label FormattedText="{Binding HighlightedName}"
-                                               FontSize="17"
+                                               FontSize="14"
                                                FontAttributes="Bold"
                                                TextColor="#1D1814"
                                                LineBreakMode="TailTruncation"
-                                               HorizontalOptions="Start" />
+                                                HorizontalOptions="Start" />
                                         <Border IsVisible="{Binding HasOfflineAudio}"
                                                 BackgroundColor="#ECF8EF"
                                                 StrokeThickness="0"
-                                                Padding="8,3"
+                                                Padding="6,2"
                                                 VerticalOptions="Center">
                                             <Border.StrokeShape>
-                                                <RoundRectangle CornerRadius="10" />
+                                                <RoundRectangle CornerRadius="8" />
                                             </Border.StrokeShape>
                                             <Label x:DataType="local:MainPage"
                                                    Text="{Binding Source={x:Reference MainPageRoot}, Path=OfflineBadgeLabel}"
-                                                   FontSize="10"
+                                                   FontSize="8"
                                                    FontAttributes="Bold"
                                                    TextColor="#2E8F52" />
                                         </Border>
                                     </HorizontalStackLayout>
 
-                                    <HorizontalStackLayout Spacing="6">
-                                        <Label Text="★" FontSize="14" TextColor="#F1A33A" VerticalOptions="Center" />
-                                        <Label Text="{Binding Rating}" FontSize="14" FontAttributes="Bold" TextColor="#2D3544" VerticalOptions="Center" />
-                                        <Label Text="{Binding Reviews}" FontSize="14" TextColor="#8B7E73" VerticalOptions="Center" />
-                                        <Label Text="•" FontSize="14" TextColor="#CDBEAF" VerticalOptions="Center" />
-                                        <Label FormattedText="{Binding HighlightedCuisine}" FontSize="14" TextColor="#8B7E73" VerticalOptions="Center" />
+                                    <HorizontalStackLayout Spacing="4">
+                                        <Label Text="★" FontSize="11" TextColor="#F1A33A" VerticalOptions="Center" />
+                                        <Label Text="{Binding Rating}" FontSize="11" FontAttributes="Bold" TextColor="#2D3544" VerticalOptions="Center" />
+                                        <Label Text="{Binding Reviews}" FontSize="11" TextColor="#8B7E73" VerticalOptions="Center" />
+                                        <Label Text="•" FontSize="11" TextColor="#CDBEAF" VerticalOptions="Center" />
+                                        <Label FormattedText="{Binding HighlightedCuisine}" FontSize="11" TextColor="#8B7E73" VerticalOptions="Center" LineBreakMode="TailTruncation" />
                                     </HorizontalStackLayout>
                                 </VerticalStackLayout>
                             </Grid>
                         </Border>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
+
+                <CollectionView.Footer>
+                    <VerticalStackLayout>
+                        <BoxView HeightRequest="4" Opacity="0" />
+                        <HorizontalStackLayout x:Name="PoiPaginationBar"
+                                               IsVisible="False"
+                                               Spacing="6"
+                                               HorizontalOptions="Center"
+                                               VerticalOptions="Center"
+                                               Margin="0,0,0,6">
+                            <Button x:Name="PoiPrevButton"
+                                    Text="«"
+                                    Clicked="OnPoiPrevClicked"
+                                    Padding="6,3"
+                                    MinimumWidthRequest="30"
+                                    HeightRequest="26"
+                                    CornerRadius="9"
+                                    BackgroundColor="#F6EFE7"
+                                    TextColor="#8C5A27"
+                                    FontSize="11"
+                                    FontAttributes="Bold" />
+
+                            <HorizontalStackLayout x:Name="PoiPageNumbersLayout"
+                                                   Spacing="4"
+                                                   HorizontalOptions="Center"
+                                                   VerticalOptions="Center" />
+
+                            <Button x:Name="PoiNextButton"
+                                    Text="»"
+                                    Clicked="OnPoiNextClicked"
+                                    Padding="6,3"
+                                    MinimumWidthRequest="30"
+                                    HeightRequest="26"
+                                    CornerRadius="9"
+                                    BackgroundColor="#F6EFE7"
+                                    TextColor="#8C5A27"
+                                    FontSize="11"
+                                    FontAttributes="Bold" />
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                </CollectionView.Footer>
             </CollectionView>
         </Grid>
 
-        <Grid Grid.Row="3" Margin="-16,0,-16,0" HeightRequest="112">
+        <Grid Grid.Row="3" Margin="-16,-4,-16,0" HeightRequest="96">
             <Border VerticalOptions="End"
-                    Padding="32,14,32,12"
+                    Padding="32,10,32,8"
                     Stroke="#E9D8C8"
                     StrokeThickness="1"
                     BackgroundColor="White"
-                    HeightRequest="82">
+                    HeightRequest="68">
                 <Border.StrokeShape>
                     <RoundRectangle CornerRadius="28,28,0,0" />
                 </Border.StrokeShape>

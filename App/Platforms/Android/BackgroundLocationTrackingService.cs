@@ -79,6 +79,9 @@ public sealed class BackgroundLocationTrackingService : Service
         {
             BaseAddress = new Uri(ApiSettings.GetBaseUrl())
         };
+        var offlineCache = new OfflineCacheService();
+        var sessionId = offlineCache.GetOrCreateSessionId();
+        var deviceId = offlineCache.GetOrCreateDeviceId();
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -104,6 +107,8 @@ public sealed class BackgroundLocationTrackingService : Service
                     {
                         { new StringContent(location.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture)), "lat" },
                         { new StringContent(location.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture)), "lng" },
+                        { new StringContent(sessionId), "session_id" },
+                        { new StringContent(deviceId), "device_id" },
                         { new StringContent("background"), "source" },
                         { new StringContent(DateTime.UtcNow.ToString("o")), "recorded_at" }
                     };
