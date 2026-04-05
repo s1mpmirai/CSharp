@@ -136,11 +136,19 @@
         }
         .topbar h2 { margin: 0; font-size: 34px; letter-spacing: -0.05em; }
         .topbar p { margin: 6px 0 0; color: var(--muted); }
+        .topbar-actions {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
         .btn { border: none; border-radius: 14px; padding: 11px 14px; font: inherit; font-weight: 700; cursor: pointer; transition: transform .18s ease, box-shadow .18s ease, background .18s ease; }
         .btn:hover { transform: translateY(-1px); }
         .btn-primary { background: linear-gradient(90deg, #9d4300, #ff8f3f); color: white; box-shadow: 0 16px 28px rgba(208, 113, 42, 0.24); }
         .btn-primary:hover { background: var(--primary-dark); }
         .btn-ghost { background: #f3efe9; color: var(--ink); border: 1px solid rgba(145, 119, 95, 0.12); }
+        .btn-logout { background: rgba(255,255,255,.84); color: #8f4208; border: 1px solid rgba(165, 71, 0, 0.12); }
         .btn-ok { background: var(--success); color: white; }
         .btn-no { background: var(--danger); color: white; }
         .btn-small { padding: 9px 12px; font-size: 13px; }
@@ -304,6 +312,9 @@
                 <div>
                     <h2>Admin Dashboard</h2>
                     <p id="welcome"></p>
+                </div>
+                <div class="topbar-actions">
+                    <button class="btn btn-logout" type="button" onclick="logout()">Đăng xuất</button>
                 </div>
             </div>
 
