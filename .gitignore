@@ -8,5 +8,8 @@
 *.iml
 Backend/uploads/
 Backend/backup.sql
+Backend/food_street_db_export.sql
+Backend/*.dump
+Backend/*_export.sql
 Backend/uvicorn
 Binh.zip

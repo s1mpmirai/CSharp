@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HoaFoodAudio - PRD Presentation</title>
+    <style>
+        :root {
+            --primary: #e07828;
+            --primary-light: #ff8f3f;
+            --primary-dark: #b85712;
+            --brand-start: #9d4300;
+            --brand-end: #ff8f3f;
+            --accent: #0f766e;
+            --bg: #f8f6f2;
+            --surface: rgba(255, 255, 255, 0.92);
+            --surface-solid: #ffffff;
+            --text: #1d1814;
+            --muted: #7d6e61;
+            --border: rgba(141, 119, 97, 0.18);
+            --nav: rgba(255, 252, 248, 0.74);
+            --nav-soft: rgba(224, 120, 40, 0.12);
+            --code: #1f2937;
+            --code-text: #f8fafc;
+            --info: #155e75;
+            --success: #2f8c57;
+            --warning: #a16207;
+            --danger: #c45a4e;
+            --shadow: 0 24px 64px rgba(102, 76, 48, 0.12);
+            --shadow-soft: 0 18px 42px rgba(102, 76, 48, 0.08);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: "Segoe UI", system-ui, sans-serif;
+            background:
+                radial-gradient(circle at 14% 100%, rgba(186, 250, 173, 0.5), transparent 18%),
+                radial-gradient(circle at 87% 10%, rgba(255, 185, 128, 0.22), transparent 20%),
+                linear-gradient(180deg, #fbfaf7 0%, var(--bg) 100%);
+            color: var(--text);
+            line-height: 1.6;
+            scroll-behavior: smooth;
+        }
+
+        nav {
+            position: fixed;
+            inset: 0 0 auto 0;
+            height: 56px;
+            background: var(--nav);
+            backdrop-filter: blur(18px);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 22px;
+            z-index: 100;
+            border: 1px solid rgba(255,255,255,.6);
+            box-shadow: var(--shadow-soft);
+        }
+
+        nav .logo { font-weight: 800; letter-spacing: -.4px; color: #a54700; }
+        nav ul { display: flex; gap: 8px; list-style: none; flex-wrap: wrap; }
+        nav a {
+            color: var(--text);
+            text-decoration: none;
+            font-size: 13px;
+            padding: 6px 10px;
+            border-radius: 6px;
+        }
+        nav a:hover { background: var(--nav-soft); color: #a54700; }
+
+        .hero {
+            margin-top: 56px;
+            padding: 64px 24px 44px;
+            text-align: center;
+            color: white;
+            background:
+                radial-gradient(circle at 85% 20%, rgba(255, 194, 146, 0.18), transparent 18%),
+                linear-gradient(135deg, var(--brand-start), var(--brand-end));
+        }
+
+        .hero h1 {
+            font-size: clamp(2rem, 4vw, 3rem);
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            max-width: 880px;
+            margin: 0 auto 18px;
+            opacity: .95;
+            font-size: 1.05rem;
+        }
+
+        .badges {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .badge {
+            padding: 7px 12px;
+            border-radius: 999px;
+            font-size: 13px;
+            background: rgba(255,255,255,.16);
+            border: 1px solid rgba(255,255,255,.18);
+        }
+
+        section {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 46px 24px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 22px;
+        }
+
+        .icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff0e1;
+            color: var(--primary-dark);
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+
+        .section-num {
+            color: var(--primary);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        h2 {
+            font-size: 1.65rem;
+            letter-spacing: -.4px;
+        }
+
+        .lead {
+            margin-bottom: 18px;
+            color: var(--muted);
+        }
+
+        .card-grid,
+        .arch-grid,
+        .stats-row {
+            display: grid;
+            gap: 16px;
+        }
+
+        .stats-row { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+        .card-grid { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+        .arch-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
+        .card,
+        .stat-card,
+        .arch-module,
+        .highlight,
+        .code-block,
+        table {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            box-shadow: var(--shadow-soft);
+            backdrop-filter: blur(16px);
+        }
+
+        .card,
+        .arch-module,
+        .stat-card { padding: 18px; }
+
+        .card h3,
+        .arch-module .mod-name {
+            color: #a54700;
+            margin-bottom: 8px;
+        }
+
+        .card p,
+        .card li,
+        .arch-module .mod-desc,
+        .stat-card .label {
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .card ul { padding-left: 18px; margin-top: 10px; }
+        .card li { margin-bottom: 6px; }
+
+        .stat-card { text-align: center; }
+        .stat-card .value {
+            font-size: 1.9rem;
+            color: #a54700;
+            font-weight: 800;
+            line-height: 1.1;
+        }
+
+        .highlight {
+            padding: 16px 18px;
+            margin: 18px 0;
+            background: rgba(255, 255, 255, 0.88);
+            border-left: 5px solid var(--primary);
+        }
+
+        .highlight.info { background: rgba(238, 247, 251, 0.94); border-left-color: var(--info); }
+        .highlight.success { background: rgba(236, 248, 239, 0.94); border-left-color: var(--success); }
+
+        .flow {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin: 18px 0;
+        }
+
+        .flow-step {
+            background: linear-gradient(90deg, var(--brand-start), var(--brand-end));
+            color: white;
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .flow-step.alt { background: var(--accent); }
+        .flow-step.success { background: var(--success); }
+        .flow-step.warning { background: #facc15; color: #422006; }
+        .flow-arrow { font-size: 20px; color: var(--muted); }
+
+        .e2e-diagram {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 16px;
+            margin-top: 18px;
+        }
+
+        .e2e-column {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 16px;
+            box-shadow: var(--shadow-soft);
+            backdrop-filter: blur(16px);
+        }
+
+        .e2e-title {
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #a54700;
+            margin-bottom: 12px;
+        }
+
+        .e2e-node {
+            position: relative;
+            background: rgba(255,255,255,.88);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 12px 12px 12px 14px;
+            margin-bottom: 12px;
+        }
+
+        .e2e-node strong {
+            display: block;
+            color: var(--text);
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .e2e-node span {
+            color: var(--muted);
+            font-size: 13px;
+            display: block;
+        }
+
+        .e2e-node::after {
+            content: "↓";
+            position: absolute;
+            left: 50%;
+            bottom: -16px;
+            transform: translateX(-50%);
+            color: var(--primary);
+            font-weight: 800;
+        }
+
+        .e2e-node:last-child::after { display: none; }
+
+        .e2e-node.app { border-left: 4px solid var(--primary); }
+        .e2e-node.backend { border-left: 4px solid var(--accent); }
+        .e2e-node.data { border-left: 4px solid var(--info); }
+        .e2e-node.analytics { border-left: 4px solid var(--success); }
+
+        .e2e-links {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .e2e-link-card {
+            background: rgba(255,255,255,.82);
+            border: 1px dashed rgba(224, 120, 40, 0.28);
+            border-radius: 14px;
+            padding: 12px 14px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .sequence-board {
+            margin-top: 18px;
+            padding: 20px 18px 24px;
+            background: rgba(255,255,255,.72);
+            border: 1px solid rgba(145, 119, 95, 0.16);
+            border-radius: 22px;
+            box-shadow: var(--shadow-soft);
+            overflow-x: auto;
+        }
+
+        .sequence-grid {
+            position: relative;
+            display: grid;
+            grid-template-columns: repeat(6, minmax(150px, 1fr));
+            gap: 0 18px;
+            min-width: 980px;
+        }
+
+        .sequence-header {
+            position: relative;
+            text-align: center;
+            padding-bottom: 18px;
+        }
+
+        .sequence-header .actor {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 120px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(157, 67, 0, 0.1), rgba(255, 143, 63, 0.16));
+            border: 1px solid rgba(224, 120, 40, 0.18);
+            color: #9b4805;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: .4px;
+        }
+
+        .sequence-header::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 42px;
+            bottom: -900px;
+            width: 1px;
+            background:
+                linear-gradient(to bottom, rgba(224,120,40,.24), rgba(224,120,40,.08));
+            transform: translateX(-50%);
+        }
+
+        .sequence-rows {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(6, minmax(150px, 1fr));
+            row-gap: 14px;
+            margin-top: 6px;
+        }
+
+        .sequence-row {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(6, minmax(150px, 1fr));
+            align-items: center;
+            min-height: 44px;
+        }
+
+        .sequence-note {
+            grid-column: 2 / 6;
+            justify-self: center;
+            max-width: 420px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            background: rgba(255,255,255,.82);
+            border: 1px solid rgba(145, 119, 95, 0.14);
+            color: var(--muted);
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .sequence-arrow {
+            position: relative;
+            align-self: center;
+            height: 0;
+            border-top: 2px solid #b85d00;
+        }
+
+        .sequence-arrow::after {
+            content: "";
+            position: absolute;
+            right: -1px;
+            top: -6px;
+            border-top: 6px solid transparent;
+            border-bottom: 6px solid transparent;
+            border-left: 10px solid #b85d00;
+        }
+
+        .sequence-arrow.reverse::after {
+            right: auto;
+            left: -1px;
+            border-left: 0;
+            border-right: 10px solid #b85d00;
+        }
+
+        .sequence-arrow.reverse {
+            transform: scaleX(-1);
+        }
+
+        .sequence-label {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,255,255,.96);
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(224, 120, 40, 0.14);
+            color: #7d6e61;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        .sequence-self {
+            position: relative;
+            grid-column: span 1;
+            justify-self: center;
+            width: 68px;
+            height: 28px;
+            border-right: 2px solid #b85d00;
+            border-bottom: 2px solid #b85d00;
+            border-top: 2px solid #b85d00;
+            border-radius: 0 12px 12px 0;
+        }
+
+        .sequence-self .sequence-label {
+            top: -18px;
+            left: 26px;
+            transform: none;
+        }
+
+        .uml-sequence-wrap {
+            margin-top: 18px;
+            padding: 18px;
+            background: rgba(255,255,255,.72);
+            border: 1px solid rgba(145, 119, 95, 0.16);
+            border-radius: 22px;
+            box-shadow: var(--shadow-soft);
+            overflow-x: auto;
+        }
+
+        .uml-sequence-svg {
+            display: block;
+            width: 100%;
+            min-width: 1080px;
+            height: auto;
+        }
+
+        .table-wrap { overflow-x: auto; margin-top: 16px; }
+        table { width: 100%; border-collapse: collapse; overflow: hidden; }
+        th {
+            background: linear-gradient(90deg, var(--brand-start), var(--brand-end));
+            color: white;
+            text-align: left;
+            padding: 12px 14px;
+            font-size: 14px;
+        }
+        td {
+            padding: 11px 14px;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+            color: var(--muted);
+            vertical-align: top;
+        }
+
+        .code-block {
+            padding: 16px 18px;
+            background: var(--code);
+            color: var(--code-text);
+            font-family: "Cascadia Code", Consolas, monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            margin-top: 14px;
+        }
+
+        .pill-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .pill {
+            font-size: 13px;
+            padding: 7px 10px;
+            border-radius: 999px;
+            background: rgba(224, 120, 40, 0.12);
+            color: #a54700;
+            border: 1px solid rgba(224, 120, 40, 0.16);
+        }
+
+        footer {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 0 24px 48px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        @media (max-width: 900px) {
+            nav { height: auto; min-height: 56px; padding: 10px 16px; align-items: flex-start; }
+            nav { flex-direction: column; gap: 8px; }
+            .hero { margin-top: 88px; }
+            .e2e-diagram,
+            .e2e-links { grid-template-columns: 1fr; }
+            .sequence-board { padding: 14px; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">HoaFoodAudio</div>
+        <ul>
+            <li><a href="#overview">Tổng quan</a></li>
+            <li><a href="#startup">Khởi động</a></li>
+            <li><a href="#geofence">GPS/Geofence</a></li>
+            <li><a href="#content">POI Content</a></li>
+            <li><a href="#audio">Audio TTS</a></li>
+            <li><a href="#auth">Auth/RBAC</a></li>
+            <li><a href="#localization">i18n</a></li>
+            <li><a href="#offline">Offline/Cache</a></li>
+            <li><a href="#maps">Map Layer</a></li>
+            <li><a href="#admin">Admin</a></li>
+            <li><a href="#patterns">Patterns</a></li>
+        </ul>
+    </nav>
+
+    <header class="hero">
+        <h1>HoaFoodAudio</h1>
+        <p class="subtitle">Đây là PRD của chính hệ thống HoaFoodAudio: một trải nghiệm khám phá gian hàng bằng vị trí, QR và audio, được chống lưng bởi backend quản trị nội dung, dashboard điều hành và heatmap hoạt động gần thời gian thực.</p>
+        <div class="badges">
+            <span class="badge">.NET MAUI Mobile</span>
+            <span class="badge">FastAPI Backend</span>
+            <span class="badge">PostgreSQL</span>
+            <span class="badge">GPS + QR + Audio</span>
+            <span class="badge">Owner + Superadmin Control Tower</span>
+            <span class="badge">Heatmap + Offline Queue</span>
+        </div>
+    </header>
+
+    <section id="overview">
+        <div class="section-header">
+            <div class="icon">01</div>
+            <div>
+                <div class="section-num">Chapter 00</div>
+                <h2>Kiến Trúc Tổng Quan</h2>
+            </div>
+        </div>
+        <p class="lead">HoaFoodAudio không được định nghĩa bởi một màn hình hay một API đơn lẻ. Nó là một vòng vận hành hoàn chỉnh: người dùng đi trong khu ẩm thực, hệ thống xác định ngữ cảnh, bật đúng nội dung, ghi lại hành vi và đưa dữ liệu đó trở lại cho phía điều hành.</p>
+        <div class="stats-row">
+            <div class="stat-card"><div class="value">3</div><div class="label">Bề mặt chính: Mobile, Backend, Web</div></div>
+            <div class="stat-card"><div class="value">2</div><div class="label">Động cơ kích hoạt: GPS và QR</div></div>
+            <div class="stat-card"><div class="value">5</div><div class="label">Ngôn ngữ đang chạy trong app</div></div>
+            <div class="stat-card"><div class="value">5s</div><div class="label">Chu kỳ kiểm tra vị trí foreground</div></div>
+        </div>
+        <div class="highlight">Luận điểm cốt lõi của đồ án là: biến một khu ẩm thực đông đúc thành một không gian kể chuyện theo ngữ cảnh. Mỗi gian hàng không chỉ là bản ghi dữ liệu, mà là một POI có nội dung, audio, trạng thái vận hành và dấu vết sử dụng thật.</div>
+        <div class="arch-grid" style="margin-top:18px;">
+            <div class="arch-module">
+                <div class="mod-name">Trải nghiệm tại hiện trường</div>
+                <div class="mod-desc">App .NET MAUI chịu trách nhiệm danh sách nearby, popup script, audio, map, QR, saved assets và GPS monitoring theo thời gian thực.</div>
+            </div>
+            <div class="arch-module">
+                <div class="mod-name">Động cơ điều phối</div>
+                <div class="mod-desc">Backend FastAPI cung cấp contract dữ liệu cho app, route quản trị cho web, QR resolve, audio assets, review, sync version và analytics.</div>
+            </div>
+            <div class="arch-module">
+                <div class="mod-name">Tháp điều hành</div>
+                <div class="mod-desc">Owner dashboard và superadmin dashboard tạo nên lớp vận hành: cập nhật nội dung, duyệt thay đổi, xem heatmap, active users và top stall.</div>
+            </div>
+            <div class="arch-module">
+                <div class="mod-name">Xương sống dữ liệu</div>
+                <div class="mod-desc">PostgreSQL giữ stalls, translations, audio assets, reviews, update requests, listening logs và location logs làm nguồn chuẩn cho toàn hệ thống.</div>
+            </div>
+        </div>
+    </section>
+
+    <section id="startup">
+        <div class="section-header">
+            <div class="icon">02</div>
+            <div>
+                <div class="section-num">Chapter 01–02</div>
+                <h2>Luồng Khởi Động (Backend + Frontend)</h2>
+            </div>
+        </div>
+        <div class="flow">
+            <span class="flow-step">Discover</span>
+            <span class="flow-arrow">→</span>
+            <span class="flow-step alt">Confirm</span>
+            <span class="flow-arrow">→</span>
+            <span class="flow-step">Listen</span>
+            <span class="flow-arrow">→</span>
+            <span class="flow-step">Log</span>
+            <span class="flow-arrow">→</span>
+            <span class="flow-step success">Operate</span>
+        </div>
+        <div class="card-grid">
+            <div class="card">
+                <h3>Discover</h3>
+                <ul>
+                    <li>Người dùng mở app, chọn ngôn ngữ và vào danh sách stall gần nhất.</li>
+                    <li>`LanguageSelectionPage` warm cache trước khi chuyển vào `MainPage`.</li>
+                    <li>`MainPage` lấy vị trí, gọi `/sync/version`, sau đó gọi `/nearby` để render danh sách theo khoảng cách.</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3>Confirm</h3>
+                <ul>
+                    <li>Nếu GPS đủ chắc, geofence engine chọn POI bằng nhiều mẫu liên tiếp.</li>
+                    <li>Nếu GPS chưa đủ chắc, QR đóng vai trò xác nhận cứng để mở đúng popup.</li>
+                    <li>Map view là lớp hỗ trợ trực quan khi người dùng muốn nhìn toàn bộ cụm POI.</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3>Listen, Log, Operate</h3>
+                <ul>
+                    <li>Popup ưu tiên audio từ backend hoặc cache, rồi mới fallback sang TTS.</li>
+                    <li>App gửi listening log và location log kèm `session_id` và `device_id`.</li>
+                    <li>Dashboard web tiêu hóa dữ liệu này thành metrics, active users và heatmap cho phía vận hành.</li>
+                </ul>
+            </div>
+        </div>
+        <div class="highlight info">Vòng lặp của HoaFoodAudio không dừng ở chỗ “mở popup”. Giá trị của hệ thống chỉ hoàn chỉnh khi dữ liệu nghe và dữ liệu di chuyển quay trở lại dashboard để người vận hành quan sát được khu ẩm thực đang hoạt động ra sao.</div>
+    </section>
+
+    <section id="geofence">
+        <div class="section-header">
+            <div class="icon">03</div>
+            <div>
+                <div class="section-num">Chapter 04</div>
+                <h2>GPS + Geofence + Audio Narration</h2>
+            </div>
+        </div>
+        <p class="lead">HoaFoodAudio trên điện thoại là một runtime hoàn chỉnh chứ không chỉ là màn hình danh sách. Nó quản lý ngôn ngữ, GPS, popup, audio, QR, bản đồ, cache, trạng thái offline và hàng đợi đồng bộ trong cùng một trải nghiệm liên tục.</p>
+        <div class="card-grid">
+            <div class="card">
+                <h3>GPS runtime</h3>
+                <ul>
+                    <li>Foreground monitor chạy chu kỳ 5 giây.</li>
+                    <li>`MeaningfulMovementMeters` hiện là 2.5m.</li>
+                    <li>`NearbyRefreshMovementMeters` hiện là 3m.</li>
+                    <li>`PoiGeofenceEngine` dùng 2 mẫu liên tiếp và `exit margin` để giảm rung.</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3>QR và popup</h3>
+                <ul>
+                    <li>QR cho phép vào đúng stall ngay cả khi GPS chưa đủ ổn định.</li>
+                    <li>Popup là điểm hội tụ của script, ảnh, rating, map action và audio.</li>
+                    <li>Từ popup, người dùng có thể sang map page hoặc lưu audio offline.</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3>Audio engine</h3>
+                <ul>
+                    <li>Ưu tiên MP3 thật từ backend hoặc cache cục bộ.</li>
+                    <li>Nếu chưa có audio, app fallback sang TTS theo ngôn ngữ đã chọn.</li>
+                    <li>Nghe xong sẽ phát sinh `logs/listening` để backend tổng hợp hành vi.</li>
+                </ul>
+            </div>
+        </div>
+        <div class="highlight info">Thiết kế hiện tại phù hợp đồ án vì nó cân bằng giữa tính tự động và tính chắc chắn: GPS tạo cảm giác thông minh, QR đóng vai trò phanh an toàn khi mật độ POI cao hoặc sai số vị trí tăng lên.</div>
+    </section>
+
+    <section id="content">
+        <div class="section-header">
+            <div class="icon">04</div>
+            <div>
+                <div class="section-num">Chapter 05</div>
+                <h2>Module Content — POI Lifecycle</h2>
+            </div>
+        </div>
+        <p class="lead">Bên dưới trải nghiệm người dùng là một lớp dữ liệu có tổ chức rõ ràng. HoaFoodAudio không chỉ cần dữ liệu stall để hiển thị, mà còn cần translation, audio asset, review, request chờ duyệt và log analytics để vận hành khép kín.</p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Lớp dữ liệu</th>
+                        <th>Trách nhiệm ở backend / DB</th>
+                        <th>Biểu hiện ở app / web</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Stall core</td>
+                        <td>`stalls`, `categories`, `stall_translations`, `stall_audio_assets` giữ dữ liệu chuẩn cho POI</td>
+                        <td>App nhận card stall có `Id`, `Name`, `Cuisine`, `DistanceText`, `Translations`, `ImageUrl`</td>
+                    </tr>
+                    <tr>
+                        <td>Public contract</td>
+                        <td>`/nearby`, `/search`, `/stalls/map`, `/stalls/{id}`, `/qr/resolve`, `/audio/stalls/{id}`</td>
+                        <td>Danh sách nearby, popup stall, map page, QR resolve, audio playback</td>
+                    </tr>
+                    <tr>
+                        <td>Governance</td>
+                        <td>`stall_update_requests` lưu lớp dữ liệu chờ duyệt thay vì ghi đè live</td>
+                        <td>Owner dashboard gửi request, superadmin dashboard duyệt hoặc từ chối</td>
+                    </tr>
+                    <tr>
+                        <td>Analytics</td>
+                        <td>`listening_logs`, `location_logs`, aggregate metrics và heatmap query</td>
+                        <td>App gửi log kèm `session_id` và `device_id`, dashboard hiển thị active users</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="highlight info">Để người xem hiểu rõ “POI lifecycle” không chỉ là UI hay API, mà còn là cấu trúc dữ liệu bên dưới, phần dưới đây chụp nhanh schema lõi của hệ thống theo đúng các bảng đang có trong backend.</div>
+        <div class="table-wrap" style="margin-top:18px;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Bảng</th>
+                        <th>Vai trò trong hệ thống</th>
+                        <th>Liên kết chính</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>`roles`</td>
+                        <td>Định nghĩa vai trò như `super_admin`, `stall_owner`</td>
+                        <td>1-n với `users`</td>
+                    </tr>
+                    <tr>
+                        <td>`users`</td>
+                        <td>Tài khoản đăng nhập web cho owner và superadmin</td>
+                        <td>n-1 với `roles`, 1-n với `stalls`, `stall_update_requests`</td>
+                    </tr>
+                    <tr>
+                        <td>`languages`</td>
+                        <td>Danh mục ngôn ngữ hệ thống dùng cho translation và audio</td>
+                        <td>1-n với `stall_translations`, `listening_logs`, `stall_audio_assets`</td>
+                    </tr>
+                    <tr>
+                        <td>`categories`</td>
+                        <td>Nhóm ẩm thực của gian hàng</td>
+                        <td>1-n với `stalls`</td>
+                    </tr>
+                    <tr>
+                        <td>`stalls`</td>
+                        <td>Bảng lõi của POI: tên quầy, tọa độ, bán kính, ảnh, giờ mở cửa, rating</td>
+                        <td>n-1 với `categories`, `users`; 1-n với translation, review, audio, logs</td>
+                    </tr>
+                    <tr>
+                        <td>`stall_translations`</td>
+                        <td>Nội dung mô tả và script theo từng ngôn ngữ</td>
+                        <td>n-1 với `stalls`, `languages`</td>
+                    </tr>
+                    <tr>
+                        <td>`reviews`</td>
+                        <td>Đánh giá sao cho từng stall, có kiểm soát theo IP</td>
+                        <td>n-1 với `stalls`</td>
+                    </tr>
+                    <tr>
+                        <td>`listening_logs`</td>
+                        <td>Ghi nhận lượt nghe, thời lượng nghe, ngôn ngữ, vị trí và nguồn phát</td>
+                        <td>n-1 với `stalls`, `languages`</td>
+                    </tr>
+                    <tr>
+                        <td>`stall_audio_assets`</td>
+                        <td>Lưu MP3 sinh ra từ script để app tải lại nhanh</td>
+                        <td>n-1 với `stalls`, `languages`</td>
+                    </tr>
+                    <tr>
+                        <td>`stall_update_requests`</td>
+                        <td>Lớp dữ liệu chờ duyệt khi owner muốn cập nhật gian hàng</td>
+                        <td>n-1 với `users`, `stalls`, `categories`</td>
+                    </tr>
+                    <tr>
+                        <td>`location_logs`</td>
+                        <td>Log vị trí theo thời gian để dựng active users và heatmap</td>
+                        <td>gắn với `session_id`, `device_id`, liên hệ gián tiếp tới analytics</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="highlight success">Điểm mạnh của lớp này là tách khá rõ dữ liệu public cho app và dữ liệu protected cho web. App không cần login để vận hành, nhưng dashboard vẫn được chặn bởi session cookie và role-based access.</div>
+    </section>
+
+    <section id="audio">
+        <div class="section-header">
+            <div class="icon">05</div>
+            <div>
+                <div class="section-num">Chapter 06</div>
+                <h2>Module Audio / TTS</h2>
+            </div>
+        </div>
+        <div class="card-grid">
+            <div class="card">
+                <h3>Nguồn audio</h3>
+                <ul>
+                    <li>Ưu tiên file MP3 từ `/audio/stalls/{stall_id}?language_code=...`.</li>
+                    <li>Hash script + language để quản lý cache audio đúng phiên bản.</li>
+                    <li>Preload một nhóm stall gần nhất để giảm độ trễ.</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3>Fallback</h3>
+                <ul>
+                    <li>Nếu chưa tải được audio, app dùng TTS theo locale.</li>
+                    <li>Android có đường riêng `SpeakWithAndroidTtsAsync`.</li>
+                    <li>UI vẫn hiển thị trạng thái `Audio ready` hoặc `Save audio offline`.</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3>Ghi log</h3>
+                <ul>
+                    <li>Mỗi lần nghe xong, app gửi `logs/listening`.</li>
+                    <li>Log chứa stall, ngôn ngữ, thời lượng, vị trí, session_id, device_id.</li>
+                    <li>Nếu gửi lỗi thì queue local và flush lại sau.</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section id="auth">
+        <div class="section-header">
+            <div class="icon">06</div>
+            <div>
+                <div class="section-num">Chapter 07</div>
+                <h2>Authentication & RBAC</h2>
+            </div>
+        </div>
+        <div class="card-grid">
+            <div class="card">
+                <h3>Mobile app</h3>
+                <p>Không có flow đăng nhập cho người dùng cuối. App mobile gọi các route public để lấy nearby stall, map stall, QR resolve, audio và gửi log analytics.</p>
+            </div>
+            <div class="card">
+                <h3>Web auth</h3>
+                <p>Trang web dùng session cookie `sf_session`. Backend có `require_auth_page(...)` và `require_role(...)` để chặn route owner / superadmin.</p>
+            </div>
+            <div class="card">
+                <h3>Vai trò</h3>
+                <p>Hai role chính là `super_admin` và `stall_owner`. Owner chỉ quản lý stall của mình, còn superadmin quản lý user, stall, request và analytics toàn hệ thống.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="localization">
+        <div class="section-header">
+            <div class="icon">07</div>
+            <div>
+                <div class="section-num">Chapter 08</div>
+                <h2>Module Localization — Đa Ngôn Ngữ</h2>
+            </div>
+        </div>
+        <p class="lead">Localization không chỉ là text UI. Hệ thống còn lưu script theo ngôn ngữ, map category theo slug và fallback specialty translations trong app.</p>
+        <div class="pill-list">
+            <span class="pill">vi</span>
+            <span class="pill">en</span>
+            <span class="pill">zh-CN</span>
+            <span class="pill">ja</span>
+            <span class="pill">ko</span>
+        </div>
+        <div class="code-block">stall_translations
+languages
+AppText / LocalizedText
+CategoryLocalizer
+StallItem.GetScript(languageCode)
+StallItem.GetTopSpecialties(languageCode)</div>
+    </section>
+
+    <section id="offline">
+        <div class="section-header">
+            <div class="icon">08</div>
+            <div>
+                <div class="section-num">Chapter 09</div>
+                <h2>Offline / Cache — 4 Lớp Phòng Ngự</h2>
+            </div>
+        </div>
+        <p class="lead">Khả năng chịu lỗi là phần giúp HoaFoodAudio không bị “đứt mạch” khi mạng chậm, backend bận hoặc người dùng vừa đi vừa mở audio. Đây là lớp làm cho bản demo giống một sản phẩm thực hơn là một màn hình thử nghiệm.</p>
+        <div class="card-grid">
+            <div class="card">
+                <h3>Lớp 1: Cache stall</h3>
+                <p>Danh sách stall được lưu trong `offline-cache/stalls.json` và dùng lại khi request backend thất bại.</p>
+            </div>
+            <div class="card">
+                <h3>Lớp 2: Cache ảnh và audio</h3>
+                <p>Thumbnail, image và audio được lưu cục bộ để popup vẫn chạy nhanh khi mạng yếu.</p>
+            </div>
+            <div class="card">
+                <h3>Lớp 3: Queue analytics</h3>
+                <p>`pending-listening-logs.json` và `pending-location-logs.json` đảm bảo không mất log khi backend tạm lỗi.</p>
+            </div>
+            <div class="card">
+                <h3>Lớp 4: Offline demo fallback</h3>
+                <p>Chỉ dùng khi app thực sự offline và không có dữ liệu thật. Bản code hiện tại đã giảm việc rơi nhầm vào bộ demo này ở bản Android release mới.</p>
+            </div>
+        </div>
+        <div class="highlight info">Bốn lớp này không thay nhau, mà đỡ cho nhau. Stall cache giữ UI không trắng, image/audio cache giữ popup không bị hụt, log queue giữ analytics không mất, còn offline fallback chỉ xuất hiện khi mọi đường dữ liệu thật đều không còn dùng được.</div>
+    </section>
+
+    <section id="maps">
+        <div class="section-header">
+            <div class="icon">09</div>
+            <div>
+                <div class="section-num">Chapter 10</div>
+                <h2>Map Layer + QR Interaction</h2>
+            </div>
+        </div>
+        <div class="card-grid">
+            <div class="card">
+                <h3>Map page</h3>
+                <p>`PoiMapPage` và `PoiMapHtmlFactory` render vị trí user cùng các stall đang có. Khi chọn marker hoặc list item trên map, app mở lại popup stall tương ứng.</p>
+            </div>
+            <div class="card">
+                <h3>QR flow</h3>
+                <p>Backend sinh mã dạng `sfqr1.{stall_id}.{signature}`. App hỗ trợ scan raw payload hoặc URL `/qr/resolve?code=...` và resolve về đúng popup gian hàng.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="admin">
+        <div class="section-header">
+            <div class="icon">10</div>
+            <div>
+                <div class="section-num">Chapter 11</div>
+                <h2>Admin Dashboard + Owner Portal + Analytics</h2>
+            </div>
+        </div>
+        <p class="lead">Lớp web của HoaFoodAudio không chỉ để “quản trị cho có”. Nó là ranh giới vận hành giữa người tạo nội dung, người duyệt dữ liệu và người quan sát toàn bộ hệ thống.</p>
+        <div class="card-grid">
+            <div class="card">
+                <h3>Owner dashboard</h3>
+                <ul>
+                    <li>Xem stall của mình và các chỉ số cơ bản.</li>
+                    <li>Chỉnh form tên, category, lat/lng, POI radius, ảnh, giờ mở cửa, 3 món đặc sản, script tiếng Việt.</li>
+                    <li>Gửi `stall_update_requests` chờ duyệt.</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3>Superadmin dashboard</h3>
+                <ul>
+                    <li>Quản lý user, owner, stall.</li>
+                    <li>Duyệt hoặc từ chối update request.</li>
+                    <li>Xem top stall, metrics và active user heatmap.</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3>Heatmap logic</h3>
+                <ul>
+                    <li>Dùng `device_id` và `session_id` để nhóm vị trí theo cùng một máy.</li>
+                    <li>Background Android service gửi location log mỗi 15 giây.</li>
+                    <li>Foreground app monitor kiểm tra vị trí mỗi 5 giây.</li>
+                </ul>
+            </div>
+        </div>
+        <div class="highlight success">Điểm đáng giá của lớp này là owner không ghi đè dữ liệu live trực tiếp. Mọi cập nhật đi qua `stall_update_requests`, nên hệ thống vẫn giữ được kiểm soát và dấu vết thay đổi.</div>
+    </section>
+
+    <section id="patterns">
+        <div class="section-header">
+            <div class="icon">11</div>
+            <div>
+                <div class="section-num">Summary</div>
+                <h2>Design Patterns & Key Constants</h2>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Quyết định kỹ thuật</th>
+                        <th>Vai trò</th>
+                        <th>Điểm neo trong code</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>GPS monitoring policy</td>
+                        <td>Tách rule update UI và refetch nearby khỏi màn hình chính</td>
+                        <td>`GpsMonitoringPolicy`</td>
+                    </tr>
+                    <tr>
+                        <td>POI geofence engine</td>
+                        <td>Hysteresis, consecutive samples, trigger ổn định</td>
+                        <td>`PoiGeofenceEngine`</td>
+                    </tr>
+                    <tr>
+                        <td>Offline cache service</td>
+                        <td>Stall cache, image cache, audio cache, log queue, device/session ID</td>
+                        <td>`OfflineCacheService`</td>
+                    </tr>
+                    <tr>
+                        <td>API timeout</td>
+                        <td>Giảm rơi nhầm vào offline khi mạng chậm</td>
+                        <td>Android release timeout 12s</td>
+                    </tr>
+                    <tr>
+                        <td>QR payload</td>
+                        <td>Chốt đúng stall mà không phụ thuộc hoàn toàn GPS</td>
+                        <td>`sfqr1.{stall_id}.{signature}`</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="full-flow">
+        <div class="section-header">
+            <div class="icon">12</div>
+            <div>
+                <div class="section-num">Chapter 12</div>
+                <h2>End-to-End Flow — Từ Mở App Đến Heatmap</h2>
+            </div>
+        </div>
+        <p class="lead">Phần này là sơ đồ xương sống của HoaFoodAudio: actor box, lifeline, activation bar, request/response, self-call và nhánh thay thế giữa GPS với QR. Nó biểu diễn đúng dòng chảy kỹ thuật thật đang có trong app, backend và dashboard.</p>
+        <div class="uml-sequence-wrap">
+            <svg class="uml-sequence-svg" viewBox="0 0 1180 1160" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="HoaFoodAudio end-to-end UML sequence diagram">
+                <defs>
+                    <linearGradient id="actorFill" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stop-color="rgba(157,67,0,0.12)"/>
+                        <stop offset="100%" stop-color="rgba(255,143,63,0.18)"/>
+                    </linearGradient>
+                    <marker id="arrowSolid" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+                        <path d="M0,0 L12,6 L0,12 z" fill="#1d1814"/>
+                    </marker>
+                    <marker id="arrowDashed" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+                        <path d="M0,0 L12,6 L0,12 z" fill="#7d6e61"/>
+                    </marker>
+                    <style>
+                        .actor-box { fill: rgba(255,255,255,.92); stroke: rgba(224,120,40,.22); stroke-width: 1.2; rx: 18; }
+                        .actor-pill { fill: #eef5ff; stroke: rgba(143,119,95,.16); stroke-width: 1; }
+                        .actor-text { font: 700 12px 'Segoe UI', sans-serif; fill: #9b4805; letter-spacing: .4px; }
+                        .life { stroke: rgba(141,119,97,.26); stroke-width: 1.2; stroke-dasharray: 6 6; }
+                        .msg { stroke: #1d1814; stroke-width: 1.8; fill: none; marker-end: url(#arrowSolid); }
+                        .reply { stroke: #7d6e61; stroke-width: 1.5; fill: none; stroke-dasharray: 6 5; marker-end: url(#arrowDashed); }
+                        .activation { fill: rgba(224,120,40,.16); stroke: rgba(224,120,40,.2); stroke-width: 1; rx: 6; }
+                        .label { font: 12px 'Segoe UI', sans-serif; fill: #5f6b7a; }
+                        .step { font: 11px 'Segoe UI', sans-serif; fill: #7d6e61; }
+                        .fragment { fill: rgba(255,255,255,.5); stroke: rgba(184,87,18,.42); stroke-width: 1.4; stroke-dasharray: 8 6; rx: 12; }
+                        .fragment-title { font: 700 11px 'Segoe UI', sans-serif; fill: #9b4805; }
+                        .note { fill: rgba(255,255,255,.92); stroke: rgba(141,119,97,.18); stroke-width: 1; rx: 12; }
+                        .note-text { font: 11px 'Segoe UI', sans-serif; fill: #7d6e61; }
+                    </style>
+                </defs>
+
+                <rect x="8" y="8" width="1164" height="1144" rx="22" fill="rgba(255,255,255,.36)" stroke="rgba(141,119,97,.12)"/>
+
+                <!-- actor headers -->
+                <g>
+                    <rect class="actor-box" x="30" y="28" width="120" height="34" rx="17"/>
+                    <text class="actor-text" x="90" y="50" text-anchor="middle">End User</text>
+
+                    <rect class="actor-box" x="190" y="28" width="132" height="34" rx="17"/>
+                    <text class="actor-text" x="256" y="50" text-anchor="middle">Language Page</text>
+
+                    <rect class="actor-box" x="364" y="28" width="120" height="34" rx="17"/>
+                    <text class="actor-text" x="424" y="50" text-anchor="middle">MainPage</text>
+
+                    <rect class="actor-box" x="526" y="28" width="120" height="34" rx="17"/>
+                    <text class="actor-text" x="586" y="50" text-anchor="middle">GPS / QR</text>
+
+                    <rect class="actor-box" x="688" y="28" width="120" height="34" rx="17"/>
+                    <text class="actor-text" x="748" y="50" text-anchor="middle">FastAPI</text>
+
+                    <rect class="actor-box" x="850" y="28" width="150" height="34" rx="17"/>
+                    <text class="actor-text" x="925" y="50" text-anchor="middle">PostgreSQL + Assets</text>
+
+                    <rect class="actor-box" x="1028" y="28" width="122" height="34" rx="17"/>
+                    <text class="actor-text" x="1089" y="50" text-anchor="middle">Heatmap</text>
+                </g>
+
+                <!-- lifelines -->
+                <g>
+                    <line class="life" x1="90" y1="72" x2="90" y2="1118"/>
+                    <line class="life" x1="256" y1="72" x2="256" y2="1118"/>
+                    <line class="life" x1="424" y1="72" x2="424" y2="1118"/>
+                    <line class="life" x1="586" y1="72" x2="586" y2="1118"/>
+                    <line class="life" x1="748" y1="72" x2="748" y2="1118"/>
+                    <line class="life" x1="925" y1="72" x2="925" y2="1118"/>
+                    <line class="life" x1="1089" y1="72" x2="1089" y2="1118"/>
+                </g>
+
+                <!-- activation bars -->
+                <g>
+                    <rect class="activation" x="250" y="118" width="12" height="112" rx="6"/>
+                    <rect class="activation" x="418" y="206" width="12" height="640" rx="6"/>
+                    <rect class="activation" x="742" y="292" width="12" height="182" rx="6"/>
+                    <rect class="activation" x="919" y="330" width="12" height="86" rx="6"/>
+                    <rect class="activation" x="742" y="620" width="12" height="184" rx="6"/>
+                    <rect class="activation" x="919" y="660" width="12" height="122" rx="6"/>
+                </g>
+
+                <!-- messages -->
+                <g>
+                    <line class="msg" x1="90" y1="120" x2="256" y2="120"/>
+                    <text class="label" x="172" y="111" text-anchor="middle">1. mở app / chọn ngôn ngữ</text>
+
+                    <path class="msg" d="M256 154 H304 V190 H256" />
+                    <text class="label" x="315" y="174">2. warm cache + load Preferences</text>
+
+                    <line class="msg" x1="256" y1="218" x2="424" y2="218"/>
+                    <text class="label" x="340" y="209" text-anchor="middle">3. Continue → MainPage</text>
+
+                    <line class="msg" x1="424" y1="264" x2="586" y2="264"/>
+                    <text class="label" x="505" y="255" text-anchor="middle">4. request location / QR permission</text>
+
+                    <line class="reply" x1="586" y1="304" x2="424" y2="304"/>
+                    <text class="label" x="505" y="295" text-anchor="middle">5. lat,lng hoặc QR payload</text>
+
+                    <line class="msg" x1="424" y1="344" x2="748" y2="344"/>
+                    <text class="label" x="586" y="335" text-anchor="middle">6. GET /sync/version</text>
+
+                    <line class="reply" x1="748" y1="382" x2="424" y2="382"/>
+                    <text class="label" x="586" y="373" text-anchor="middle">7. version</text>
+
+                    <line class="msg" x1="424" y1="420" x2="748" y2="420"/>
+                    <text class="label" x="586" y="411" text-anchor="middle">8. POST /nearby(lat,lng)</text>
+
+                    <line class="msg" x1="748" y1="458" x2="925" y2="458"/>
+                    <text class="label" x="836" y="449" text-anchor="middle">9. query stalls + translations</text>
+
+                    <line class="reply" x1="925" y1="494" x2="748" y2="494"/>
+                    <text class="label" x="836" y="485" text-anchor="middle">10. stall rows</text>
+
+                    <line class="reply" x1="748" y1="532" x2="424" y2="532"/>
+                    <text class="label" x="586" y="523" text-anchor="middle">11. JSON stall cards</text>
+
+                    <path class="msg" d="M424 570 H474 V610 H424" />
+                    <text class="label" x="486" y="592">12. DisplayStalls() + StartPoiMonitoring()</text>
+
+                    <rect class="fragment" x="346" y="632" width="500" height="178" rx="12"/>
+                    <text class="fragment-title" x="360" y="650">alt GPS / QR resolve path</text>
+                    <line x1="346" y1="718" x2="846" y2="718" stroke="rgba(184,87,18,.28)" stroke-dasharray="6 6"/>
+                    <text class="step" x="360" y="706">GPS branch</text>
+                    <text class="step" x="360" y="792">QR branch</text>
+
+                    <line class="msg" x1="424" y1="678" x2="586" y2="678"/>
+                    <text class="label" x="505" y="669" text-anchor="middle">13. monitor 5s / get fresh location</text>
+
+                    <line class="reply" x1="586" y1="712" x2="424" y2="712"/>
+                    <text class="label" x="505" y="703" text-anchor="middle">14. new lat,lng</text>
+
+                    <line class="msg" x1="424" y1="748" x2="748" y2="748"/>
+                    <text class="label" x="586" y="739" text-anchor="middle">15. GET /stalls/{id} or /audio/stalls/{id}</text>
+
+                    <line class="msg" x1="424" y1="790" x2="748" y2="790"/>
+                    <text class="label" x="586" y="781" text-anchor="middle">16. GET /qr/resolve?code=sfqr1...</text>
+
+                    <line class="msg" x1="748" y1="828" x2="925" y2="828"/>
+                    <text class="label" x="836" y="819" text-anchor="middle">17. resolve stall + audio asset</text>
+
+                    <line class="reply" x1="925" y1="866" x2="748" y2="866"/>
+                    <text class="label" x="836" y="857" text-anchor="middle">18. detail + mp3 bytes</text>
+
+                    <line class="reply" x1="748" y1="904" x2="424" y2="904"/>
+                    <text class="label" x="586" y="895" text-anchor="middle">19. popup data / audio response</text>
+
+                    <path class="msg" d="M424 936 H474 V970 H424" />
+                    <text class="label" x="488" y="958">20. ShowScriptPopup() / TTS fallback</text>
+
+                    <line class="msg" x1="424" y1="1010" x2="748" y2="1010"/>
+                    <text class="label" x="586" y="1001" text-anchor="middle">21. POST /logs/location + /logs/listening</text>
+
+                    <line class="msg" x1="748" y1="1046" x2="925" y2="1046"/>
+                    <text class="label" x="836" y="1037" text-anchor="middle">22. insert logs + group by device/session</text>
+
+                    <line class="reply" x1="925" y1="1082" x2="748" y2="1082"/>
+                    <text class="label" x="836" y="1073" text-anchor="middle">23. ok</text>
+
+                    <line class="reply" x1="748" y1="1118" x2="1089" y2="1118"/>
+                    <text class="label" x="919" y="1109" text-anchor="middle">24. active users / heatmap points</text>
+                </g>
+
+                <!-- notes -->
+                <g>
+                    <rect class="note" x="36" y="676" width="154" height="62" rx="12"/>
+                    <text class="note-text" x="48" y="698">Người dùng có thể đi theo</text>
+                    <text class="note-text" x="48" y="714">2 nhánh: GPS geofence</text>
+                    <text class="note-text" x="48" y="730">hoặc QR popup.</text>
+
+                    <rect class="note" x="986" y="872" width="154" height="64" rx="12"/>
+                    <text class="note-text" x="998" y="894">Heatmap không đếm theo IP</text>
+                    <text class="note-text" x="998" y="910">mà ưu tiên device_id /</text>
+                    <text class="note-text" x="998" y="926">session_id.</text>
+                </g>
+            </svg>
+        </div>
+        <div class="highlight success">Điểm mạnh lớn nhất của đồ án ở phiên bản hiện tại là luồng end-to-end đã chạy thật: từ GPS hoặc QR, tới popup stall, audio, review, log vị trí và heatmap quản trị.</div>
+    </section>
+
+    <section id="appendix">
+        <div class="section-header">
+            <div class="icon">13</div>
+            <div>
+                <div class="section-num">Appendix</div>
+                <h2>Technology Stack & Operational Notes</h2>
+            </div>
+        </div>
+        <p class="lead">Phần cuối của PRD không chỉ liệt kê công nghệ. Nó chốt rõ hệ thống hiện đã bàn giao được gì, đang chạy ở đâu và còn những nâng cấp nào hợp lý nếu tiếp tục phát triển sau đồ án.</p>
+        <div class="card-grid">
+            <div class="card">
+                <h3>Đã bàn giao được</h3>
+                <ul>
+                    <li>APK Android sideload để demo thực tế.</li>
+                    <li>Backend FastAPI đang chạy trên VPS qua `foodstreet.service`.</li>
+                    <li>Dashboard owner và superadmin phục vụ vận hành thật.</li>
+                    <li>Sequence flow GPS, QR, audio, log và heatmap đã nối mạch end-to-end.</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3>Đóng gói triển khai</h3>
+                <ul>
+                    <li>`schema.sql` cho môi trường DB mới.</li>
+                    <li>`migration.sql` cho môi trường đang có dữ liệu.</li>
+                    <li>`cleanup_categories.sql` để chuẩn hóa category trùng và lỗi.</li>
+                    <li>DB dump từ VPS có thể dùng làm bộ dữ liệu nộp hoặc restore.</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3>Nâng cấp hợp lý tiếp theo</h3>
+                <ul>
+                    <li>Thêm “xác nhận nhẹ” khi nhiều POI quá sát nhau.</li>
+                    <li>Tách `Backend/main.py` thành các module nhỏ để dễ bảo trì hơn.</li>
+                    <li>Mở rộng analytics từ heatmap sang funnel nghe nội dung và hành vi theo stall.</li>
+                    <li>Chuẩn hóa gói nộp bài gồm source code, APK và DB restore package.</li>
+                </ul>
+            </div>
+        </div>
+        <div class="highlight">Trạng thái hiện tại của HoaFoodAudio phù hợp để trình bày đồ án vì nó đã có cả phần trải nghiệm người dùng, phần quản trị vận hành và phần dữ liệu chứng minh hệ thống thực sự chạy được chứ không chỉ dừng ở mức giao diện.</div>
+    </section>
+
+    <footer>
+        Phiên bản HTML này được viết theo bản sắc riêng của HoaFoodAudio, bám trực tiếp vào code, luồng xử lý và mô hình vận hành thật của đồ án.
+    </footer>
+</body>
+</html>
