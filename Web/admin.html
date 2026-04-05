@@ -6,46 +6,133 @@
     <title>Tạo gian hàng</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin:0; background:#f5f7fb; color:#243041; font-family:"Segoe UI",sans-serif; }
-        .shell { padding:20px; display:grid; gap:20px; }
-        .topbar,.panel { background:#fff; border-radius:18px; padding:20px; box-shadow:0 12px 28px rgba(0,0,0,.06); }
-        .topbar { display:flex; justify-content:space-between; align-items:center; }
+        :root {
+            --bg: #f8f6f2;
+            --card: rgba(255, 255, 255, 0.92);
+            --ink: #1d1814;
+            --muted: #7d6e61;
+            --line: rgba(141, 119, 97, 0.18);
+            --primary: #e07828;
+            --primary-dark: #b85712;
+            --shadow-soft: 0 18px 42px rgba(102, 76, 48, 0.08);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin:0;
+            color: var(--ink);
+            font-family:"Segoe UI",sans-serif;
+            background:
+                radial-gradient(circle at 14% 100%, rgba(186, 250, 173, 0.5), transparent 18%),
+                radial-gradient(circle at 87% 10%, rgba(255, 185, 128, 0.22), transparent 20%),
+                linear-gradient(180deg, #fbfaf7 0%, var(--bg) 100%);
+        }
+        .shell { padding:18px; display:grid; gap:20px; }
+        .topbar,.panel {
+            background: var(--card);
+            border-radius:24px;
+            padding:22px;
+            box-shadow: var(--shadow-soft);
+            border: 1px solid rgba(255,255,255,.6);
+            backdrop-filter: blur(14px);
+        }
+        .topbar {
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:16px;
+            position: relative;
+            overflow: hidden;
+        }
+        .topbar::after {
+            content: "";
+            position: absolute;
+            width: 220px;
+            height: 220px;
+            right: -80px;
+            top: -110px;
+            border-radius: 999px;
+            background: rgba(255, 187, 137, 0.24);
+            filter: blur(12px);
+            pointer-events: none;
+        }
+        .topbar-actions { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; }
         .layout { display:grid; grid-template-columns:1.2fr .95fr; gap:20px; }
         .group { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
         .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-        input, textarea, select { width:100%; border:1px solid #dfe5ec; border-radius:12px; padding:12px 14px; font:inherit; background:#fff; }
+        .panel-kicker {
+            margin: 0 0 8px;
+            color: #9b4805;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+        }
+        .panel-copy {
+            margin: 6px 0 0;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        label { display:block; margin-bottom:6px; font-weight:600; }
+        input, textarea, select {
+            width:100%;
+            border:1px solid var(--line);
+            border-radius:14px;
+            padding:12px 14px;
+            font:inherit;
+            background:rgba(255,255,255,.92);
+        }
+        input:focus, textarea:focus, select:focus {
+            outline:none;
+            border-color: rgba(157, 67, 0, 0.3);
+            box-shadow: 0 0 0 4px rgba(255, 143, 63, 0.12);
+        }
         textarea { min-height:110px; resize:vertical; }
-        #map { width:100%; height:560px; border-radius:14px; border:1px solid #dfe5ec; }
+        #map { width:100%; height:560px; border-radius:20px; border:1px solid var(--line); }
         .search-row { display:grid; grid-template-columns:1fr 86px; gap:8px; }
-        .btn { border:none; border-radius:12px; padding:12px 14px; font:inherit; font-weight:700; cursor:pointer; }
-        .btn-primary { background:#ef8f2a; color:#fff; }
-        .btn-ghost { background:#eef2f7; color:#243041; }
-        .preview { border:1px dashed #dfe5ec; border-radius:14px; min-height:180px; display:grid; place-items:center; background:#fafbfd; overflow:hidden; }
+        .btn { border:none; border-radius:14px; padding:12px 14px; font:inherit; font-weight:700; cursor:pointer; transition: transform .18s ease, box-shadow .18s ease, background .18s ease; }
+        .btn:hover { transform: translateY(-1px); }
+        .btn-primary { background:linear-gradient(90deg, #9d4300, #ff8f3f); color:#fff; box-shadow: 0 16px 28px rgba(208, 113, 42, 0.24); }
+        .btn-primary:hover { background:var(--primary-dark); }
+        .btn-ghost { background:#f3efe9; color:var(--ink); border: 1px solid rgba(145, 119, 95, 0.12); }
+        .btn-logout { background: rgba(255,255,255,.84); color: #8f4208; border: 1px solid rgba(165, 71, 0, 0.12); }
+        .preview { border:1px dashed var(--line); border-radius:18px; min-height:180px; display:grid; place-items:center; background:#fafbfd; overflow:hidden; }
         .preview img { max-width:100%; max-height:220px; display:none; object-fit:cover; }
-        .status { display:none; padding:12px 14px; border-radius:12px; font-size:14px; margin-bottom:12px; }
+        .status { display:none; padding:12px 14px; border-radius:14px; font-size:14px; margin-bottom:12px; }
         .status.show.ok { display:block; background:#ecf8ef; border:1px solid #caead0; color:#24663b; }
         .status.show.err { display:block; background:#fff0f0; border:1px solid #f2cbcb; color:#9a2d2d; }
-        @media (max-width:1000px){ .layout{grid-template-columns:1fr;} #map{height:420px;} }
+        @media (max-width:1000px){
+            .layout{grid-template-columns:1fr;}
+            #map{height:420px;}
+            .shell { padding:14px; }
+        }
     </style>
 </head>
 <body>
     <div class="shell">
         <div class="topbar">
             <div>
-                <h1 id="pageTitle" style="margin:0;">Tạo gian hàng lần đầu</h1>
-                <div id="welcome" style="color:#6f7b8c;margin-top:4px;"></div>
+                <p class="panel-kicker">Seller Onboarding</p>
+                <h1 id="pageTitle" style="margin:0;font-size:34px;letter-spacing:-0.05em;">Tạo gian hàng lần đầu</h1>
+                <div id="welcome" style="color:var(--muted);margin-top:6px;"></div>
             </div>
-            <button class="btn btn-ghost" onclick="logout()">Đăng xuất</button>
+            <div class="topbar-actions">
+                <button class="btn btn-logout" onclick="logout()">Đăng xuất</button>
+            </div>
         </div>
 
         <div class="layout">
             <section class="panel">
+                <p class="panel-kicker">Vị Trí</p>
                 <h2 style="margin-top:0;">Bản đồ vị trí gian hàng</h2>
-                <p style="color:#6f7b8c;">Điền đầy đủ thông tin để tạo gian hàng. Sau khi tạo xong, các lần đăng nhập sau sẽ vào màn hình quản lý riêng.</p>
+                <p class="panel-copy">Điền đầy đủ thông tin để tạo gian hàng. Sau khi tạo xong, các lần đăng nhập sau sẽ vào màn hình quản lý riêng.</p>
                 <div id="map"></div>
             </section>
 
             <section class="panel">
+                <p class="panel-kicker">Tạo Gian hàng</p>
+                <h2 style="margin-top:0;">Thông tin gian hàng</h2>
+                <p class="panel-copy">Thiết lập hồ sơ gian hàng, món đặc sản và nội dung audio guide đầu tiên để gửi vào hệ thống.</p>
                 <div id="statusBox" class="status"></div>
 
                 <form id="stallForm">
