@@ -380,7 +380,7 @@
                         <table>
                             <thead>
                                 <tr>
-                                    <th>ID</th>
+                                    <th>STT</th>
                                     <th>Họ tên</th>
                                     <th>Tên đăng nhập</th>
                                     <th>Vai trò</th>
@@ -488,7 +488,8 @@
                     <div class="group"><label for="edit_lat">Vĩ độ</label><input id="edit_lat" type="number" step="any"></div>
                     <div class="group"><label for="edit_lng">Kinh độ</label><input id="edit_lng" type="number" step="any"></div>
                     <div class="group full-span"><label for="edit_poi_radius_m">Bán kính tự phát POI (m)</label><input id="edit_poi_radius_m" type="number" min="1" step="1"></div>
-                    <div class="group full-span"><label for="edit_opening_hours">Giờ mở cửa</label><input id="edit_opening_hours" type="text"></div>
+                    <div class="group"><label for="edit_opening_time">Giờ mở cửa</label><input id="edit_opening_time" type="time"></div>
+                    <div class="group"><label for="edit_closing_time">Giờ đóng cửa</label><input id="edit_closing_time" type="time"></div>
                     <div class="group"><label for="edit_specialty_1">Món đặc sản 1</label><input id="edit_specialty_1" type="text"></div>
                     <div class="group"><label for="edit_specialty_2">Món đặc sản 2</label><input id="edit_specialty_2" type="text"></div>
                     <div class="group full-span"><label for="edit_specialty_3">Món đặc sản 3</label><input id="edit_specialty_3" type="text"></div>
@@ -580,9 +581,10 @@
         function openEditUserModal(userId) {
             const user = cachedUsers.find(item => item.id === userId);
             if (!user) return;
+            const displayName = formatOwnerFullName(user, cachedUsers.findIndex(item => item.id === userId));
             document.getElementById("editStatus").className = "status";
             document.getElementById("edit_user_id").value = user.id;
-            document.getElementById("edit_full_name").value = user.full_name || "";
+            document.getElementById("edit_full_name").value = displayName;
             document.getElementById("edit_username").value = user.username || "";
             document.getElementById("edit_email").value = user.email || "";
             document.getElementById("edit_password").value = "";
@@ -602,7 +604,9 @@
                 document.getElementById("edit_lat").value = stall.lat ?? "";
                 document.getElementById("edit_lng").value = stall.lng ?? "";
                 document.getElementById("edit_poi_radius_m").value = Math.round(stall.poi_radius_m || 30);
-                document.getElementById("edit_opening_hours").value = stall.opening_hours || "";
+                const { openingTime, closingTime } = splitOpeningHours(stall.opening_hours || "");
+                document.getElementById("edit_opening_time").value = openingTime;
+                document.getElementById("edit_closing_time").value = closingTime;
                 const specialties = Array.isArray(stall.specialties) ? stall.specialties : [];
                 document.getElementById("edit_specialty_1").value = specialties[0] || "";
                 document.getElementById("edit_specialty_2").value = specialties[1] || "";
@@ -624,7 +628,8 @@
                 document.getElementById("edit_lat").value = "";
                 document.getElementById("edit_lng").value = "";
                 document.getElementById("edit_poi_radius_m").value = "30";
-                document.getElementById("edit_opening_hours").value = "";
+                document.getElementById("edit_opening_time").value = "";
+                document.getElementById("edit_closing_time").value = "";
                 document.getElementById("edit_specialty_1").value = "";
                 document.getElementById("edit_specialty_2").value = "";
                 document.getElementById("edit_specialty_3").value = "";
@@ -636,6 +641,42 @@
         }
 
         function closeEditUserModal() { editUserDialog.close(); }
+
+        function splitOpeningHours(value) {
+            const normalized = (value || "").trim().replace(/\s*[–—-]\s*/g, "-");
+            if (!normalized) return { openingTime: "", closingTime: "" };
+            const parts = normalized.split("-").map(part => part.trim()).filter(Boolean);
+            if (parts.length >= 2) return { openingTime: parts[0], closingTime: parts[1] };
+            return { openingTime: normalized, closingTime: "" };
+        }
+
+        function isClosingTimeAfterOpeningTime(openingTime, closingTime) {
+            return Boolean(openingTime && closingTime) && closingTime > openingTime;
+        }
+
+        function hasBrokenNameEncoding(value) {
+            return /Ã|á»|áº|Ä|Å|Æ|ç|ñ/.test(String(value || ""));
+        }
+
+        function formatOwnerFullName(user, index = 0) {
+            const rawName = String(user?.full_name || "").trim();
+            const stallName = String(user?.stall_name || user?.stall?.name || "").trim();
+            const username = String(user?.username || "").trim();
+
+            if (rawName && !hasBrokenNameEncoding(rawName) && !/^owner[_-]?stall_/i.test(rawName)) {
+                return rawName;
+            }
+
+            if (stallName) {
+                return `Chủ gian hàng ${stallName}`;
+            }
+
+            if (username && !/^owner[_-]?stall_/i.test(username)) {
+                return username;
+            }
+
+            return `Chủ gian hàng ${index + 1}`;
+        }
 
         async function api(path, options = {}) {
             const res = await fetch(path, { ...options, credentials: "include", headers: { ...(options.headers || {}) } });
@@ -778,18 +819,19 @@
         async function loadUsers() {
             const data = await api("/admin/users");
             cachedUsers = data.users || [];
-            document.getElementById("usersBody").innerHTML = cachedUsers.map(user => {
+            document.getElementById("usersBody").innerHTML = cachedUsers.map((user, index) => {
+                const displayName = formatOwnerFullName(user, index);
                 let actionHtml = "";
                 if (user.role === "stall_owner") {
                     const statusButton = user.is_active
-                        ? `<button class="btn btn-no btn-small" type="button" onclick="hideUser(${user.id}, '${escapeJs(user.full_name || user.username)}')">Ẩn</button>`
-                        : `<button class="btn btn-ok btn-small" type="button" onclick="activateUser(${user.id}, '${escapeJs(user.full_name || user.username)}')">Khôi phục</button>`;
+                        ? `<button class="btn btn-no btn-small" type="button" onclick="hideUser(${user.id}, '${escapeJs(displayName)}')">Ẩn</button>`
+                        : `<button class="btn btn-ok btn-small" type="button" onclick="activateUser(${user.id}, '${escapeJs(displayName)}')">Khôi phục</button>`;
                     actionHtml = `<div class="action-group"><button class="btn btn-ghost btn-small" type="button" onclick="openEditUserModal(${user.id})">Sửa</button>${statusButton}</div>`;
                 } else {
                     actionHtml = `<button class="btn btn-ghost btn-small" type="button" onclick="openEditUserModal(${user.id})">Sửa</button>`;
                 }
 
-                return `<tr><td>${user.id}</td><td>${escapeHtml(user.full_name || "")}</td><td>${escapeHtml(user.username)}</td><td>${escapeHtml(vietHoaVaiTro(user.role))}</td><td>${user.is_active ? "Đang hoạt động" : "Đã ẩn"}</td><td>${escapeHtml(user.stall_name || "")}</td><td>${actionHtml}</td></tr>`;
+                return `<tr><td>${index + 1}</td><td>${escapeHtml(displayName)}</td><td>${escapeHtml(user.username)}</td><td>${escapeHtml(vietHoaVaiTro(user.role))}</td><td>${user.is_active ? "Đang hoạt động" : "Đã ẩn"}</td><td>${escapeHtml(user.stall_name || "")}</td><td>${actionHtml}</td></tr>`;
             }).join("");
         }
 
@@ -825,11 +867,15 @@
             const fullName = document.getElementById("edit_full_name").value.trim();
             const username = document.getElementById("edit_username").value.trim();
             const stallVisible = document.getElementById("editStallSection").style.display !== "none";
+            const openingTime = document.getElementById("edit_opening_time").value.trim();
+            const closingTime = document.getElementById("edit_closing_time").value.trim();
             if (!fullName || !username) return showStatus("editStatus", "Nhập đủ họ tên và tên đăng nhập.", true);
             if (stallVisible) {
                 if (!document.getElementById("edit_stall_name").value.trim()) return showStatus("editStatus", "Nhập tên gian hàng.", true);
                 if (!document.getElementById("edit_lat").value.trim() || !document.getElementById("edit_lng").value.trim()) return showStatus("editStatus", "Nhập đầy đủ tọa độ gian hàng.", true);
                 if (!document.getElementById("edit_poi_radius_m").value.trim() || Number(document.getElementById("edit_poi_radius_m").value) <= 0) return showStatus("editStatus", "Nhập bán kính POI lớn hơn 0.", true);
+                if (!openingTime || !closingTime) return showStatus("editStatus", "Chọn đầy đủ giờ mở cửa và giờ đóng cửa.", true);
+                if (!isClosingTimeAfterOpeningTime(openingTime, closingTime)) return showStatus("editStatus", "Giờ đóng cửa phải muộn hơn giờ mở cửa.", true);
                 if (!document.getElementById("edit_specialty_1").value.trim() || !document.getElementById("edit_specialty_2").value.trim() || !document.getElementById("edit_specialty_3").value.trim()) return showStatus("editStatus", "Nhập đủ 3 món đặc sản.", true);
                 if (!document.getElementById("edit_script_vi").value.trim()) return showStatus("editStatus", "Nhập script tiếng Việt.", true);
             }
@@ -845,7 +891,8 @@
                 formData.append("lat", document.getElementById("edit_lat").value.trim());
                 formData.append("lng", document.getElementById("edit_lng").value.trim());
                 formData.append("poi_radius_m", document.getElementById("edit_poi_radius_m").value.trim());
-                formData.append("opening_hours", document.getElementById("edit_opening_hours").value.trim());
+                formData.append("opening_time", openingTime);
+                formData.append("closing_time", closingTime);
                 formData.append("is_open", document.getElementById("edit_is_open").value);
                 formData.append("specialty_1", document.getElementById("edit_specialty_1").value.trim());
                 formData.append("specialty_2", document.getElementById("edit_specialty_2").value.trim());

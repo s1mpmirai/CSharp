@@ -208,6 +208,8 @@ class StallUpdateRequest(Base):
     submitted_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     reviewed_at = Column(DateTime)
     reviewed_by_user_id = Column(Integer, ForeignKey("users.id"))
+    owner_read_at = Column(DateTime)
+    owner_deleted = Column(Boolean, nullable=False, default=False)
 
     stall = relationship("Stall")
     category = relationship("Category")
@@ -237,6 +239,8 @@ def ensure_schema_columns():
         "ALTER TABLE stall_update_requests ADD COLUMN IF NOT EXISTS specialty_2 TEXT",
         "ALTER TABLE stall_update_requests ADD COLUMN IF NOT EXISTS specialty_3 TEXT",
         "ALTER TABLE stall_update_requests ADD COLUMN IF NOT EXISTS poi_radius_m DOUBLE PRECISION DEFAULT 30",
+        "ALTER TABLE stall_update_requests ADD COLUMN IF NOT EXISTS owner_read_at TIMESTAMP",
+        "ALTER TABLE stall_update_requests ADD COLUMN IF NOT EXISTS owner_deleted BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE listening_logs ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION",
         "ALTER TABLE listening_logs ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION",
         "ALTER TABLE reviews ADD COLUMN IF NOT EXISTS ip_address VARCHAR(64)",
@@ -1012,6 +1016,8 @@ def serialize_update_request_detail(request: Request, row: StallUpdateRequest) -
         "admin_note": row.admin_note or "",
         "submitted_at": row.submitted_at.isoformat() if row.submitted_at else None,
         "reviewed_at": row.reviewed_at.isoformat() if row.reviewed_at else None,
+        "owner_read_at": row.owner_read_at.isoformat() if row.owner_read_at else None,
+        "is_read": row.owner_read_at is not None,
         "current_values": current_values,
         "requested_values": requested_values,
         "field_changes": build_request_field_changes(current_values, requested_values),
@@ -1443,7 +1449,10 @@ def owner_dashboard(request: Request, db: Session = Depends(get_db)):
     latest_row = (
         db.query(StallUpdateRequest)
         .options(joinedload(StallUpdateRequest.stall).joinedload(Stall.category), joinedload(StallUpdateRequest.category))
-        .filter(StallUpdateRequest.stall_id == stall.id)
+        .filter(
+            StallUpdateRequest.stall_id == stall.id,
+            StallUpdateRequest.owner_deleted == False
+        )
         .order_by(StallUpdateRequest.submitted_at.desc(), StallUpdateRequest.id.desc())
         .first()
     )
@@ -1492,13 +1501,73 @@ def owner_update_requests(request: Request, db: Session = Depends(get_db)):
     rows = (
         db.query(StallUpdateRequest)
         .options(joinedload(StallUpdateRequest.stall).joinedload(Stall.category), joinedload(StallUpdateRequest.category))
-        .filter(StallUpdateRequest.stall_id == stall.id)
+        .filter(
+            StallUpdateRequest.stall_id == stall.id,
+            StallUpdateRequest.owner_deleted == False
+        )
         .order_by(StallUpdateRequest.submitted_at.desc(), StallUpdateRequest.id.desc())
         .limit(10)
         .all()
     )
 
     return {"items": [serialize_update_request_detail(request, row) for row in rows]}
+
+
+@app.post("/owner/update-requests/{request_id}/read")
+def owner_mark_update_request_read(request_id: int, request: Request, db: Session = Depends(get_db)):
+    user = require_auth_page(request, db)
+    require_role(user, "stall_owner")
+
+    stall = get_owner_stall(db, user.id)
+    if not stall:
+        raise HTTPException(status_code=404, detail="Bạn chưa có gian hàng")
+
+    row = (
+        db.query(StallUpdateRequest)
+        .filter(
+            StallUpdateRequest.id == request_id,
+            StallUpdateRequest.stall_id == stall.id,
+            StallUpdateRequest.owner_deleted == False
+        )
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Không tìm thấy thông báo")
+
+    if row.owner_read_at is None:
+        row.owner_read_at = datetime.utcnow()
+        db.commit()
+
+    return {"status": "success"}
+
+
+@app.delete("/owner/update-requests/{request_id}")
+def owner_delete_update_request(request_id: int, request: Request, db: Session = Depends(get_db)):
+    user = require_auth_page(request, db)
+    require_role(user, "stall_owner")
+
+    stall = get_owner_stall(db, user.id)
+    if not stall:
+        raise HTTPException(status_code=404, detail="Bạn chưa có gian hàng")
+
+    row = (
+        db.query(StallUpdateRequest)
+        .filter(
+            StallUpdateRequest.id == request_id,
+            StallUpdateRequest.stall_id == stall.id,
+            StallUpdateRequest.owner_deleted == False
+        )
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Không tìm thấy thông báo")
+
+    row.owner_deleted = True
+    if row.owner_read_at is None:
+        row.owner_read_at = datetime.utcnow()
+    db.commit()
+
+    return {"status": "success"}
 
 
 @app.post("/owner/stall")
