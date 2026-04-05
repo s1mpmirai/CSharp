@@ -827,20 +827,37 @@
             dashboardRefreshTimer = null;
         }
 
+        function normalizeImageUrl(value) {
+            const raw = String(value || "").trim();
+            if (!raw) return "";
+            if (raw.startsWith("blob:") || raw.startsWith("data:")) return raw;
+            if (/^https?:\/\//i.test(raw)) return raw;
+            if (raw.startsWith("/uploads/")) return raw;
+            if (raw.startsWith("uploads/")) return `/${raw}`;
+            if (!raw.includes("/") && /\.(png|jpg|jpeg|webp|gif)$/i.test(raw)) return `/uploads/${raw}`;
+            if (raw.startsWith("/")) return raw;
+            return `/${raw}`;
+        }
+
         function updateEditImagePreview(src = "") {
             const preview = document.getElementById("edit_image_preview");
+            const normalizedSrc = normalizeImageUrl(src);
             if (editPreviewObjectUrl && src !== editPreviewObjectUrl) {
                 URL.revokeObjectURL(editPreviewObjectUrl);
                 editPreviewObjectUrl = "";
             }
 
-            if (!src) {
+            if (!normalizedSrc) {
                 preview.removeAttribute("src");
                 preview.style.display = "none";
                 return;
             }
 
-            preview.src = src;
+            preview.onerror = () => {
+                preview.removeAttribute("src");
+                preview.style.display = "none";
+            };
+            preview.src = normalizedSrc;
             preview.style.display = "block";
         }
 
@@ -1198,9 +1215,11 @@
         }
 
         function isImageUrl(value) {
-            const normalized = String(value || "").trim().toLowerCase();
+            const normalized = normalizeImageUrl(value).toLowerCase();
             return Boolean(normalized) && (
                 normalized.includes("/uploads/") ||
+                normalized.startsWith("blob:") ||
+                normalized.startsWith("data:") ||
                 normalized.endsWith(".png") ||
                 normalized.endsWith(".jpg") ||
                 normalized.endsWith(".jpeg") ||
@@ -1216,7 +1235,7 @@
             if (value === null || value === undefined || value === "") return "<em>Trống</em>";
             if (typeof value === "boolean") return value ? "Đang mở" : "Đang đóng";
             if (typeof value === "string" && isImageUrl(value)) {
-                return `<img class="detail-image" src="${escapeHtml(value)}" alt="Ảnh gian hàng">`;
+                return `<img class="detail-image" src="${escapeHtml(normalizeImageUrl(value))}" alt="Ảnh gian hàng" onerror="this.style.display='none'">`;
             }
             return escapeHtml(String(value));
         }
