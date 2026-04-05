@@ -5,8 +5,8 @@ BEGIN;
 
 INSERT INTO roles (name, description, created_at, updated_at)
 VALUES
-    ('super_admin', 'Qu?n tr? h? th?ng', NOW(), NOW()),
-    ('stall_owner', 'Ch? gian hàng', NOW(), NOW())
+    ('super_admin', 'Quản trị hệ thống', NOW(), NOW()),
+    ('stall_owner', 'Chủ gian hàng', NOW(), NOW())
 ON CONFLICT (name) DO UPDATE
 SET
     description = EXCLUDED.description,
@@ -14,11 +14,11 @@ SET
 
 INSERT INTO languages (code, name, native_name, locale_code, sort_order, is_active, created_at, updated_at)
 VALUES
-    ('vi', 'Vietnamese', 'Ti?ng Vi?t', 'vi-VN', 1, TRUE, NOW(), NOW()),
+    ('vi', 'Vietnamese', 'Tiếng Việt', 'vi-VN', 1, TRUE, NOW(), NOW()),
     ('en', 'English', 'English', 'en-US', 2, TRUE, NOW(), NOW()),
-    ('zh-CN', 'Chinese', '??', 'zh-CN', 3, TRUE, NOW(), NOW()),
-    ('ja', 'Japanese', '???', 'ja-JP', 4, TRUE, NOW(), NOW()),
-    ('ko', 'Korean', '???', 'ko-KR', 5, TRUE, NOW(), NOW())
+    ('zh-CN', 'Chinese', '中文', 'zh-CN', 3, TRUE, NOW(), NOW()),
+    ('ja', 'Japanese', '日本語', 'ja-JP', 4, TRUE, NOW(), NOW()),
+    ('ko', 'Korean', '한국어', 'ko-KR', 5, TRUE, NOW(), NOW())
 ON CONFLICT (code) DO UPDATE
 SET
     name = EXCLUDED.name,
@@ -30,14 +30,14 @@ SET
 
 INSERT INTO categories (slug, name, is_active, created_at, updated_at)
 VALUES
-    ('seafood', 'H?i s?n', TRUE, NOW(), NOW()),
-    ('grilled', 'Ð? nu?ng', TRUE, NOW(), NOW()),
-    ('noodles', 'Món nu?c', TRUE, NOW(), NOW()),
-    ('snacks', 'An v?t', TRUE, NOW(), NOW()),
-    ('desserts', 'Tráng mi?ng', TRUE, NOW(), NOW()),
-    ('rice', 'Com', TRUE, NOW(), NOW()),
-    ('dumplings', 'Há c?o', TRUE, NOW(), NOW()),
-    ('specialties', 'Ð?c s?n', TRUE, NOW(), NOW())
+    ('seafood', 'Hải sản', TRUE, NOW(), NOW()),
+    ('grilled', 'Đồ nướng', TRUE, NOW(), NOW()),
+    ('noodles', 'Món nước', TRUE, NOW(), NOW()),
+    ('snacks', 'Ăn vặt', TRUE, NOW(), NOW()),
+    ('desserts', 'Tráng miệng', TRUE, NOW(), NOW()),
+    ('rice', 'Cơm', TRUE, NOW(), NOW()),
+    ('dumplings', 'Há cảo', TRUE, NOW(), NOW()),
+    ('specialties', 'Đặc sản', TRUE, NOW(), NOW())
 ON CONFLICT (slug) DO UPDATE
 SET
     name = EXCLUDED.name,
@@ -49,7 +49,7 @@ SELECT
     r.id,
     'admin',
     'pbkdf2_sha256$390000$SHGU1N51AvWzZqNDolhXeA$JKlMGBHNFqXIXeM2SJU08lbOJneu_JUwqq9tg-K_aRs',
-    'Qu?n tr? h? th?ng',
+    'Quản trị hệ thống',
     'admin@streetfeast.local',
     TRUE,
     NOW(),
@@ -81,7 +81,7 @@ SELECT
     l.id,
     s.name,
     NULL,
-    COALESCE(NULLIF(src.script_vi, ''), 'N?i dung thuy?t minh dang du?c c?p nh?t.'),
+    COALESCE(NULLIF(src.script_vi, ''), 'Nội dung thuyết minh đang được cập nhật.'),
     FALSE,
     'approved',
     1,
