@@ -100,8 +100,8 @@ namespace FoodStreetAudioGuide
             }
             else
             {
-                card.BackgroundColor = Color.FromArgb("#F1F4F8");
-                card.Stroke = Color.FromArgb("#D9DEE8");
+                card.BackgroundColor = Color.FromArgb("#F6F1EB");
+                card.Stroke = Color.FromArgb("#E5DCD3");
                 card.StrokeThickness = 1;
                 flag.TextColor = Color.FromArgb("#5F6877");
                 outerIndicator.Stroke = Color.FromArgb("#BBC3D1");

@@ -89,7 +89,7 @@ namespace FoodStreetAudioGuide
             return !string.IsNullOrWhiteSpace(path) && File.Exists(path);
         }
 
-        public async Task<IReadOnlyList<int>> PreloadTopStallsAsync(IEnumerable<StallItem> stalls, string languageCode, int limit = 5)
+        public async Task<IReadOnlyList<int>> PreloadTopStallsAsync(IEnumerable<StallItem> stalls, string languageCode, int limit = 5, CancellationToken cancellationToken = default)
         {
             var cachedIds = new List<int>();
 
@@ -108,6 +108,8 @@ namespace FoodStreetAudioGuide
 
             foreach (var stall in stalls.Where(item => item.Id > 0).Take(limit))
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 if (HasCachedAudio(stall, languageCode))
                 {
                     cachedIds.Add(stall.Id);

@@ -575,6 +575,19 @@ def build_opening_hours(opening_time: Optional[str], closing_time: Optional[str]
     return f"{open_value} - {close_value}"
 
 
+def resolve_opening_hours_input(
+    opening_time: Optional[str],
+    closing_time: Optional[str],
+    opening_hours: Optional[str]
+) -> str:
+    has_explicit_times = bool((opening_time or "").strip() or (closing_time or "").strip())
+    if has_explicit_times:
+        return build_opening_hours(opening_time, closing_time)
+
+    open_value, close_value = split_opening_hours(opening_hours)
+    return build_opening_hours(open_value, close_value)
+
+
 def split_opening_hours(opening_hours: Optional[str]) -> tuple[str, str]:
     raw = (opening_hours or "").strip()
     if not raw:
@@ -1890,6 +1903,7 @@ async def admin_manage_user(
     script_vi: str = Form(""),
     opening_time: str = Form(""),
     closing_time: str = Form(""),
+    opening_hours: str = Form(""),
     is_open: bool = Form(True),
     image: UploadFile = File(None),
     db: Session = Depends(get_db)
@@ -1936,7 +1950,7 @@ async def admin_manage_user(
 
             specialty_1, specialty_2, specialty_3 = require_specialties(specialty_1, specialty_2, specialty_3)
             poi_radius_m = require_poi_radius(poi_radius_m)
-            opening_hours = build_opening_hours(opening_time, closing_time)
+            opening_hours = resolve_opening_hours_input(opening_time, closing_time, opening_hours)
 
             filename = stall.image_url
             if image and image.filename:

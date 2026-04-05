@@ -44,6 +44,8 @@ namespace FoodStreetAudioGuide
         private const double AcceptableLastKnownAccuracyMeters = 18;
         private static readonly TimeSpan FastRefreshLocationWindow = TimeSpan.FromMinutes(2);
         private const double FastRefreshAcceptedAccuracyMeters = 50;
+        private static readonly TimeSpan SoftRefreshLocationWindow = TimeSpan.FromMinutes(10);
+        private const double SoftRefreshAcceptedAccuracyMeters = 150;
         private bool _isSubscribedToImageCacheUpdates;
         private List<StallItem> _nearbyStalls = new();
         private List<StallItem> _remoteSearchStalls = new();
@@ -63,8 +65,10 @@ namespace FoodStreetAudioGuide
         private bool _isRefreshingFromServer;
         private bool _isSubmittingRating;
         private CancellationTokenSource? _backgroundSyncCts;
+        private CancellationTokenSource? _deferredAudioPreloadCts;
         private readonly HashSet<int> _ratedStallIds = new();
         private static readonly TimeSpan BackgroundSyncInterval = TimeSpan.FromSeconds(8);
+        private static readonly TimeSpan DeferredAudioPreloadDelay = TimeSpan.FromMilliseconds(900);
         private const string RatedStallIdsPreferenceKey = "rated_stall_ids";
 #if ANDROID
         private MediaPlayer? _androidMediaPlayer;
@@ -163,6 +167,9 @@ namespace FoodStreetAudioGuide
             _searchDebounceCts = null;
             StopBackgroundSync();
             StopPoiMonitoring();
+            _deferredAudioPreloadCts?.Cancel();
+            _deferredAudioPreloadCts?.Dispose();
+            _deferredAudioPreloadCts = null;
             StopSpeechAndHidePopup();
             base.OnDisappearing();
         }
@@ -194,6 +201,7 @@ namespace FoodStreetAudioGuide
 
             _isRefreshingFromServer = true;
             MainThread.BeginInvokeOnMainThread(UpdateRefreshButtonState);
+            await Task.Yield();
             try
             {
                 if (!CanAttemptBackendRequest())
@@ -256,7 +264,7 @@ namespace FoodStreetAudioGuide
                     {
                         DisplayStalls(data);
                         HideInitialLoading();
-                        _ = PreloadNearbyAudioAsync(data);
+                        ScheduleNearbyAudioPreload(data);
                     }
                     else if (Stalls.Count == 0)
                     {
@@ -453,16 +461,20 @@ namespace FoodStreetAudioGuide
                     return;
                 }
 
+                var visibleChanged = false;
+                var updatedVisible = new List<StallItem>(Stalls.Count);
                 for (var index = 0; index < Stalls.Count; index++)
                 {
                     var current = Stalls[index];
                     if (!updatesById.TryGetValue(current.Id, out var refreshed))
                     {
+                        updatedVisible.Add(current);
                         continue;
                     }
 
                     if (current.ThumbnailUrl == refreshed.ThumbnailUrl && current.ImageUrl == refreshed.ImageUrl)
                     {
+                        updatedVisible.Add(current);
                         continue;
                     }
 
@@ -471,11 +483,18 @@ namespace FoodStreetAudioGuide
                         ThumbnailUrl = refreshed.ThumbnailUrl,
                         ImageUrl = refreshed.ImageUrl
                     };
-                    Stalls[index] = ApplyHighlight(updated, _searchText);
+                    updatedVisible.Add(ApplyHighlight(updated, _searchText));
+                    visibleChanged = true;
+                }
+
+                if (visibleChanged)
+                {
+                    Stalls.ReplaceRange(updatedVisible);
                 }
 
                 UpdateSourceListImages(_nearbyStalls, updatesById);
                 UpdateSourceListImages(_remoteSearchStalls, updatesById);
+                RefreshCurrentPopupIfNeeded();
             });
         }
 
@@ -520,6 +539,7 @@ namespace FoodStreetAudioGuide
 
         private async void OnStallTapped(object sender, TappedEventArgs e)
         {
+            DismissSearchKeyboard();
             if (e.Parameter is StallItem stall)
             {
                 await ShowScriptPopupAsync(stall);
@@ -528,22 +548,40 @@ namespace FoodStreetAudioGuide
 
         private async Task ShowScriptPopupAsync(StallItem stall)
         {
+            DismissSearchKeyboard();
             var text = AppText.Get(_selectedLanguage);
             var languageCode = GetLanguageCode(_selectedLanguage);
             stall = GetLatestStallSnapshot(stall) ?? stall;
+            var content = stall.GetScript(languageCode);
+
+            if (!string.IsNullOrWhiteSpace(content))
+            {
+                StopSpeech();
+                StopAudioPlayback();
+                RenderScriptPopup(stall, text, languageCode);
+            }
+            else
+            {
+                StopSpeech();
+                StopAudioPlayback();
+            }
+
+            StallItem? refreshedStall = null;
             if (CanAttemptBackendRequest() && stall.Id > 0)
             {
-                var latestFromServer = await _stallService.GetStallDetailAsync(
+                refreshedStall = await _stallService.GetStallDetailAsync(
                     stall.Id,
                     _lastKnownLocation?.Latitude,
                     _lastKnownLocation?.Longitude);
-                if (latestFromServer is not null)
+                if (refreshedStall is not null)
                 {
-                    stall = LocalizeStall(AttachOfflineFlag(latestFromServer));
-                    UpdateNearbySnapshot(stall);
+                    refreshedStall = LocalizeStall(AttachOfflineFlag(PreserveDistanceIfMissing(stall, refreshedStall)));
+                    UpdateNearbySnapshot(refreshedStall);
+                    stall = refreshedStall;
+                    content = stall.GetScript(languageCode);
+                    RenderScriptPopup(stall, text, languageCode);
                 }
             }
-            var content = stall.GetScript(languageCode);
 
             if (string.IsNullOrWhiteSpace(content))
             {
@@ -566,10 +604,6 @@ namespace FoodStreetAudioGuide
 
                 return;
             }
-
-            StopSpeech();
-            StopAudioPlayback();
-            RenderScriptPopup(stall, text, languageCode);
 
             _speechCts = new CancellationTokenSource();
             var audioPath = await _audioCacheService.GetPlayableAudioPathAsync(stall, languageCode);
@@ -668,6 +702,7 @@ namespace FoodStreetAudioGuide
 
         private async void OnNavigateToStallClicked(object sender, EventArgs e)
         {
+            DismissSearchKeyboard();
             if (_currentPopupStall is null)
             {
                 return;
@@ -686,11 +721,13 @@ namespace FoodStreetAudioGuide
 
         private void OnPopupBackdropTapped(object sender, TappedEventArgs e)
         {
+            DismissSearchKeyboard();
             StopSpeechAndHidePopup();
         }
 
         private void OnPopupCardTapped(object sender, TappedEventArgs e)
         {
+            DismissSearchKeyboard();
         }
 
         private async void OnSavedTapped(object sender, TappedEventArgs e)
@@ -756,6 +793,7 @@ namespace FoodStreetAudioGuide
                 ShowInitialLoading();
             }
 
+            await Task.Yield();
             await LoadDataFromServer(preferResponsiveLocation: true);
         }
 
@@ -904,7 +942,40 @@ namespace FoodStreetAudioGuide
             var highlighted = stalls
                 .Select(stall => ApplyHighlight(stall, _searchText))
                 .ToList();
+
+            if (AreVisibleStallsEquivalent(highlighted))
+            {
+                return;
+            }
+
             Stalls.ReplaceRange(highlighted);
+        }
+
+        private bool AreVisibleStallsEquivalent(IReadOnlyList<StallItem> candidate)
+        {
+            if (candidate.Count != Stalls.Count)
+            {
+                return false;
+            }
+
+            for (var index = 0; index < candidate.Count; index++)
+            {
+                var current = Stalls[index];
+                var next = candidate[index];
+                if (current.Id != next.Id ||
+                    !string.Equals(current.Name, next.Name, StringComparison.Ordinal) ||
+                    !string.Equals(current.Cuisine, next.Cuisine, StringComparison.Ordinal) ||
+                    !string.Equals(current.Rating, next.Rating, StringComparison.Ordinal) ||
+                    !string.Equals(current.Reviews, next.Reviews, StringComparison.Ordinal) ||
+                    !string.Equals(current.ThumbnailUrl, next.ThumbnailUrl, StringComparison.Ordinal) ||
+                    !string.Equals(current.ImageUrl, next.ImageUrl, StringComparison.Ordinal) ||
+                    current.HasOfflineAudio != next.HasOfflineAudio)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private void OnSearchButtonPressed(object sender, EventArgs e)
@@ -1089,6 +1160,7 @@ namespace FoodStreetAudioGuide
 
         private void StopSpeechAndHidePopup()
         {
+            DismissSearchKeyboard();
             StopSpeech();
             StopAudioPlayback();
             _currentPopupStall = null;
@@ -1256,10 +1328,20 @@ namespace FoodStreetAudioGuide
                 return _lastKnownLocation;
             }
 
+            if (IsAcceptableLocation(_lastKnownLocation, SoftRefreshLocationWindow, SoftRefreshAcceptedAccuracyMeters))
+            {
+                return _lastKnownLocation;
+            }
+
             try
             {
                 var lastKnown = await Geolocation.Default.GetLastKnownLocationAsync();
                 if (IsAcceptableLocation(lastKnown, FastRefreshLocationWindow, FastRefreshAcceptedAccuracyMeters))
+                {
+                    return lastKnown;
+                }
+
+                if (IsAcceptableLocation(lastKnown, SoftRefreshLocationWindow, SoftRefreshAcceptedAccuracyMeters))
                 {
                     return lastKnown;
                 }
@@ -1319,10 +1401,40 @@ namespace FoodStreetAudioGuide
             return false;
         }
 
-        private async Task PreloadNearbyAudioAsync(IEnumerable<StallItem> stalls)
+        private void ScheduleNearbyAudioPreload(IEnumerable<StallItem> stalls)
         {
+            _deferredAudioPreloadCts?.Cancel();
+            _deferredAudioPreloadCts?.Dispose();
+
+            var snapshot = stalls
+                .Where(item => item.Id > 0)
+                .Take(3)
+                .ToList();
+
+            if (snapshot.Count == 0)
+            {
+                _deferredAudioPreloadCts = null;
+                return;
+            }
+
+            var cts = new CancellationTokenSource();
+            _deferredAudioPreloadCts = cts;
+            _ = PreloadNearbyAudioAsync(snapshot, cts.Token);
+        }
+
+        private async Task PreloadNearbyAudioAsync(IEnumerable<StallItem> stalls, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await Task.Delay(DeferredAudioPreloadDelay, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
             var languageCode = GetLanguageCode(_selectedLanguage);
-            var cachedIds = await _audioCacheService.PreloadTopStallsAsync(stalls, languageCode);
+            var cachedIds = await _audioCacheService.PreloadTopStallsAsync(stalls, languageCode, limit: 3, cancellationToken);
             if (cachedIds.Count == 0)
             {
                 return;
@@ -1613,9 +1725,7 @@ namespace FoodStreetAudioGuide
             var content = stall.GetScript(languageCode);
             ScriptPopupHeaderLabel.Text = text.ScriptDialogTitle;
             ScriptPopupTitleLabel.Text = stall.Name;
-            ScriptPopupImage.Source = string.IsNullOrWhiteSpace(stall.ImageUrl)
-                ? (string.IsNullOrWhiteSpace(stall.ThumbnailUrl) ? null : stall.ThumbnailUrl)
-                : stall.ImageUrl;
+            ScriptPopupImage.Source = ResolvePopupImageSource(stall);
             ScriptPopupCuisineLabel.Text = $"{text.PopupCuisineLabel}: {stall.Cuisine}";
             ScriptPopupDistanceLabel.Text = $"{text.PopupDistanceLabel}: {stall.DistanceText}";
             UpdatePopupRatingSummary(stall);
@@ -1631,6 +1741,16 @@ namespace FoodStreetAudioGuide
             UpdateAudioStatusUi(stall, text, languageCode);
             ScriptPopupOverlay.IsVisible = true;
             MainThread.BeginInvokeOnMainThread(async () => await ScriptPopupScrollView.ScrollToAsync(0, 0, false));
+        }
+
+        private static string? ResolvePopupImageSource(StallItem stall)
+        {
+            if (!string.IsNullOrWhiteSpace(stall.ThumbnailUrl))
+            {
+                return stall.ThumbnailUrl;
+            }
+
+            return string.IsNullOrWhiteSpace(stall.ImageUrl) ? null : stall.ImageUrl;
         }
 
         private void UpdatePopupRatingSummary(StallItem stall)

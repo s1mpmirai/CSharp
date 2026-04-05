@@ -28,6 +28,10 @@
 	</array>
 	<key>XSAppIconAssets</key>
 	<string>Assets.xcassets/appicon.appiconset</string>
+	<key>CFBundleDisplayName</key>
+	<string>HoaFoodAudio</string>
+	<key>CFBundleName</key>
+	<string>HoaFoodAudio</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Camera access is used to scan QR codes and open audio guides for nearby stalls.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

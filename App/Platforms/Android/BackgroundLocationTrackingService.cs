@@ -57,7 +57,7 @@ public sealed class BackgroundLocationTrackingService : Service
         return new Notification.Builder(this, ChannelId)
             .SetContentTitle("FoodStreet dang theo doi vi tri")
             .SetContentText("Dang cap nhat POI gan ban trong nen")
-            .SetSmallIcon(Resource.Mipmap.appicon)
+            .SetSmallIcon(Resource.Mipmap.hoafoodaudioicon)
             .SetOngoing(true)
             .Build();
     }
@@ -68,7 +68,7 @@ public sealed class BackgroundLocationTrackingService : Service
         return new Notification.Builder(this)
             .SetContentTitle("FoodStreet dang theo doi vi tri")
             .SetContentText("Dang cap nhat POI gan ban trong nen")
-            .SetSmallIcon(Resource.Mipmap.appicon)
+            .SetSmallIcon(Resource.Mipmap.hoafoodaudioicon)
             .SetOngoing(true)
             .Build();
     }

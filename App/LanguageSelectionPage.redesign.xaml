@@ -36,12 +36,29 @@
                                CharacterSpacing="0.4" />
                         <Label x:Name="PageTitleLabel"
                                Text="Select Your Language"
-                               FontSize="28"
+                               FontSize="34"
                                FontAttributes="Bold"
                                TextColor="#1D1814"
                                LineBreakMode="WordWrap" />
                     </VerticalStackLayout>
 
+                    <Border Grid.Column="1"
+                            Padding="10"
+                            BackgroundColor="#FFF7F0"
+                            Stroke="#F2E2D0"
+                            StrokeThickness="1"
+                            HorizontalOptions="End"
+                            VerticalOptions="Start">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="18" />
+                        </Border.StrokeShape>
+                        <Label Text="A"
+                               FontSize="18"
+                               FontAttributes="Bold"
+                               TextColor="#A54700"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center" />
+                    </Border>
                 </Grid>
 
                 <Border Padding="0"
@@ -97,7 +114,7 @@
                                             <GradientStop Color="#FF8F3F" Offset="1.0" />
                                         </LinearGradientBrush>
                                     </Grid.Background>
-                                    <Label Text="HFA"
+                                    <Label Text="A"
                                            FontSize="28"
                                            FontAttributes="Bold"
                                            TextColor="White"
@@ -107,7 +124,7 @@
                             </Border>
 
                             <VerticalStackLayout Spacing="4">
-                                <Label Text="Hoa Food Global Audio Guide "
+                                <Label Text="Global Audio Guide"
                                        FontSize="24"
                                        FontAttributes="Bold"
                                        TextColor="#1D1814" />
