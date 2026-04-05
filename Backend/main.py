@@ -1410,7 +1410,6 @@ def auth_me(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/categories")
 def categories(request: Request, db: Session = Depends(get_db)):
-    require_auth_page(request, db)
     items = db.query(Category).filter(Category.is_active == True).order_by(Category.id.asc()).all()
     return [{"id": item.id, "name": item.name} for item in items]
 
