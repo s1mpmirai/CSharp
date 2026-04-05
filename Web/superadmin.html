@@ -548,6 +548,7 @@
         const HCMC_BOUNDS = L.latLngBounds([[10.34, 106.22], [11.15, 107.02]]);
         const HCMC_CENTER = [10.7626, 106.7045];
         const USERS_PER_PAGE = 10;
+        const DASHBOARD_REFRESH_INTERVAL_MS = 10000;
         let collapseTimer = null;
         let cachedUsers = [];
         let cachedCategories = [];
@@ -557,7 +558,10 @@
         let activeUserMarkers = null;
         let currentRequestDetail = null;
         let requestActionInFlight = false;
+        let requestActionType = "";
         let currentUsersPage = 1;
+        let dashboardRefreshTimer = null;
+        let editPreviewObjectUrl = "";
 
         document.getElementById("createOwnerForm").addEventListener("submit", createOwner);
         document.getElementById("editUserForm").addEventListener("submit", updateUser);
@@ -619,11 +623,11 @@
             document.getElementById("edit_email").value = user.email || "";
             document.getElementById("edit_password").value = "";
             document.getElementById("edit_image_file").value = "";
+            updateEditImagePreview();
 
             const stall = user.stall;
             const stallSection = document.getElementById("editStallSection");
             const emptyState = document.getElementById("editStallEmpty");
-            const preview = document.getElementById("edit_image_preview");
 
             if (stall) {
                 stallSection.style.display = "grid";
@@ -642,13 +646,7 @@
                 document.getElementById("edit_specialty_2").value = specialties[1] || "";
                 document.getElementById("edit_specialty_3").value = specialties[2] || "";
                 document.getElementById("edit_script_vi").value = stall.script_vi || "";
-                if (stall.image_url) {
-                    preview.src = stall.image_url;
-                    preview.style.display = "block";
-                } else {
-                    preview.removeAttribute("src");
-                    preview.style.display = "none";
-                }
+                updateEditImagePreview(stall.image_url || "");
             } else {
                 stallSection.style.display = "none";
                 emptyState.style.display = "block";
@@ -664,13 +662,15 @@
                 document.getElementById("edit_specialty_2").value = "";
                 document.getElementById("edit_specialty_3").value = "";
                 document.getElementById("edit_script_vi").value = "";
-                preview.removeAttribute("src");
-                preview.style.display = "none";
+                updateEditImagePreview();
             }
             editUserDialog.showModal();
         }
 
-        function closeEditUserModal() { editUserDialog.close(); }
+        function closeEditUserModal() {
+            updateEditImagePreview();
+            editUserDialog.close();
+        }
 
         function splitOpeningHours(value) {
             const normalized = (value || "").trim().replace(/\s*[–—-]\s*/g, "-");
@@ -793,16 +793,55 @@
             note.className = message ? `status show ${isError ? "err" : "ok"}` : "status";
         }
 
-        function setRequestActionBusy(isBusy) {
+        function setRequestActionBusy(isBusy, actionType = "") {
             requestActionInFlight = isBusy;
+            requestActionType = isBusy ? actionType : "";
             requestApproveButton.disabled = isBusy;
             requestRejectButton.disabled = isBusy;
-            requestApproveButton.textContent = isBusy ? "Đang xử lý..." : "Duyệt";
-            requestRejectButton.textContent = isBusy ? "Đang xử lý..." : "Từ chối";
+            requestApproveButton.textContent = isBusy && actionType === "approve" ? "Đang duyệt..." : "Duyệt";
+            requestRejectButton.textContent = isBusy && actionType === "reject" ? "Đang từ chối..." : "Từ chối";
         }
 
         function notifyAdminAction(message) {
             window.alert(message);
+        }
+
+        function startDashboardAutoRefresh() {
+            stopDashboardAutoRefresh();
+            dashboardRefreshTimer = setInterval(() => {
+                const overviewVisible = document.getElementById("view-tong-quan").classList.contains("active");
+                if (!overviewVisible) {
+                    return;
+                }
+
+                loadDashboard().catch(() => {});
+            }, DASHBOARD_REFRESH_INTERVAL_MS);
+        }
+
+        function stopDashboardAutoRefresh() {
+            if (!dashboardRefreshTimer) {
+                return;
+            }
+
+            clearInterval(dashboardRefreshTimer);
+            dashboardRefreshTimer = null;
+        }
+
+        function updateEditImagePreview(src = "") {
+            const preview = document.getElementById("edit_image_preview");
+            if (editPreviewObjectUrl && src !== editPreviewObjectUrl) {
+                URL.revokeObjectURL(editPreviewObjectUrl);
+                editPreviewObjectUrl = "";
+            }
+
+            if (!src) {
+                preview.removeAttribute("src");
+                preview.style.display = "none";
+                return;
+            }
+
+            preview.src = src;
+            preview.style.display = "block";
         }
 
         async function bootstrap() {
@@ -812,6 +851,7 @@
             cachedCategories = await api("/categories") || [];
             renderEditCategoryOptions();
             await loadAllData();
+            startDashboardAutoRefresh();
         }
 
         function renderEditCategoryOptions(selectedValue = "") {
@@ -1010,10 +1050,15 @@
 
         function previewEditImage(event) {
             const file = event.target.files[0];
-            if (!file) return;
-            const preview = document.getElementById("edit_image_preview");
-            preview.src = URL.createObjectURL(file);
-            preview.style.display = "block";
+            if (!file) {
+                const userId = Number(document.getElementById("edit_user_id").value || 0);
+                const user = cachedUsers.find(item => item.id === userId);
+                updateEditImagePreview(user?.stall?.image_url || "");
+                return;
+            }
+
+            editPreviewObjectUrl = URL.createObjectURL(file);
+            updateEditImagePreview(editPreviewObjectUrl);
         }
 
         async function hideUser(id, displayName) {
@@ -1071,7 +1116,7 @@
 
         async function approveCurrentRequest() {
             if (!currentRequestDetail || requestActionInFlight) return;
-            setRequestActionBusy(true);
+            setRequestActionBusy(true, "approve");
             setRequestDetailState("Đang duyệt yêu cầu...");
             try {
                 await api(`/admin/update-requests/${currentRequestDetail.id}/approve`, { method: "POST" });
@@ -1096,7 +1141,7 @@
             if (note === null) return;
             const form = new FormData();
             form.append("admin_note", note);
-            setRequestActionBusy(true);
+            setRequestActionBusy(true, "reject");
             if (currentRequestDetail && currentRequestDetail.id === id) {
                 setRequestDetailState("Đang từ chối yêu cầu...");
             }
