@@ -1326,7 +1326,9 @@ def login_page():
 
 @app.get("/owner")
 def owner_page(request: Request, db: Session = Depends(get_db)):
-    user = require_auth_page(request, db)
+    user = get_current_user_from_request(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
     require_role(user, "stall_owner")
     stall = get_owner_stall(db, user.id)
     page = "owner-dashboard.html" if stall else "admin.html"
@@ -1335,7 +1337,9 @@ def owner_page(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/superadmin")
 def superadmin_page(request: Request, db: Session = Depends(get_db)):
-    user = require_auth_page(request, db)
+    user = get_current_user_from_request(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
     require_role(user, "super_admin")
     return web_file_response("superadmin.html")
 
