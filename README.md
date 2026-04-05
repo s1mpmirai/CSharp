@@ -13,6 +13,10 @@ This README focuses on two things:
 - run the project on a local machine
 - move the whole project to another machine and run it again
 
+For a step-by-step Vietnamese Docker guide, see:
+
+- `HUONG_DAN_DOCKER.md`
+
 ## Project Structure
 
 - `App/`: .NET MAUI mobile app
