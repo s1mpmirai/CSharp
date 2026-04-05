@@ -2,7 +2,7 @@
 {
     internal static class ApiSettings
     {
-        private const string DefaultLanBaseUrl = "http://hoafoodaudio.live";
+        private const string DefaultLanBaseUrl = "https://hoafoodaudio.live";
 
         public static string GetBaseUrl()
         {
