@@ -431,6 +431,14 @@ def require_role(user: User, role_name: str):
         raise HTTPException(status_code=403, detail='Không có quyền truy cập')
 
 
+def get_home_redirect_for_user(user: Optional[User]) -> str:
+    if not user or not user.role:
+        return "/login"
+    if user.role.name == "super_admin":
+        return "/superadmin"
+    return "/owner"
+
+
 def build_translations(base_title: str, base_script_vi: str) -> dict[str, dict[str, str]]:
     results = {}
     for language_code, target_code in SUPPORTED_TRANSLATIONS.items():
@@ -1320,7 +1328,10 @@ def root(request: Request, db: Session = Depends(get_db)):
 
 
 @app.get("/login")
-def login_page():
+def login_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_from_request(request, db)
+    if user:
+        return RedirectResponse(url=get_home_redirect_for_user(user), status_code=302)
     return web_file_response("login.html")
 
 
@@ -1329,7 +1340,8 @@ def owner_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user_from_request(request, db)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
-    require_role(user, "stall_owner")
+    if not user.role or user.role.name != "stall_owner":
+        return RedirectResponse(url=get_home_redirect_for_user(user), status_code=302)
     stall = get_owner_stall(db, user.id)
     page = "owner-dashboard.html" if stall else "admin.html"
     return web_file_response(page)
@@ -1340,7 +1352,8 @@ def superadmin_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user_from_request(request, db)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
-    require_role(user, "super_admin")
+    if not user.role or user.role.name != "super_admin":
+        return RedirectResponse(url=get_home_redirect_for_user(user), status_code=302)
     return web_file_response("superadmin.html")
 
 
