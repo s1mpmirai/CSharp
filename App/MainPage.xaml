@@ -14,64 +14,71 @@
             <TapGestureRecognizer Tapped="OnPageBackgroundTapped" />
         </Grid.GestureRecognizers>
 
-        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto,Auto" VerticalOptions="Center">
-            <Label Text="←"
-                   FontSize="24"
-                   TextColor="#1E2433"
-                   VerticalOptions="Center">
-                <Label.GestureRecognizers>
-                    <TapGestureRecognizer Command="{Binding BackCommand}" />
-                </Label.GestureRecognizers>
-            </Label>
+        <Grid Grid.Row="0" ColumnDefinitions="144,*,144" VerticalOptions="Center">
+            <Grid Grid.Column="0"
+                  WidthRequest="144"
+                  VerticalOptions="Center">
+                <Label Text="←"
+                       FontSize="24"
+                       TextColor="#1E2433"
+                       VerticalOptions="Center"
+                       HorizontalOptions="Start">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding BackCommand}" />
+                    </Label.GestureRecognizers>
+                </Label>
+            </Grid>
 
             <Label x:Name="PageTitleLabel"
                    Grid.Column="1"
                    Text="Stall List"
-                   HorizontalOptions="Center"
+                   HorizontalOptions="Fill"
+                   HorizontalTextAlignment="Center"
+                   VerticalOptions="Center"
+                   LineBreakMode="TailTruncation"
+                   MaxLines="1"
                    FontAttributes="Bold"
                    FontSize="18"
                    TextColor="#1E2433" />
 
-            <Button Grid.Column="2"
-                    x:Name="RefreshDataButton"
-                    Text="Refresh"
-                    Clicked="OnRefreshDataClicked"
-                    Padding="10,4"
-                    HeightRequest="32"
-                    MinimumWidthRequest="74"
-                    CornerRadius="16"
-                    BackgroundColor="#F6EFE7"
-                    TextColor="#8C5A27"
-                    FontSize="12"
-                    FontAttributes="Bold"
-                    HorizontalOptions="End"
-                    VerticalOptions="Center"
-                    Margin="0,0,10,0" />
+            <HorizontalStackLayout Grid.Column="2"
+                                   WidthRequest="144"
+                                   Spacing="10"
+                                   HorizontalOptions="End"
+                                   VerticalOptions="Center">
+                <Button x:Name="RefreshDataButton"
+                        Text="Refresh"
+                        Clicked="OnRefreshDataClicked"
+                        Padding="12,6"
+                        HeightRequest="34"
+                        MinimumWidthRequest="78"
+                        CornerRadius="17"
+                        BackgroundColor="#F6EFE7"
+                        TextColor="#8C5A27"
+                        FontSize="12"
+                        FontAttributes="Bold"
+                        VerticalOptions="Center" />
 
-            <Label Grid.Column="3"
-                   x:Name="MapOpenLabel"
-                   Text="⌖"
-                   FontSize="20"
-                   TextColor="#1E2433"
-                   VerticalOptions="Center"
-                   HorizontalOptions="End"
-                   Margin="0,0,12,0">
-                <Label.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnMapOpenTapped" />
-                </Label.GestureRecognizers>
-            </Label>
+                <Label x:Name="MapOpenLabel"
+                       Text="⌖"
+                       FontSize="20"
+                       TextColor="#1E2433"
+                       VerticalOptions="Center">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnMapOpenTapped" />
+                    </Label.GestureRecognizers>
+                </Label>
 
-            <Label Grid.Column="4"
-                   x:Name="QrScanLabel"
-                   Text="⚚"
-                   FontSize="20"
-                   TextColor="#1E2433"
-                   VerticalOptions="Center"
-                   HorizontalOptions="End">
-                <Label.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnQrScanTapped" />
-                </Label.GestureRecognizers>
-            </Label>
+                <Label x:Name="QrScanLabel"
+                       Text="⚚"
+                       FontSize="20"
+                       TextColor="#1E2433"
+                       VerticalOptions="Center">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnQrScanTapped" />
+                    </Label.GestureRecognizers>
+                </Label>
+            </HorizontalStackLayout>
         </Grid>
 
         <Border Grid.Row="1"

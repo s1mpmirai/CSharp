@@ -8,6 +8,8 @@ namespace FoodStreetAudioGuide
     public class StallService
     {
         private static readonly TimeSpan MapCacheLifetime = TimeSpan.FromSeconds(45);
+        private const int MaxPrimedImagesPerRefresh = 12;
+        private const int MaxConcurrentImageDownloads = 4;
         private readonly HttpClient _httpClient;
         private readonly OfflineCacheService _offlineCache;
         private List<StallItem>? _cachedMapStalls;
@@ -521,11 +523,14 @@ namespace FoodStreetAudioGuide
         private async Task PrimeImageCacheAsync(List<StallItem> stalls)
         {
             var changed = 0;
+            using var semaphore = new SemaphoreSlim(MaxConcurrentImageDownloads);
 
             var tasks = stalls
                 .Where(stall => stall.Id > 0 && !string.IsNullOrWhiteSpace(stall.ImageUrl))
+                .Take(MaxPrimedImagesPerRefresh)
                 .Select(async stall =>
                 {
+                    await semaphore.WaitAsync();
                     var thumbnailUrl = string.IsNullOrWhiteSpace(stall.ThumbnailUrl)
                         ? BuildAbsoluteUrl(stall.ImageUrl)
                         : BuildAbsoluteUrl(stall.ThumbnailUrl);
@@ -542,6 +547,10 @@ namespace FoodStreetAudioGuide
                     catch (Exception ex)
                     {
                         Debug.WriteLine(@"--- LOI CACHE ANH: " + ex.Message);
+                    }
+                    finally
+                    {
+                        semaphore.Release();
                     }
                 })
                 .ToArray();

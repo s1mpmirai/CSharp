@@ -42,6 +42,8 @@ namespace FoodStreetAudioGuide
         private const double DesiredPoiAccuracyMeters = 12;
         private static readonly TimeSpan FreshLastKnownLocationWindow = TimeSpan.FromSeconds(10);
         private const double AcceptableLastKnownAccuracyMeters = 18;
+        private static readonly TimeSpan FastRefreshLocationWindow = TimeSpan.FromMinutes(2);
+        private const double FastRefreshAcceptedAccuracyMeters = 50;
         private bool _isSubscribedToImageCacheUpdates;
         private List<StallItem> _nearbyStalls = new();
         private List<StallItem> _remoteSearchStalls = new();
@@ -183,7 +185,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
-        private async Task LoadDataFromServer()
+        private async Task LoadDataFromServer(bool preferResponsiveLocation = false)
         {
             if (_isRefreshingFromServer)
             {
@@ -216,26 +218,36 @@ namespace FoodStreetAudioGuide
                     status = await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
                 }
 
+                var syncVersionTask = _stallService.GetSyncVersionAsync();
                 Location? location = null;
                 if (status == PermissionStatus.Granted)
                 {
-                    location = await GetBestAvailableLocationAsync();
+                    location = preferResponsiveLocation
+                        ? await GetResponsiveLocationAsync()
+                        : await GetBestAvailableLocationAsync();
 #if ANDROID
                     EnsureAndroidBackgroundTracking();
 #endif
                 }
 
-                List<StallItem>? data;
-                if (location != null)
+                var requestLocation = location;
+                if (requestLocation is null && preferResponsiveLocation && IsAcceptableLocation(_lastKnownLocation, FastRefreshLocationWindow, FastRefreshAcceptedAccuracyMeters))
                 {
-                    _lastKnownLocation = location;
-                    data = await _stallService.GetNearbyStallsAsync(location.Latitude, location.Longitude);
+                    requestLocation = _lastKnownLocation;
+                }
+
+                List<StallItem>? data;
+                if (requestLocation != null)
+                {
+                    _lastKnownLocation = requestLocation;
+                    data = await _stallService.GetNearbyStallsAsync(requestLocation.Latitude, requestLocation.Longitude);
                 }
                 else
                 {
                     Debug.WriteLine("--- KHONG LAY DUOC GPS: Thu goi API voi toa do mac dinh hoac hien Mock Data");
-                    _lastKnownLocation = new Location(10.7626, 106.7064);
-                    data = await _stallService.GetNearbyStallsAsync(10.7626, 106.7064);
+                    requestLocation = _lastKnownLocation ?? new Location(10.7626, 106.7064);
+                    _lastKnownLocation = requestLocation;
+                    data = await _stallService.GetNearbyStallsAsync(requestLocation.Latitude, requestLocation.Longitude);
                 }
 
                 MainThread.BeginInvokeOnMainThread(() =>
@@ -257,7 +269,11 @@ namespace FoodStreetAudioGuide
                     }
                 });
 
-                _lastKnownSyncVersion = await _stallService.GetSyncVersionAsync();
+                var latestSyncVersion = await syncVersionTask;
+                if (!string.IsNullOrWhiteSpace(latestSyncVersion))
+                {
+                    _lastKnownSyncVersion = latestSyncVersion;
+                }
                 StartPoiMonitoring();
             }
             catch (Exception ex)
@@ -740,7 +756,7 @@ namespace FoodStreetAudioGuide
                 ShowInitialLoading();
             }
 
-            await LoadDataFromServer();
+            await LoadDataFromServer(preferResponsiveLocation: true);
         }
 
         private async Task OpenMapForStallAsync(StallItem? preferredStall = null)
@@ -1184,9 +1200,7 @@ namespace FoodStreetAudioGuide
             try
             {
                 var lastKnown = await Geolocation.Default.GetLastKnownLocationAsync();
-                if (lastKnown is not null &&
-                    DateTimeOffset.UtcNow - lastKnown.Timestamp <= FreshLastKnownLocationWindow &&
-                    (lastKnown.Accuracy ?? double.MaxValue) <= AcceptableLastKnownAccuracyMeters)
+                if (IsAcceptableLocation(lastKnown, FreshLastKnownLocationWindow, AcceptableLastKnownAccuracyMeters))
                 {
                     return lastKnown;
                 }
@@ -1233,6 +1247,53 @@ namespace FoodStreetAudioGuide
             }
 
             return bestLocation;
+        }
+
+        private async Task<Location?> GetResponsiveLocationAsync(CancellationToken cancellationToken = default)
+        {
+            if (IsAcceptableLocation(_lastKnownLocation, FastRefreshLocationWindow, FastRefreshAcceptedAccuracyMeters))
+            {
+                return _lastKnownLocation;
+            }
+
+            try
+            {
+                var lastKnown = await Geolocation.Default.GetLastKnownLocationAsync();
+                if (IsAcceptableLocation(lastKnown, FastRefreshLocationWindow, FastRefreshAcceptedAccuracyMeters))
+                {
+                    return lastKnown;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                // Fall back to the last in-memory location below.
+            }
+
+            return _lastKnownLocation;
+        }
+
+        private static bool IsAcceptableLocation(Location? location, TimeSpan maxAge, double maxAccuracyMeters)
+        {
+            if (location is null)
+            {
+                return false;
+            }
+
+            if (location.Timestamp == default)
+            {
+                return false;
+            }
+
+            if (DateTimeOffset.UtcNow - location.Timestamp > maxAge)
+            {
+                return false;
+            }
+
+            return (location.Accuracy ?? double.MaxValue) <= maxAccuracyMeters;
         }
 
         private static bool IsBetterLocation(Location candidate, Location? currentBest)
@@ -1364,7 +1425,7 @@ namespace FoodStreetAudioGuide
                     return;
                 }
 
-                await LoadDataFromServer();
+                await LoadDataFromServer(preferResponsiveLocation: true);
             }
             catch
             {

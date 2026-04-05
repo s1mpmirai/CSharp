@@ -1,1 +1,0 @@
-print("repair_unicode.py is retired; no action taken.")

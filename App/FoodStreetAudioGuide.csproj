@@ -44,11 +44,6 @@
 
 	<ItemGroup>
 		<Compile Remove="Models\StallItem.cs" />
-		<Compile Remove="MapHtmlFactory.cs" />
-		<Compile Remove="MapLibreHtmlFactory.cs" />
-		<Compile Remove="OfflineMapHtmlFactory.cs" />
-		<Compile Remove="OpenStreetMapHtmlFactory.cs" />
-		<Compile Remove="QrScannerPage.cs" />
 
 		<!-- App Icon -->
 		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
@@ -58,7 +53,6 @@
 
 		<!-- Images -->
 		<MauiImage Include="Resources\Images\*" />
-		<MauiImage Update="Resources\Images\dotnet_bot.png" Resize="True" BaseSize="300,185" />
 		
 		<!-- Custom Fonts -->
 		<MauiFont Include="Resources\Fonts\*" />

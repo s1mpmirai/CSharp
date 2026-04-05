@@ -23,6 +23,7 @@ import json
 import secrets
 import unicodedata
 import re
+import math
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:password123@localhost:5432/food_street_db")
@@ -50,6 +51,8 @@ SUPPORTED_TRANSLATIONS = {
     "zh-CN": "zh-CN",
 }
 AUDIO_PROFILE_VERSION = "gtts-v2"
+LEGACY_REVIEWER_NAME = "__legacy_rating_backfill__"
+LEGACY_REVIEW_COMMENT = "Synthetic review row created to preserve legacy aggregate rating data."
 
 
 class Role(Base):
@@ -244,6 +247,7 @@ def ensure_schema_columns():
 
 
 ensure_schema_columns()
+repair_legacy_review_aggregates()
 
 app = FastAPI()
 app.add_middleware(
@@ -658,8 +662,11 @@ def get_content_sync_version(db: Session) -> str:
 
 
 def refresh_stall_rating_summary(db: Session, stall: Stall) -> None:
-    review_count, average_rating = (
-        db.query(func.count(Review.id), func.coalesce(func.avg(Review.rating), 0))
+    review_count, review_sum = (
+        db.query(
+            func.count(Review.id),
+            func.coalesce(func.sum(Review.rating), 0)
+        )
         .filter(
             Review.stall_id == stall.id,
             Review.is_approved == True,
@@ -668,9 +675,132 @@ def refresh_stall_rating_summary(db: Session, stall: Stall) -> None:
         .one()
     )
 
-    stall.reviews_count = int(review_count or 0)
-    stall.rating_avg = round(float(average_rating or 0), 1)
+    actual_review_count = int(review_count or 0)
+    actual_review_sum = float(review_sum or 0)
+
+    current_review_count = int(stall.reviews_count or 0)
+    current_rating_avg = float(stall.rating_avg or 0)
+
+    # Some legacy stalls already carry an aggregate rating/count in `stalls`
+    # but do not have matching rows in `reviews`. Preserve that baseline and
+    # add real review rows on top so a new rating does not overwrite history.
+    baseline_review_count = max(current_review_count - actual_review_count, 0)
+    baseline_review_sum = max((current_rating_avg * current_review_count) - actual_review_sum, 0)
+
+    combined_review_count = baseline_review_count + actual_review_count
+    combined_review_sum = baseline_review_sum + actual_review_sum
+    combined_rating_avg = (combined_review_sum / combined_review_count) if combined_review_count > 0 else 0
+
+    stall.reviews_count = combined_review_count
+    stall.rating_avg = round(combined_rating_avg, 1)
     stall.updated_at = datetime.utcnow()
+
+
+def rounded_tenth(value: float) -> float:
+    return math.floor((value * 10) + 0.5) / 10.0
+
+
+def choose_target_total_sum(current_count: int, current_avg: float, actual_sum: int, baseline_count: int) -> Optional[int]:
+    if current_count <= 0:
+        return 0
+
+    desired_avg = rounded_tenth(current_avg)
+    desired_sum = current_avg * current_count
+    candidates: list[int] = []
+
+    for total_sum in range(current_count, (current_count * 5) + 1):
+        if rounded_tenth(total_sum / current_count) != desired_avg:
+            continue
+
+        baseline_sum = total_sum - actual_sum
+        if baseline_count == 0 and baseline_sum != 0:
+            continue
+        if baseline_count > 0 and not (baseline_count <= baseline_sum <= baseline_count * 5):
+            continue
+
+        candidates.append(total_sum)
+
+    if not candidates:
+        return None
+
+    return min(candidates, key=lambda total_sum: abs(total_sum - desired_sum))
+
+
+def split_sum_into_ratings(total_sum: int, count: int) -> list[int]:
+    if count <= 0:
+        return []
+
+    ratings = [1] * count
+    remaining = total_sum - count
+    index = 0
+
+    while remaining > 0:
+        increment = min(4, remaining)
+        ratings[index] += increment
+        remaining -= increment
+        index += 1
+        if index >= count:
+            index = 0
+
+    return ratings
+
+
+def repair_legacy_review_aggregates():
+    db = SessionLocal()
+    try:
+        stalls = db.query(Stall).filter(Stall.is_deleted == False).all()
+        touched_stalls = 0
+
+        for stall in stalls:
+            actual_review_count, actual_review_sum = (
+                db.query(
+                    func.count(Review.id),
+                    func.coalesce(func.sum(Review.rating), 0)
+                )
+                .filter(
+                    Review.stall_id == stall.id,
+                    Review.is_approved == True,
+                    Review.is_deleted == False
+                )
+                .one()
+            )
+
+            current_count = int(stall.reviews_count or 0)
+            current_avg = float(stall.rating_avg or 0)
+            actual_count = int(actual_review_count or 0)
+            actual_sum = int(actual_review_sum or 0)
+            baseline_count = current_count - actual_count
+
+            if baseline_count > 0 and current_count > 0 and current_avg > 0:
+                target_total_sum = choose_target_total_sum(current_count, current_avg, actual_sum, baseline_count)
+                if target_total_sum is not None:
+                    baseline_sum = target_total_sum - actual_sum
+                    if baseline_count <= baseline_sum <= baseline_count * 5:
+                        for rating in split_sum_into_ratings(baseline_sum, baseline_count):
+                            db.add(Review(
+                                stall_id=stall.id,
+                                rating=rating,
+                                ip_address=None,
+                                comment=LEGACY_REVIEW_COMMENT,
+                                reviewer_name=LEGACY_REVIEWER_NAME,
+                                is_approved=True,
+                                created_at=datetime.utcnow(),
+                                updated_at=datetime.utcnow(),
+                                is_deleted=False
+                            ))
+                        db.flush()
+                        touched_stalls += 1
+
+            refresh_stall_rating_summary(db, stall)
+
+        if touched_stalls > 0:
+            print(f"legacy review aggregates repaired for {touched_stalls} stalls")
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def get_request_ip(request: Request) -> str:
