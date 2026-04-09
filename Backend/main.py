@@ -458,6 +458,30 @@ def require_role(user: User, role_name: str):
         raise HTTPException(status_code=403, detail='Không có quyền truy cập')
 
 
+def normalize_email_input(value: Optional[str], *, required: bool = False) -> Optional[str]:
+    normalized = (value or "").strip().lower()
+    if not normalized:
+        if required:
+            raise HTTPException(status_code=400, detail="Vui lòng nhập email")
+        return None
+
+    if not re.fullmatch(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$", normalized):
+        raise HTTPException(status_code=400, detail="Email không đúng định dạng")
+    return normalized
+
+
+def validate_password_input(password: Optional[str], *, required: bool = False) -> Optional[str]:
+    normalized = (password or "").strip()
+    if not normalized:
+        if required:
+            raise HTTPException(status_code=400, detail="Vui lòng nhập mật khẩu")
+        return None
+
+    if len(normalized) < 8:
+        raise HTTPException(status_code=400, detail="Mật khẩu phải có ít nhất 8 ký tự")
+    return normalized
+
+
 def get_home_redirect_for_user(user: Optional[User]) -> str:
     if not user or not user.role:
         return "/login"
@@ -2200,19 +2224,31 @@ def admin_create_owner(payload: CreateOwnerRequest, request: Request, db: Sessio
     user = require_auth_page(request, db)
     require_role(user, "super_admin")
 
+    username = payload.username.strip()
+    full_name = payload.full_name.strip()
+    email = normalize_email_input(payload.email, required=True)
+    password = validate_password_input(payload.password, required=True)
+
+    if not username:
+        raise HTTPException(status_code=400, detail="Vui lòng nhập tên đăng nhập")
+    if not full_name:
+        raise HTTPException(status_code=400, detail="Vui lòng nhập họ tên")
+
     role = db.query(Role).filter(Role.name == "stall_owner").first()
     if not role:
         raise HTTPException(status_code=400, detail="Không tìm thấy vai trò chủ gian hàng")
 
-    if db.query(User).filter(User.username == payload.username).first():
+    if db.query(User).filter(User.username == username).first():
         raise HTTPException(status_code=400, detail="Tên đăng nhập đã tồn tại")
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=400, detail="Email đã tồn tại")
 
     db_user = User(
         role_id=role.id,
-        username=payload.username,
-        password_hash=hash_password(payload.password),
-        full_name=payload.full_name,
-        email=payload.email,
+        username=username,
+        password_hash=hash_password(password),
+        full_name=full_name,
+        email=email,
         is_active=True
     )
     db.add(db_user)
@@ -2326,22 +2362,32 @@ def admin_update_user(user_id: int, payload: UpdateUserRequest, request: Request
     if not target_user:
         raise HTTPException(status_code=404, detail="Khong tim thay nguoi dung")
 
-    same_username = db.query(User).filter(User.username == payload.username, User.id != user_id).first()
+    username = payload.username.strip()
+    full_name = payload.full_name.strip()
+    email = normalize_email_input(payload.email, required=False)
+    password = validate_password_input(payload.password, required=False)
+
+    if not username:
+        raise HTTPException(status_code=400, detail="Vui lòng nhập tên đăng nhập")
+    if not full_name:
+        raise HTTPException(status_code=400, detail="Vui lòng nhập họ tên")
+
+    same_username = db.query(User).filter(User.username == username, User.id != user_id).first()
     if same_username:
         raise HTTPException(status_code=400, detail="Ten dang nhap da ton tai")
 
-    if payload.email:
-        same_email = db.query(User).filter(User.email == payload.email, User.id != user_id).first()
+    if email:
+        same_email = db.query(User).filter(User.email == email, User.id != user_id).first()
         if same_email:
             raise HTTPException(status_code=400, detail="Email da ton tai")
 
-    target_user.username = payload.username
-    target_user.full_name = payload.full_name
-    target_user.email = payload.email
+    target_user.username = username
+    target_user.full_name = full_name
+    target_user.email = email
     target_user.updated_at = datetime.utcnow()
 
-    if payload.password:
-        target_user.password_hash = hash_password(payload.password)
+    if password:
+        target_user.password_hash = hash_password(password)
 
     db.commit()
     db.refresh(target_user)
@@ -2379,23 +2425,32 @@ async def admin_manage_user(
     if not target_user:
         raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
 
-    same_username = db.query(User).filter(User.username == username, User.id != user_id).first()
+    normalized_username = username.strip()
+    normalized_full_name = full_name.strip()
+    normalized_email = normalize_email_input(email, required=False)
+    normalized_password = validate_password_input(password, required=False)
+
+    if not normalized_username:
+        raise HTTPException(status_code=400, detail="Vui lòng nhập tên đăng nhập")
+    if not normalized_full_name:
+        raise HTTPException(status_code=400, detail="Vui lòng nhập họ tên")
+
+    same_username = db.query(User).filter(User.username == normalized_username, User.id != user_id).first()
     if same_username:
         raise HTTPException(status_code=400, detail="Tên đăng nhập đã tồn tại")
 
-    normalized_email = email.strip() or None
     if normalized_email:
         same_email = db.query(User).filter(User.email == normalized_email, User.id != user_id).first()
         if same_email:
             raise HTTPException(status_code=400, detail="Email đã tồn tại")
 
-    target_user.full_name = full_name.strip()
-    target_user.username = username.strip()
+    target_user.full_name = normalized_full_name
+    target_user.username = normalized_username
     target_user.email = normalized_email
     target_user.updated_at = datetime.utcnow()
 
-    if password.strip():
-        target_user.password_hash = hash_password(password.strip())
+    if normalized_password:
+        target_user.password_hash = hash_password(normalized_password)
 
     stall = None
     if target_user.role and target_user.role.name == "stall_owner":

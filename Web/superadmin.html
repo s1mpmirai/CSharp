@@ -293,14 +293,30 @@
             max-height: 320px;
             overflow: auto;
         }
+        .recipient-toolbar {
+            display: grid;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
         .recipient-item {
-            display: flex;
-            align-items: flex-start;
+            display: grid;
+            grid-template-columns: 22px minmax(0, 1fr);
+            align-items: start;
             gap: 10px;
             padding: 12px 4px;
             border-bottom: 1px solid rgba(141, 119, 97, 0.12);
         }
         .recipient-item:last-child { border-bottom: none; }
+        .recipient-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin: 3px 0 0;
+            padding: 0;
+            justify-self: center;
+        }
+        .recipient-content {
+            min-width: 0;
+        }
         .history-card {
             border: 1px solid var(--line);
             border-radius: 18px;
@@ -321,6 +337,31 @@
             border: 1px solid var(--line);
             line-height: 1.7;
             white-space: pre-wrap;
+        }
+        .password-field {
+            position: relative;
+        }
+        .password-field input {
+            padding-right: 52px;
+        }
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 36px;
+            height: 36px;
+            border: 1px solid rgba(145, 119, 95, 0.18);
+            border-radius: 12px;
+            background: #f6f1eb;
+            color: #7b5a40;
+            cursor: pointer;
+            display: inline-grid;
+            place-items: center;
+            font-size: 16px;
+        }
+        .password-toggle:hover {
+            background: #efe6dc;
         }
         @media (max-width: 1180px) {
             .shell, .shell.sidebar-open { grid-template-columns: 1fr; }
@@ -513,6 +554,9 @@
                                     <strong>Danh sách người nhận</strong>
                                     <span id="recipientSummary" class="panel-copy" style="margin:0;">0 người nhận</span>
                                 </div>
+                                <div class="recipient-toolbar">
+                                    <input id="recipientSearch" type="search" placeholder="Tìm theo chủ gian hàng, tài khoản, email hoặc tên gian hàng">
+                                </div>
                                 <div id="recipientChooser" class="recipient-box"></div>
                             </div>
                             <div class="dialog-actions" style="margin-top:0;">
@@ -548,8 +592,14 @@
             <form id="createOwnerForm">
                 <div class="group"><label for="full_name">Họ tên</label><input id="full_name" type="text"></div>
                 <div class="group"><label for="username">Tên đăng nhập</label><input id="username" type="text"></div>
-                <div class="group"><label for="password">Mật khẩu</label><input id="password" type="password"></div>
-                <div class="group"><label for="email">Email</label><input id="email" type="email"></div>
+                <div class="group">
+                    <label for="password">Mật khẩu</label>
+                    <div class="password-field">
+                        <input id="password" type="password" minlength="8" required placeholder="Tối thiểu 8 ký tự">
+                        <button class="password-toggle" type="button" onclick="togglePasswordVisibility('password', this)" aria-label="Hiện mật khẩu">👁</button>
+                    </div>
+                </div>
+                <div class="group"><label for="email">Email</label><input id="email" type="email" required></div>
                 <div class="dialog-actions">
                     <button class="btn btn-ghost" type="button" onclick="closeCreateOwnerModal()">Đóng</button>
                     <button class="btn btn-primary" type="submit">Tạo chủ gian hàng</button>
@@ -593,7 +643,13 @@
                     <div class="group"><label for="edit_full_name">Họ tên</label><input id="edit_full_name" type="text"></div>
                     <div class="group"><label for="edit_username">Tên đăng nhập</label><input id="edit_username" type="text"></div>
                     <div class="group"><label for="edit_email">Email</label><input id="edit_email" type="email"></div>
-                    <div class="group"><label for="edit_password">Mật khẩu mới</label><input id="edit_password" type="password" placeholder="Để trống nếu không đổi"></div>
+                    <div class="group">
+                        <label for="edit_password">Mật khẩu mới</label>
+                        <div class="password-field">
+                            <input id="edit_password" type="password" minlength="8" placeholder="********">
+                            <button class="password-toggle" type="button" onclick="togglePasswordVisibility('edit_password', this)" aria-label="Hiện mật khẩu">👁</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="section-title">Thông tin gian hàng</div>
@@ -656,12 +712,14 @@
         let editPreviewObjectUrl = "";
         let cachedNotificationRecipients = [];
         let cachedNotificationHistory = [];
+        let selectedRecipientIds = new Set();
 
         document.getElementById("createOwnerForm").addEventListener("submit", createOwner);
         document.getElementById("editUserForm").addEventListener("submit", updateUser);
         document.getElementById("edit_image_file").addEventListener("change", previewEditImage);
         document.getElementById("notificationForm").addEventListener("submit", sendAdminNotification);
         document.getElementById("notification_scope").addEventListener("change", renderRecipientChooser);
+        document.getElementById("recipientSearch").addEventListener("input", renderRecipientChooser);
 
         sidebar.addEventListener("mouseenter", openSidebar);
         sidebar.addEventListener("mouseleave", scheduleSidebarClose);
@@ -1096,7 +1154,15 @@
         }
 
         function getSelectedRecipientIds() {
-            return Array.from(document.querySelectorAll(".recipient-checkbox:checked")).map(item => Number(item.value)).filter(Boolean);
+            return Array.from(selectedRecipientIds.values());
+        }
+
+        function handleRecipientCheckboxChange(checkbox) {
+            const recipientId = Number(checkbox?.value || 0);
+            if (!recipientId) return;
+            if (checkbox.checked) selectedRecipientIds.add(recipientId);
+            else selectedRecipientIds.delete(recipientId);
+            updateRecipientSummary();
         }
 
         function updateRecipientSummary() {
@@ -1116,17 +1182,22 @@
         function renderRecipientChooser() {
             const scope = document.getElementById("notification_scope").value;
             const chooser = document.getElementById("recipientChooser");
+            const searchTerm = document.getElementById("recipientSearch").value.trim().toLowerCase();
             if (scope !== "selected_users") {
                 chooser.innerHTML = `<div class="empty-hint">Chế độ hiện tại sẽ tự động lấy danh sách người nhận theo nhóm đã chọn.</div>`;
                 updateRecipientSummary();
                 return;
             }
-            if (!cachedNotificationRecipients.length) {
+            const filteredRecipients = cachedNotificationRecipients.filter(item => {
+                const haystack = [item.full_name, item.username, item.email, item.stall_name].join(" ").toLowerCase();
+                return !searchTerm || haystack.includes(searchTerm);
+            });
+            if (!filteredRecipients.length) {
                 chooser.innerHTML = `<div class="empty-hint">Chưa có chủ gian hàng nào để chọn.</div>`;
                 updateRecipientSummary();
                 return;
             }
-            chooser.innerHTML = cachedNotificationRecipients.map(item => `<label class="recipient-item"><input class="recipient-checkbox" type="checkbox" value="${item.id}" onchange="updateRecipientSummary()"><div><strong>${escapeHtml(item.full_name || item.username)}</strong><div class="history-meta">${escapeHtml(item.username)}${item.stall_name ? ` • ${escapeHtml(item.stall_name)}` : ""}${item.email ? ` • ${escapeHtml(item.email)}` : ""}${item.is_active ? "" : " • Đang khóa"}</div></div></label>`).join("");
+            chooser.innerHTML = filteredRecipients.map(item => `<label class="recipient-item"><input class="recipient-checkbox" type="checkbox" value="${item.id}" ${selectedRecipientIds.has(item.id) ? "checked" : ""} onchange="handleRecipientCheckboxChange(this)"><div class="recipient-content"><strong>${escapeHtml(item.full_name || item.username)}</strong><div class="history-meta">${escapeHtml(item.username)}${item.stall_name ? ` • ${escapeHtml(item.stall_name)}` : ""}${item.email ? ` • ${escapeHtml(item.email)}` : ""}${item.is_active ? "" : " • Đang khóa"}</div></div></label>`).join("");
             updateRecipientSummary();
         }
 
@@ -1143,6 +1214,7 @@
             const [recipients, history] = await Promise.all([api("/admin/notification-recipients"), api("/admin/notifications")]);
             cachedNotificationRecipients = recipients?.items || [];
             cachedNotificationHistory = history?.items || [];
+            selectedRecipientIds = new Set(Array.from(selectedRecipientIds).filter(id => cachedNotificationRecipients.some(item => item.id === id)));
             renderRecipientChooser();
             renderNotificationHistory();
         }
@@ -1163,6 +1235,7 @@
                 const result = await api("/admin/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
                 showStatus("notificationStatus", `Đã gửi thông báo cho ${result.recipient_count || 0} người nhận.`);
                 document.getElementById("notificationForm").reset();
+                selectedRecipientIds.clear();
                 await loadNotificationModule();
                 document.getElementById("notification_scope").value = "selected_users";
                 renderRecipientChooser();
@@ -1179,7 +1252,9 @@
                 password: document.getElementById("password").value.trim(),
                 email: document.getElementById("email").value.trim() || null
             };
-            if (!payload.full_name || !payload.username || !payload.password) return showStatus("createStatus", "Nhập đủ họ tên, tên đăng nhập và mật khẩu.", true);
+            if (!payload.full_name || !payload.username || !payload.password || !payload.email) return showStatus("createStatus", "Nhập đủ họ tên, tên đăng nhập, mật khẩu và email.", true);
+            if (payload.password.length < 8) return showStatus("createStatus", "Mật khẩu phải có ít nhất 8 ký tự.", true);
+            if (!isValidEmail(payload.email)) return showStatus("createStatus", "Email không đúng định dạng.", true);
 
             try {
                 await api("/admin/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
@@ -1197,10 +1272,14 @@
             const userId = document.getElementById("edit_user_id").value;
             const fullName = document.getElementById("edit_full_name").value.trim();
             const username = document.getElementById("edit_username").value.trim();
+            const email = document.getElementById("edit_email").value.trim();
+            const password = document.getElementById("edit_password").value.trim();
             const stallVisible = document.getElementById("editStallSection").style.display !== "none";
             const openingTime = document.getElementById("edit_opening_time").value.trim();
             const closingTime = document.getElementById("edit_closing_time").value.trim();
             if (!fullName || !username) return showStatus("editStatus", "Nhập đủ họ tên và tên đăng nhập.", true);
+            if (email && !isValidEmail(email)) return showStatus("editStatus", "Email không đúng định dạng.", true);
+            if (password && password.length < 8) return showStatus("editStatus", "Mật khẩu phải có ít nhất 8 ký tự.", true);
             if (stallVisible) {
                 if (!document.getElementById("edit_stall_name").value.trim()) return showStatus("editStatus", "Nhập tên gian hàng.", true);
                 if (!document.getElementById("edit_lat").value.trim() || !document.getElementById("edit_lng").value.trim()) return showStatus("editStatus", "Nhập đầy đủ tọa độ gian hàng.", true);
@@ -1214,8 +1293,8 @@
             const formData = new FormData();
             formData.append("full_name", fullName);
             formData.append("username", username);
-            formData.append("email", document.getElementById("edit_email").value.trim());
-            formData.append("password", document.getElementById("edit_password").value.trim());
+            formData.append("email", email);
+            formData.append("password", password);
             if (stallVisible) {
                 formData.append("stall_name", document.getElementById("edit_stall_name").value.trim());
                 formData.append("category_id", document.getElementById("edit_category_id").value);
@@ -1377,6 +1456,18 @@
         async function logout() {
             await fetch("/auth/logout", { method: "POST", credentials: "include" });
             location.href = "/login";
+        }
+
+        function togglePasswordVisibility(inputId, button) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+            const nextType = input.type === "password" ? "text" : "password";
+            input.type = nextType;
+            button.textContent = nextType === "password" ? "👁" : "🙈";
+        }
+
+        function isValidEmail(value) {
+            return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(String(value || "").trim());
         }
 
         function formatRecipientScope(value) {
