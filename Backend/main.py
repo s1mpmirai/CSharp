@@ -215,6 +215,33 @@ class StallUpdateRequest(Base):
     category = relationship("Category")
 
 
+class AdminNotification(Base):
+    __tablename__ = "admin_notifications"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    message = Column(Text, nullable=False)
+    recipient_scope = Column(String(30), nullable=False, default="selected_users")
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    creator = relationship("User")
+
+
+class AdminNotificationRecipient(Base):
+    __tablename__ = "admin_notification_recipients"
+    id = Column(Integer, primary_key=True, index=True)
+    notification_id = Column(Integer, ForeignKey("admin_notifications.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    read_at = Column(DateTime)
+    deleted = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    notification = relationship("AdminNotification")
+    user = relationship("User")
+
+
 class LocationLog(Base):
     __tablename__ = "location_logs"
     id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
@@ -1036,6 +1063,93 @@ def serialize_update_request_detail(request: Request, row: StallUpdateRequest) -
     }
 
 
+def serialize_admin_notification_recipient(request: Request, user: User, stall: Optional[Stall] = None) -> dict:
+    display_name = (user.full_name or "").strip() or (stall.name if stall else "") or user.username
+    return {
+        "id": user.id,
+        "full_name": display_name,
+        "username": user.username,
+        "email": user.email,
+        "is_active": bool(user.is_active),
+        "stall_name": stall.name if stall else "",
+    }
+
+
+def serialize_admin_notification_history(row: AdminNotification, recipients: list[AdminNotificationRecipient]) -> dict:
+    active_recipients = [item for item in recipients if not item.deleted]
+    read_count = sum(1 for item in active_recipients if item.read_at is not None)
+    return {
+        "id": row.id,
+        "title": row.title,
+        "message": row.message,
+        "recipient_scope": row.recipient_scope,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+        "created_by": row.creator.full_name if row.creator and row.creator.full_name else (row.creator.username if row.creator else ""),
+        "recipient_count": len(active_recipients),
+        "read_count": read_count,
+        "recipients": [
+            {
+                "user_id": item.user_id,
+                "full_name": (item.user.full_name or "").strip() if item.user else "",
+                "username": item.user.username if item.user else "",
+                "read_at": item.read_at.isoformat() if item.read_at else None,
+            }
+            for item in active_recipients
+        ],
+    }
+
+
+def serialize_owner_admin_notification(item: AdminNotificationRecipient) -> dict:
+    notification = item.notification
+    return {
+        "source": "admin_notification",
+        "id": item.id,
+        "notification_id": notification.id if notification else None,
+        "title": notification.title if notification else "",
+        "message": notification.message if notification else "",
+        "recipient_scope": notification.recipient_scope if notification else "",
+        "created_at": notification.created_at.isoformat() if notification and notification.created_at else None,
+        "updated_at": notification.updated_at.isoformat() if notification and notification.updated_at else None,
+        "is_read": item.read_at is not None,
+        "read_at": item.read_at.isoformat() if item.read_at else None,
+    }
+
+
+def serialize_owner_request_notification(request: Request, row: StallUpdateRequest) -> dict:
+    payload = serialize_update_request_detail(request, row)
+    payload["source"] = "update_request"
+    payload["title"] = (
+        "Yêu cầu đã được duyệt"
+        if row.status == "approved"
+        else "Yêu cầu bị từ chối"
+        if row.status == "rejected"
+        else "Yêu cầu đang chờ duyệt"
+    )
+    payload["message"] = row.admin_note or ""
+    payload["created_at"] = payload["submitted_at"]
+    return payload
+
+
+def get_notification_recipient_users(db: Session, scope: str, user_ids: Optional[list[int]] = None) -> list[User]:
+    query = (
+        db.query(User)
+        .join(Role, User.role_id == Role.id)
+        .options(joinedload(User.role))
+        .filter(Role.name == "stall_owner")
+    )
+    if scope == "active_owners":
+        query = query.filter(User.is_active == True)
+    elif scope == "selected_users":
+        normalized_ids = sorted({int(item) for item in (user_ids or []) if item})
+        if not normalized_ids:
+            raise HTTPException(status_code=400, detail="Vui lòng chọn ít nhất một người nhận")
+        query = query.filter(User.id.in_(normalized_ids))
+    elif scope != "all_owners":
+        raise HTTPException(status_code=400, detail="Nhóm người nhận không hợp lệ")
+    return query.order_by(User.full_name.asc(), User.username.asc()).all()
+
+
 def normalize_reference_data():
     db = SessionLocal()
     try:
@@ -1303,6 +1417,13 @@ class UpdateUserRequest(BaseModel):
     password: Optional[str] = None
 
 
+class CreateAdminNotificationRequest(BaseModel):
+    title: str
+    message: str
+    recipient_scope: str = "selected_users"
+    user_ids: list[int] = []
+
+
 class UserLocation(BaseModel):
     lat: float
     lng: float
@@ -1533,6 +1654,45 @@ def owner_update_requests(request: Request, db: Session = Depends(get_db)):
     return {"items": [serialize_update_request_detail(request, row) for row in rows]}
 
 
+@app.get("/owner/notifications")
+def owner_notifications(request: Request, db: Session = Depends(get_db)):
+    user = require_auth_page(request, db)
+    require_role(user, "stall_owner")
+
+    stall = get_owner_stall(db, user.id)
+    update_request_items = []
+    if stall:
+        update_rows = (
+            db.query(StallUpdateRequest)
+            .options(joinedload(StallUpdateRequest.stall).joinedload(Stall.category), joinedload(StallUpdateRequest.category))
+            .filter(
+                StallUpdateRequest.stall_id == stall.id,
+                StallUpdateRequest.owner_deleted == False
+            )
+            .order_by(StallUpdateRequest.submitted_at.desc(), StallUpdateRequest.id.desc())
+            .limit(20)
+            .all()
+        )
+        update_request_items = [serialize_owner_request_notification(request, row) for row in update_rows]
+
+    admin_rows = (
+        db.query(AdminNotificationRecipient)
+        .options(joinedload(AdminNotificationRecipient.notification))
+        .filter(
+            AdminNotificationRecipient.user_id == user.id,
+            AdminNotificationRecipient.deleted == False
+        )
+        .order_by(AdminNotificationRecipient.created_at.desc(), AdminNotificationRecipient.id.desc())
+        .limit(20)
+        .all()
+    )
+    admin_items = [serialize_owner_admin_notification(row) for row in admin_rows]
+
+    items = update_request_items + admin_items
+    items.sort(key=lambda item: item.get("created_at") or "", reverse=True)
+    return {"items": items[:30]}
+
+
 @app.post("/owner/update-requests/{request_id}/read")
 def owner_mark_update_request_read(request_id: int, request: Request, db: Session = Depends(get_db)):
     user = require_auth_page(request, db)
@@ -1556,6 +1716,31 @@ def owner_mark_update_request_read(request_id: int, request: Request, db: Sessio
 
     if row.owner_read_at is None:
         row.owner_read_at = datetime.utcnow()
+        db.commit()
+
+    return {"status": "success"}
+
+
+@app.post("/owner/admin-notifications/{recipient_id}/read")
+def owner_mark_admin_notification_read(recipient_id: int, request: Request, db: Session = Depends(get_db)):
+    user = require_auth_page(request, db)
+    require_role(user, "stall_owner")
+
+    row = (
+        db.query(AdminNotificationRecipient)
+        .filter(
+            AdminNotificationRecipient.id == recipient_id,
+            AdminNotificationRecipient.user_id == user.id,
+            AdminNotificationRecipient.deleted == False
+        )
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Không tìm thấy thông báo")
+
+    if row.read_at is None:
+        row.read_at = datetime.utcnow()
+        row.updated_at = datetime.utcnow()
         db.commit()
 
     return {"status": "success"}
@@ -1590,6 +1775,31 @@ def owner_delete_update_request(request_id: int, request: Request, db: Session =
     return {"status": "success"}
 
 
+@app.delete("/owner/admin-notifications/{recipient_id}")
+def owner_delete_admin_notification(recipient_id: int, request: Request, db: Session = Depends(get_db)):
+    user = require_auth_page(request, db)
+    require_role(user, "stall_owner")
+
+    row = (
+        db.query(AdminNotificationRecipient)
+        .filter(
+            AdminNotificationRecipient.id == recipient_id,
+            AdminNotificationRecipient.user_id == user.id,
+            AdminNotificationRecipient.deleted == False
+        )
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Không tìm thấy thông báo")
+
+    row.deleted = True
+    if row.read_at is None:
+        row.read_at = datetime.utcnow()
+    row.updated_at = datetime.utcnow()
+    db.commit()
+    return {"status": "success"}
+
+
 @app.delete("/owner/update-requests")
 def owner_delete_all_update_requests(request: Request, db: Session = Depends(get_db)):
     user = require_auth_page(request, db)
@@ -1612,6 +1822,30 @@ def owner_delete_all_update_requests(request: Request, db: Session = Depends(get
         row.owner_deleted = True
         if row.owner_read_at is None:
             row.owner_read_at = datetime.utcnow()
+
+    db.commit()
+    return {"status": "success", "deleted_count": len(rows)}
+
+
+@app.delete("/owner/admin-notifications")
+def owner_delete_all_admin_notifications(request: Request, db: Session = Depends(get_db)):
+    user = require_auth_page(request, db)
+    require_role(user, "stall_owner")
+
+    rows = (
+        db.query(AdminNotificationRecipient)
+        .filter(
+            AdminNotificationRecipient.user_id == user.id,
+            AdminNotificationRecipient.deleted == False
+        )
+        .all()
+    )
+
+    for row in rows:
+        row.deleted = True
+        if row.read_at is None:
+            row.read_at = datetime.utcnow()
+        row.updated_at = datetime.utcnow()
 
     db.commit()
     return {"status": "success", "deleted_count": len(rows)}
@@ -1985,6 +2219,102 @@ def admin_create_owner(payload: CreateOwnerRequest, request: Request, db: Sessio
     db.commit()
     db.refresh(db_user)
     return {"status": "success", "user": serialize_user(db_user)}
+
+
+@app.get("/admin/notification-recipients")
+def admin_notification_recipients(request: Request, db: Session = Depends(get_db)):
+    user = require_auth_page(request, db)
+    require_role(user, "super_admin")
+
+    owner_role = db.query(Role).filter(Role.name == "stall_owner").first()
+    if not owner_role:
+        return {"items": [], "summary": {"all_owners": 0, "active_owners": 0}}
+
+    users = (
+        db.query(User)
+        .options(joinedload(User.role))
+        .filter(User.role_id == owner_role.id)
+        .order_by(User.full_name.asc(), User.username.asc())
+        .all()
+    )
+    owner_ids = [item.id for item in users]
+    stalls = db.query(Stall).filter(Stall.created_by_user_id.in_(owner_ids or [-1])).all()
+    stall_map = {item.created_by_user_id: item for item in stalls}
+    items = [serialize_admin_notification_recipient(request, item, stall_map.get(item.id)) for item in users]
+    return {
+        "items": items,
+        "summary": {
+            "all_owners": len(items),
+            "active_owners": sum(1 for item in items if item["is_active"]),
+        }
+    }
+
+
+@app.post("/admin/notifications")
+def admin_create_notification(payload: CreateAdminNotificationRequest, request: Request, db: Session = Depends(get_db)):
+    user = require_auth_page(request, db)
+    require_role(user, "super_admin")
+
+    title = payload.title.strip()
+    message = payload.message.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Vui lòng nhập tiêu đề thông báo")
+    if not message:
+        raise HTTPException(status_code=400, detail="Vui lòng nhập nội dung thông báo")
+
+    recipients = get_notification_recipient_users(db, payload.recipient_scope, payload.user_ids)
+    if not recipients:
+        raise HTTPException(status_code=400, detail="Không có người nhận phù hợp")
+
+    now = datetime.utcnow()
+    notification = AdminNotification(
+        title=title,
+        message=message,
+        recipient_scope=payload.recipient_scope,
+        created_by_user_id=user.id,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(notification)
+    db.flush()
+
+    for recipient in recipients:
+        db.add(AdminNotificationRecipient(
+            notification_id=notification.id,
+            user_id=recipient.id,
+            created_at=now,
+            updated_at=now,
+        ))
+
+    db.commit()
+    return {"status": "success", "notification_id": notification.id, "recipient_count": len(recipients)}
+
+
+@app.get("/admin/notifications")
+def admin_notifications(request: Request, db: Session = Depends(get_db)):
+    user = require_auth_page(request, db)
+    require_role(user, "super_admin")
+
+    rows = (
+        db.query(AdminNotification)
+        .options(joinedload(AdminNotification.creator))
+        .order_by(AdminNotification.created_at.desc(), AdminNotification.id.desc())
+        .limit(50)
+        .all()
+    )
+    notification_ids = [row.id for row in rows]
+    recipient_rows = (
+        db.query(AdminNotificationRecipient)
+        .options(joinedload(AdminNotificationRecipient.user))
+        .filter(AdminNotificationRecipient.notification_id.in_(notification_ids or [-1]))
+        .order_by(AdminNotificationRecipient.id.asc())
+        .all()
+    )
+    grouped: dict[int, list[AdminNotificationRecipient]] = {}
+    for item in recipient_rows:
+        grouped.setdefault(item.notification_id, []).append(item)
+
+    return {"items": [serialize_admin_notification_history(row, grouped.get(row.id, [])) for row in rows]}
 
 
 @app.put("/admin/users/{user_id}")

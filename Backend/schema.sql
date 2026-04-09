@@ -144,6 +144,26 @@ CREATE TABLE IF NOT EXISTS stall_update_requests (
     owner_deleted BOOLEAN NOT NULL DEFAULT FALSE
 );
 
+CREATE TABLE IF NOT EXISTS admin_notifications (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    message TEXT NOT NULL,
+    recipient_scope VARCHAR(30) NOT NULL DEFAULT 'selected_users',
+    created_by_user_id INTEGER NOT NULL REFERENCES users(id),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS admin_notification_recipients (
+    id SERIAL PRIMARY KEY,
+    notification_id INTEGER NOT NULL REFERENCES admin_notifications(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    read_at TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS location_logs (
     id BIGSERIAL PRIMARY KEY,
     session_id VARCHAR(120),
@@ -167,6 +187,9 @@ CREATE INDEX IF NOT EXISTS ix_stall_audio_assets_stall_id ON stall_audio_assets(
 CREATE INDEX IF NOT EXISTS ix_stall_audio_assets_language_id ON stall_audio_assets(language_id);
 CREATE INDEX IF NOT EXISTS ix_stall_update_requests_stall_id ON stall_update_requests(stall_id);
 CREATE INDEX IF NOT EXISTS ix_stall_update_requests_status ON stall_update_requests(status);
+CREATE INDEX IF NOT EXISTS ix_admin_notifications_created_by_user_id ON admin_notifications(created_by_user_id);
+CREATE INDEX IF NOT EXISTS ix_admin_notification_recipients_notification_id ON admin_notification_recipients(notification_id);
+CREATE INDEX IF NOT EXISTS ix_admin_notification_recipients_user_id ON admin_notification_recipients(user_id);
 
 COMMIT;
 
