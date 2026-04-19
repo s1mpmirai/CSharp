@@ -73,6 +73,8 @@ namespace FoodStreetAudioGuide
         private bool _isRefreshingFromServer;
         private bool _isSubmittingRating;
         private bool _isChoosingPoi;
+        private int? _currentAudioPlaybackStallId;
+        private string _currentAudioPlaybackLanguageCode = string.Empty;
         private CancellationTokenSource? _backgroundSyncCts;
         private CancellationTokenSource? _deferredAudioPreloadCts;
         private readonly HashSet<int> _ratedStallIds = new();
@@ -646,8 +648,7 @@ namespace FoodStreetAudioGuide
 
             if (!string.IsNullOrWhiteSpace(audioPath))
             {
-                PlayCachedAudio(audioPath);
-                await _stallService.LogListeningAsync(stall.Id, languageCode, 0, _lastKnownLocation);
+                PlayCachedAudio(audioPath, stall.Id, languageCode);
             }
             else
             {
@@ -1760,10 +1761,16 @@ namespace FoodStreetAudioGuide
                 ? _nearbyStalls
                 : await _stallService.LoadCachedStallsAsync();
 
+            var resolvedStall = await _stallService.ResolveQrAsync(
+                qrCodeValue,
+                _lastKnownLocation?.Latitude,
+                _lastKnownLocation?.Longitude);
+
             var localMatch = _stallService.TryResolveQrLocally(qrCodeValue, localCandidates);
             if (localMatch is not null)
             {
-                var localizedLocalMatch = LocalizeStall(AttachOfflineFlag(localMatch));
+                var displayStall = resolvedStall is not null ? resolvedStall : localMatch;
+                var localizedLocalMatch = LocalizeStall(AttachOfflineFlag(displayStall));
                 if (IsDuplicateConsecutiveQrStall(localizedLocalMatch))
                 {
                     var shouldReopen = await DisplayAlert(
@@ -1783,18 +1790,13 @@ namespace FoodStreetAudioGuide
                 return;
             }
 
-            var stall = await _stallService.ResolveQrAsync(
-                qrCodeValue,
-                _lastKnownLocation?.Latitude,
-                _lastKnownLocation?.Longitude);
-
-            if (stall is null)
+            if (resolvedStall is null)
             {
                 await DisplayAlert(text.QrTitle, text.QrNotFoundMessage, "OK");
                 return;
             }
 
-            stall = LocalizeStall(AttachOfflineFlag(stall));
+            var stall = LocalizeStall(AttachOfflineFlag(resolvedStall));
             if (IsDuplicateConsecutiveQrStall(stall))
             {
                 var shouldReopen = await DisplayAlert(
@@ -2425,10 +2427,12 @@ namespace FoodStreetAudioGuide
 #endif
         }
 
-        private void PlayCachedAudio(string audioPath)
+        private void PlayCachedAudio(string audioPath, int stallId, string languageCode)
         {
             StopAudioPlayback();
 #if ANDROID
+            _currentAudioPlaybackStallId = stallId;
+            _currentAudioPlaybackLanguageCode = languageCode;
             _androidMediaPlayer = new MediaPlayer();
             _androidMediaPlayer.SetDataSource(audioPath);
             _androidMediaPlayer.Prepared += OnAndroidMediaPrepared;
@@ -2442,6 +2446,8 @@ namespace FoodStreetAudioGuide
 #if ANDROID
             if (_androidMediaPlayer is null)
             {
+                _currentAudioPlaybackStallId = null;
+                _currentAudioPlaybackLanguageCode = string.Empty;
                 return;
             }
 
@@ -2463,6 +2469,8 @@ namespace FoodStreetAudioGuide
             _androidMediaPlayer.Release();
             _androidMediaPlayer.Dispose();
             _androidMediaPlayer = null;
+            _currentAudioPlaybackStallId = null;
+            _currentAudioPlaybackLanguageCode = string.Empty;
 #endif
         }
 
@@ -2474,7 +2482,26 @@ namespace FoodStreetAudioGuide
 
         private void OnAndroidMediaCompleted(object? sender, EventArgs e)
         {
+            var durationSeconds = 0;
+            try
+            {
+                if (_androidMediaPlayer is not null)
+                {
+                    durationSeconds = Math.Max(0, (int)Math.Round(_androidMediaPlayer.Duration / 1000d));
+                }
+            }
+            catch
+            {
+                durationSeconds = 0;
+            }
+
+            var stallId = _currentAudioPlaybackStallId;
+            var languageCode = _currentAudioPlaybackLanguageCode;
             StopAudioPlayback();
+            if (stallId is > 0 && !string.IsNullOrWhiteSpace(languageCode) && durationSeconds > 0)
+            {
+                _ = _stallService.LogListeningAsync(stallId.Value, languageCode, durationSeconds, _lastKnownLocation);
+            }
         }
 #endif
 

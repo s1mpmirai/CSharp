@@ -475,6 +475,11 @@
                             <tbody id="poiStatsBody"></tbody>
                         </table>
                     </div>
+                    <div id="poiPagination" class="pagination" style="display:none;">
+                        <span id="poiPaginationInfo" class="pagination-info"></span>
+                        <button id="poiPrevButton" class="btn btn-ghost btn-small" type="button" onclick="changePoiPage(-1)">Trước</button>
+                        <button id="poiNextButton" class="btn btn-ghost btn-small" type="button" onclick="changePoiPage(1)">Sau</button>
+                    </div>
                 </div>
 
                 <div class="panel" style="margin-top:20px;">
@@ -715,9 +720,11 @@
         const HCMC_BOUNDS = L.latLngBounds([[10.34, 106.22], [11.15, 107.02]]);
         const HCMC_CENTER = [10.7626, 106.7045];
         const USERS_PER_PAGE = 10;
+        const POI_STATS_PER_PAGE = 10;
         const DASHBOARD_REFRESH_INTERVAL_MS = 10000;
         let collapseTimer = null;
         let cachedUsers = [];
+        let cachedPoiStats = [];
         let cachedCategories = [];
         let heatmapMap = null;
         let heatLayer = null;
@@ -727,6 +734,7 @@
         let requestActionInFlight = false;
         let requestActionType = "";
         let currentUsersPage = 1;
+        let currentPoiPage = 1;
         let dashboardRefreshTimer = null;
         let editPreviewObjectUrl = "";
         let cachedNotificationRecipients = [];
@@ -934,6 +942,38 @@
 
             currentUsersPage = nextPage;
             renderUsersTable();
+        }
+
+        function renderPoiStatsTable() {
+            const totalRows = cachedPoiStats.length;
+            const totalPages = Math.max(1, Math.ceil(totalRows / POI_STATS_PER_PAGE));
+            currentPoiPage = Math.min(Math.max(1, currentPoiPage), totalPages);
+
+            const startIndex = (currentPoiPage - 1) * POI_STATS_PER_PAGE;
+            const pagedRows = cachedPoiStats.slice(startIndex, startIndex + POI_STATS_PER_PAGE);
+
+            document.getElementById("poiStatsBody").innerHTML = pagedRows.map(item => `<tr><td>${escapeHtml(item.name || "")}</td><td>${escapeHtml(item.owner_name || "")}</td><td>${item.listens || 0}</td><td>${item.qr_scans || 0}</td><td>${item.avg_duration || 0}s</td></tr>`).join("") || `<tr><td colspan="5">Chưa có dữ liệu POI</td></tr>`;
+
+            const pagination = document.getElementById("poiPagination");
+            const info = document.getElementById("poiPaginationInfo");
+            const prevButton = document.getElementById("poiPrevButton");
+            const nextButton = document.getElementById("poiNextButton");
+
+            pagination.style.display = totalRows > POI_STATS_PER_PAGE ? "flex" : "none";
+            info.textContent = totalRows ? `Trang ${currentPoiPage}/${totalPages} • ${totalRows} POI` : "0 POI";
+            prevButton.disabled = currentPoiPage <= 1;
+            nextButton.disabled = currentPoiPage >= totalPages;
+        }
+
+        function changePoiPage(offset) {
+            const totalPages = Math.max(1, Math.ceil(cachedPoiStats.length / POI_STATS_PER_PAGE));
+            const nextPage = currentPoiPage + offset;
+            if (nextPage < 1 || nextPage > totalPages) {
+                return;
+            }
+
+            currentPoiPage = nextPage;
+            renderPoiStatsTable();
         }
 
         async function api(path, options = {}) {
@@ -1165,7 +1205,10 @@
             document.getElementById("m6").textContent = `${data.metrics.average_listen_seconds || 0}s`;
             document.getElementById("m7").textContent = `${data.metrics.active_users_5m || 0}`;
             document.getElementById("topBody").innerHTML = data.top_stalls.map(item => `<tr><td>${escapeHtml(item.name)}</td><td>${item.listens}</td><td>${item.avg_duration || 0}s</td></tr>`).join("") || `<tr><td colspan="3">Chưa có dữ liệu nghe</td></tr>`;
-            document.getElementById("poiStatsBody").innerHTML = (data.poi_stats || []).map(item => `<tr><td>${escapeHtml(item.name || "")}</td><td>${escapeHtml(item.owner_name || "")}</td><td>${item.listens || 0}</td><td>${item.qr_scans || 0}</td><td>${item.avg_duration || 0}s</td></tr>`).join("") || `<tr><td colspan="5">Chưa có dữ liệu POI</td></tr>`;
+            cachedPoiStats = data.poi_stats || [];
+            const totalPoiPages = Math.max(1, Math.ceil(cachedPoiStats.length / POI_STATS_PER_PAGE));
+            currentPoiPage = Math.min(currentPoiPage, totalPoiPages);
+            renderPoiStatsTable();
             const listeningWindow = data?.anti_spam_rules?.listening_window_seconds || 10;
             const qrWindow = data?.anti_spam_rules?.qr_window_seconds || 10;
             document.getElementById("antiSpamNote").textContent = `Chống spam: ${listeningWindow} giây mới tính 1 lượt nghe và ${qrWindow} giây mới tính 1 lượt quét QR.`;

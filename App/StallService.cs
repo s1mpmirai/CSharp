@@ -242,6 +242,8 @@ namespace FoodStreetAudioGuide
             try
             {
                 var path = $"qr/resolve?code={Uri.EscapeDataString(qrCodeValue)}";
+                var sessionId = _offlineCache.GetOrCreateSessionId();
+                var deviceId = _offlineCache.GetOrCreateDeviceId();
                 if (lat.HasValue)
                 {
                     path += $"&lat={lat.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
@@ -251,6 +253,18 @@ namespace FoodStreetAudioGuide
                 {
                     path += $"&lng={lng.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
                 }
+
+                if (!string.IsNullOrWhiteSpace(sessionId))
+                {
+                    path += $"&session_id={Uri.EscapeDataString(sessionId)}";
+                }
+
+                if (!string.IsNullOrWhiteSpace(deviceId))
+                {
+                    path += $"&device_id={Uri.EscapeDataString(deviceId)}";
+                }
+
+                path += "&source=app_qr_scan";
 
                 var response = await _httpClient.GetAsync(path);
                 if (response.IsSuccessStatusCode)
