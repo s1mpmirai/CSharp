@@ -2,7 +2,7 @@
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel
-from sqlalchemy import Column, Integer, String, Float, Text, ForeignKey, Boolean, DateTime, BigInteger, Numeric, LargeBinary, create_engine, func, text
+from sqlalchemy import Column, Integer, String, Float, Text, ForeignKey, Boolean, DateTime, BigInteger, Numeric, LargeBinary, create_engine, func, text, or_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship, joinedload
 from fastapi.middleware.cors import CORSMiddleware
@@ -53,6 +53,8 @@ SUPPORTED_TRANSLATIONS = {
 AUDIO_PROFILE_VERSION = "gtts-v2"
 LEGACY_REVIEWER_NAME = "__legacy_rating_backfill__"
 LEGACY_REVIEW_COMMENT = "Synthetic review row created to preserve legacy aggregate rating data."
+LISTEN_DEDUP_WINDOW_SECONDS = 10
+QR_DEDUP_WINDOW_SECONDS = 10
 
 
 class Role(Base):
@@ -167,6 +169,7 @@ class ListeningLog(Base):
     language_id = Column(Integer, ForeignKey("languages.id"), nullable=False)
     session_id = Column(String(120))
     device_id = Column(String(120))
+    ip_address = Column(String(64))
     duration_seconds = Column(Integer, nullable=False, default=0)
     source = Column(String(30), nullable=False, default="app")
     latitude = Column(Float)
@@ -242,6 +245,19 @@ class AdminNotificationRecipient(Base):
     user = relationship("User")
 
 
+class QrScanLog(Base):
+    __tablename__ = "qr_scan_logs"
+    id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
+    stall_id = Column(Integer, ForeignKey("stalls.id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id = Column(String(120))
+    device_id = Column(String(120))
+    ip_address = Column(String(64))
+    source = Column(String(30), nullable=False, default="qr")
+    latitude = Column(Float)
+    longitude = Column(Float)
+    scanned_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class LocationLog(Base):
     __tablename__ = "location_logs"
     id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
@@ -270,6 +286,7 @@ def ensure_schema_columns():
         "ALTER TABLE stall_update_requests ADD COLUMN IF NOT EXISTS owner_deleted BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE listening_logs ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION",
         "ALTER TABLE listening_logs ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION",
+        "ALTER TABLE listening_logs ADD COLUMN IF NOT EXISTS ip_address VARCHAR(64)",
         "ALTER TABLE reviews ADD COLUMN IF NOT EXISTS ip_address VARCHAR(64)",
     ]
     with engine.begin() as connection:
@@ -888,6 +905,52 @@ def get_request_ip(request: Request) -> str:
         if first_hop:
             return first_hop
     return request.client.host if request.client else ""
+
+
+def build_activity_identity_filters(model, session_id: str = "", device_id: str = "", ip_address: str = ""):
+    normalized_session = (session_id or "").strip()
+    normalized_device = (device_id or "").strip()
+    normalized_ip = (ip_address or "").strip()
+    if normalized_device:
+        return [model.device_id == normalized_device]
+    if normalized_session:
+        return [model.session_id == normalized_session]
+    if normalized_ip:
+        return [model.ip_address == normalized_ip]
+    return []
+
+
+def has_recent_activity(
+    db: Session,
+    model,
+    occurred_column,
+    stall_id: int,
+    window_seconds: int,
+    session_id: str = "",
+    device_id: str = "",
+    ip_address: str = ""
+) -> bool:
+    identity_filters = build_activity_identity_filters(
+        model,
+        session_id=session_id,
+        device_id=device_id,
+        ip_address=ip_address
+    )
+    if not identity_filters:
+        return False
+
+    cutoff = datetime.utcnow() - timedelta(seconds=window_seconds)
+    recent_row = (
+        db.query(model.id)
+        .filter(
+            model.stall_id == stall_id,
+            occurred_column >= cutoff,
+            or_(*identity_filters)
+        )
+        .order_by(occurred_column.desc())
+        .first()
+    )
+    return recent_row is not None
 
 
 def get_location_log_user_key(row: "LocationLog") -> str:
@@ -1591,6 +1654,22 @@ def owner_dashboard(request: Request, db: Session = Depends(get_db)):
         .filter(ListeningLog.stall_id == stall.id, ListeningLog.listened_at >= last_30_days)
         .scalar() or 0
     )
+    total_qr_scans = db.query(func.count(QrScanLog.id)).filter(QrScanLog.stall_id == stall.id).scalar() or 0
+    qr_scans_7_days = (
+        db.query(func.count(QrScanLog.id))
+        .filter(QrScanLog.stall_id == stall.id, QrScanLog.scanned_at >= last_7_days)
+        .scalar() or 0
+    )
+    qr_scans_30_days = (
+        db.query(func.count(QrScanLog.id))
+        .filter(QrScanLog.stall_id == stall.id, QrScanLog.scanned_at >= last_30_days)
+        .scalar() or 0
+    )
+    average_listen_seconds = (
+        db.query(func.avg(ListeningLog.duration_seconds))
+        .filter(ListeningLog.stall_id == stall.id)
+        .scalar() or 0
+    )
     pending_requests = (
         db.query(func.count(StallUpdateRequest.id))
         .filter(StallUpdateRequest.stall_id == stall.id, StallUpdateRequest.status == "pending")
@@ -1645,11 +1724,19 @@ def owner_dashboard(request: Request, db: Session = Depends(get_db)):
             "total_listens": int(total_listens),
             "listens_7_days": int(listens_7_days),
             "listens_30_days": int(listens_30_days),
+            "total_qr_scans": int(total_qr_scans),
+            "qr_scans_7_days": int(qr_scans_7_days),
+            "qr_scans_30_days": int(qr_scans_30_days),
+            "average_listen_seconds": round(float(average_listen_seconds or 0), 1),
             "total_reviews": int(total_reviews),
             "pending_requests": int(pending_requests),
             "rejected_requests": int(rejected_requests),
         },
         "listens_trend": listens_trend,
+        "anti_spam_rules": {
+            "listening_window_seconds": LISTEN_DEDUP_WINDOW_SECONDS,
+            "qr_window_seconds": QR_DEDUP_WINDOW_SECONDS,
+        },
         "latest_request": serialize_update_request_detail(request, latest_row) if latest_row else None,
     }
 
@@ -2141,6 +2228,47 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
         .all()
     )
 
+    listening_stats_subquery = (
+        db.query(
+            ListeningLog.stall_id.label("stall_id"),
+            func.count(ListeningLog.id).label("listens"),
+            func.avg(ListeningLog.duration_seconds).label("avg_duration")
+        )
+        .group_by(ListeningLog.stall_id)
+        .subquery()
+    )
+
+    qr_stats_subquery = (
+        db.query(
+            QrScanLog.stall_id.label("stall_id"),
+            func.count(QrScanLog.id).label("qr_scans")
+        )
+        .group_by(QrScanLog.stall_id)
+        .subquery()
+    )
+
+    poi_rows = (
+        db.query(
+            Stall.name,
+            User.full_name,
+            User.username,
+            func.coalesce(listening_stats_subquery.c.listens, 0).label("listens"),
+            func.coalesce(qr_stats_subquery.c.qr_scans, 0).label("qr_scans"),
+            func.coalesce(listening_stats_subquery.c.avg_duration, 0).label("avg_duration")
+        )
+        .outerjoin(User, Stall.created_by_user_id == User.id)
+        .outerjoin(listening_stats_subquery, listening_stats_subquery.c.stall_id == Stall.id)
+        .outerjoin(qr_stats_subquery, qr_stats_subquery.c.stall_id == Stall.id)
+        .filter(Stall.is_deleted == False)
+        .order_by(
+            func.coalesce(listening_stats_subquery.c.listens, 0).desc(),
+            func.coalesce(qr_stats_subquery.c.qr_scans, 0).desc(),
+            Stall.name.asc()
+        )
+        .limit(100)
+        .all()
+    )
+
     heatmap_groups = {}
     for row in recent_location_rows:
         if row.latitude is None or row.longitude is None:
@@ -2167,6 +2295,20 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
             "active_users_5m": len(active_user_keys)
         },
         "top_stalls": [{"name": row[0], "listens": row[1], "avg_duration": round(float(row[2] or 0), 1)} for row in top_rows],
+        "poi_stats": [
+            {
+                "name": row[0],
+                "owner_name": ((row[1] or "").strip() or row[2] or "Chưa gán owner"),
+                "listens": int(row[3] or 0),
+                "qr_scans": int(row[4] or 0),
+                "avg_duration": round(float(row[5] or 0), 1),
+            }
+            for row in poi_rows
+        ],
+        "anti_spam_rules": {
+            "listening_window_seconds": LISTEN_DEDUP_WINDOW_SECONDS,
+            "qr_window_seconds": QR_DEDUP_WINDOW_SECONDS,
+        },
         "heatmap_points": sorted(
             [
                 {
@@ -2844,6 +2986,9 @@ def resolve_qr(
     request: Request,
     lat: Optional[float] = None,
     lng: Optional[float] = None,
+    session_id: str = "",
+    device_id: str = "",
+    source: str = "qr",
     db: Session = Depends(get_db)
 ):
     stall_id = resolve_stall_qr_code(code)
@@ -2860,11 +3005,36 @@ def resolve_qr(
     if lat is not None and lng is not None:
         distance_km = geodesic((lat, lng), (stall.latitude, stall.longitude)).kilometers
 
+    ip_address = get_request_ip(request)
+    is_duplicate_scan = has_recent_activity(
+        db,
+        QrScanLog,
+        QrScanLog.scanned_at,
+        stall.id,
+        QR_DEDUP_WINDOW_SECONDS,
+        session_id=session_id,
+        device_id=device_id,
+        ip_address=ip_address
+    )
+    if not is_duplicate_scan:
+        db.add(QrScanLog(
+            stall_id=stall.id,
+            session_id=(session_id or "").strip(),
+            device_id=(device_id or "").strip(),
+            ip_address=ip_address,
+            source=(source or "qr").strip() or "qr",
+            latitude=lat,
+            longitude=lng,
+            scanned_at=datetime.utcnow()
+        ))
+        db.commit()
+
     return serialize_stall_card(stall, request, distance_km)
 
 
 @app.post("/logs/listening")
 def create_listening_log(
+    request: Request,
     stall_id: int = Form(...),
     language_code: str = Form(...),
     session_id: str = Form(""),
@@ -2880,11 +3050,26 @@ def create_listening_log(
     if not language or not stall:
         raise HTTPException(status_code=404, detail="Không tìm thấy dữ liệu")
 
+    ip_address = get_request_ip(request)
+    is_duplicate_listen = has_recent_activity(
+        db,
+        ListeningLog,
+        ListeningLog.listened_at,
+        stall_id,
+        LISTEN_DEDUP_WINDOW_SECONDS,
+        session_id=session_id,
+        device_id=device_id,
+        ip_address=ip_address
+    )
+    if is_duplicate_listen:
+        return {"status": "deduplicated", "counted": False}
+
     db.add(ListeningLog(
         stall_id=stall_id,
         language_id=language.id,
         session_id=session_id,
         device_id=device_id,
+        ip_address=ip_address,
         duration_seconds=duration_seconds,
         latitude=lat,
         longitude=lng,
@@ -2892,7 +3077,7 @@ def create_listening_log(
         listened_at=datetime.utcnow()
     ))
     db.commit()
-    return {"status": "success"}
+    return {"status": "success", "counted": True}
 
 
 @app.post("/logs/location")

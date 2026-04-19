@@ -8,6 +8,8 @@ internal sealed class PoiGeofenceEngine
     private readonly HashSet<int> _insideStalls = new();
     private readonly Dictionary<int, DateTime> _lastTriggeredAtUtc = new();
     private readonly Dictionary<int, int> _consecutiveInsideSamples = new();
+    private const double NearbyPoiChoiceDistanceDeltaMeters = 8;
+    private const double NearbyPoiChoiceSeparationMeters = 18;
 
     public TimeSpan Cooldown { get; set; } = TimeSpan.FromMinutes(5);
     public double MaxAcceptedAccuracyMeters { get; set; } = 18;
@@ -15,7 +17,7 @@ internal sealed class PoiGeofenceEngine
     public double ExitMarginMeters { get; set; } = 6;
     public int RequiredConsecutiveSamples { get; set; } = 2;
 
-    public StallItem? Evaluate(Location userLocation, IReadOnlyCollection<StallItem> stalls, DateTime utcNow)
+    public PoiGeofenceResult? Evaluate(Location userLocation, IReadOnlyCollection<StallItem> stalls, DateTime utcNow)
     {
         var accuracyMeters = userLocation.Accuracy ?? double.MaxValue;
         if (accuracyMeters > MaxAcceptedAccuracyMeters)
@@ -56,6 +58,7 @@ internal sealed class PoiGeofenceEngine
             _consecutiveInsideSamples.Remove(stallId);
         }
 
+        var triggerableEntries = new List<PoiCandidateEntry>();
         foreach (var item in candidateEntries)
         {
             var stallId = item.Stall.Id;
@@ -79,10 +82,30 @@ internal sealed class PoiGeofenceEngine
                 continue;
             }
 
-            _insideStalls.Add(stallId);
-            _lastTriggeredAtUtc[stallId] = utcNow;
-            Debug.WriteLine($"--- POI TRIGGER stall={item.Stall.Id} distance={item.DistanceMeters:0.##}m radius={item.Stall.PoiRadiusMeters:0.##}m accuracy={accuracyMeters:0.##}m samples={_consecutiveInsideSamples[stallId]}");
-            return item.Stall;
+            triggerableEntries.Add(new PoiCandidateEntry(item.Stall, item.DistanceMeters));
+        }
+
+        if (triggerableEntries.Count > 0)
+        {
+            var primaryEntry = triggerableEntries[0];
+            var selectedEntries = triggerableEntries
+                .Where(item =>
+                    Math.Abs(item.DistanceMeters - primaryEntry.DistanceMeters) <= NearbyPoiChoiceDistanceDeltaMeters
+                    || AreStallsTooClose(primaryEntry.Stall, item.Stall))
+                .ToList();
+
+            foreach (var item in selectedEntries)
+            {
+                _insideStalls.Add(item.Stall.Id);
+                _lastTriggeredAtUtc[item.Stall.Id] = utcNow;
+            }
+
+            var selectedStalls = selectedEntries
+                .Select(item => (StallItem)item.Stall)
+                .DistinctBy(stall => stall.Id)
+                .ToList();
+            Debug.WriteLine($"--- POI TRIGGER count={selectedStalls.Count} primary={primaryEntry.Stall.Id} accuracy={accuracyMeters:0.##}m");
+            return new PoiGeofenceResult(primaryEntry.Stall, selectedStalls);
         }
 
         if (stalls.Count > 0)
@@ -130,4 +153,28 @@ internal sealed class PoiGeofenceEngine
     {
         return distanceMeters <= poiRadiusMeters + Math.Max(ExitMarginMeters, MinimumEntryMarginMeters);
     }
+
+    private static bool AreStallsTooClose(StallItem first, StallItem second)
+    {
+        if (first.Id == second.Id)
+        {
+            return true;
+        }
+
+        if (first.Lat == 0 || first.Lng == 0 || second.Lat == 0 || second.Lng == 0)
+        {
+            return false;
+        }
+
+        var distanceMeters = Location.CalculateDistance(
+            first.Lat,
+            first.Lng,
+            second.Lat,
+            second.Lng,
+            DistanceUnits.Kilometers) * 1000d;
+        return distanceMeters <= NearbyPoiChoiceSeparationMeters;
+    }
 }
+
+internal sealed record PoiGeofenceResult(StallItem PrimaryStall, IReadOnlyList<StallItem> CandidateStalls);
+internal sealed record PoiCandidateEntry(StallItem Stall, double DistanceMeters);

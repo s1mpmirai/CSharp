@@ -455,6 +455,25 @@
                             <div class="summary-item"><span>Số chủ gian hàng</span><strong id="summaryOwners">0</strong></div>
                             <div class="summary-item"><span>Gian hàng đang hiển thị</span><strong id="summaryActive">0</strong></div>
                         </div>
+                        <p id="antiSpamNote" class="panel-copy" style="margin-top:16px;">Chống spam: 10 giây mới tính 1 lượt nghe và 1 lượt quét QR.</p>
+                    </div>
+                </div>
+
+                <div class="panel" style="margin-top:20px;">
+                    <div class="panel-header">
+                        <div>
+                            <p class="panel-kicker">POI Analytics</p>
+                            <h3>Thống kê từng POI</h3>
+                            <p class="panel-copy">Hiển thị owner phụ trách, lượt nghe audio và lượt quét QR của từng điểm để theo dõi hiệu quả thực tế.</p>
+                        </div>
+                    </div>
+                    <div class="table-shell">
+                        <table>
+                            <thead>
+                                <tr><th>POI</th><th>Owner</th><th>Lượt nghe</th><th>Quét QR</th><th>Nghe TB</th></tr>
+                            </thead>
+                            <tbody id="poiStatsBody"></tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -1137,6 +1156,10 @@
             document.getElementById("m6").textContent = `${data.metrics.average_listen_seconds || 0}s`;
             document.getElementById("m7").textContent = `${data.metrics.active_users_5m || 0}`;
             document.getElementById("topBody").innerHTML = data.top_stalls.map(item => `<tr><td>${escapeHtml(item.name)}</td><td>${item.listens}</td><td>${item.avg_duration || 0}s</td></tr>`).join("") || `<tr><td colspan="3">Chưa có dữ liệu nghe</td></tr>`;
+            document.getElementById("poiStatsBody").innerHTML = (data.poi_stats || []).map(item => `<tr><td>${escapeHtml(item.name || "")}</td><td>${escapeHtml(item.owner_name || "")}</td><td>${item.listens || 0}</td><td>${item.qr_scans || 0}</td><td>${item.avg_duration || 0}s</td></tr>`).join("") || `<tr><td colspan="5">Chưa có dữ liệu POI</td></tr>`;
+            const listeningWindow = data?.anti_spam_rules?.listening_window_seconds || 10;
+            const qrWindow = data?.anti_spam_rules?.qr_window_seconds || 10;
+            document.getElementById("antiSpamNote").textContent = `Chống spam: ${listeningWindow} giây mới tính 1 lượt nghe và ${qrWindow} giây mới tính 1 lượt quét QR.`;
             renderHeatmap(data.heatmap_points || [], data.active_user_positions || []);
         }
 

@@ -45,6 +45,10 @@
         public string QrGuideText { get; init; } = string.Empty;
         public string QrInvalidMessage { get; init; } = string.Empty;
         public string QrNotFoundMessage { get; init; } = string.Empty;
+        public string QrAlreadyOpenMessage { get; init; } = string.Empty;
+        public string QrReopenConfirmText { get; init; } = string.Empty;
+        public string QrReopenConfirmAcceptText { get; init; } = string.Empty;
+        public string QrReopenConfirmCancelText { get; init; } = string.Empty;
         public string MapTitle { get; init; } = string.Empty;
         public string MapNoDataMessage { get; init; } = string.Empty;
         public string MapOpenDetailText { get; init; } = string.Empty;
@@ -56,6 +60,7 @@
         public string LoadingNearbyStallsText { get; init; } = string.Empty;
         public string RefreshDataText { get; init; } = string.Empty;
         public string RefreshingDataText { get; init; } = string.Empty;
+        public string PoiChoiceTitle { get; init; } = string.Empty;
         public string NavigateToStallText { get; init; } = string.Empty;
         public string RateThisStallText { get; init; } = string.Empty;
         public string RatingConfirmText { get; init; } = string.Empty;

@@ -101,11 +101,24 @@ CREATE TABLE IF NOT EXISTS listening_logs (
     language_id INTEGER NOT NULL REFERENCES languages(id),
     session_id VARCHAR(120),
     device_id VARCHAR(120),
+    ip_address VARCHAR(64),
     duration_seconds INTEGER NOT NULL DEFAULT 0,
     source VARCHAR(30) NOT NULL DEFAULT 'app',
     latitude DOUBLE PRECISION,
     longitude DOUBLE PRECISION,
     listened_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS qr_scan_logs (
+    id BIGSERIAL PRIMARY KEY,
+    stall_id INTEGER NOT NULL REFERENCES stalls(id) ON DELETE CASCADE,
+    session_id VARCHAR(120),
+    device_id VARCHAR(120),
+    ip_address VARCHAR(64),
+    source VARCHAR(30) NOT NULL DEFAULT 'qr',
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    scanned_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS stall_audio_assets (
@@ -183,6 +196,7 @@ CREATE INDEX IF NOT EXISTS ix_stall_translations_language_id ON stall_translatio
 CREATE INDEX IF NOT EXISTS ix_reviews_stall_id ON reviews(stall_id);
 CREATE INDEX IF NOT EXISTS ix_reviews_is_approved_created_at ON reviews(is_approved, created_at);
 CREATE INDEX IF NOT EXISTS ix_listening_logs_stall_language_time ON listening_logs(stall_id, language_id, listened_at);
+CREATE INDEX IF NOT EXISTS ix_qr_scan_logs_stall_time ON qr_scan_logs(stall_id, scanned_at);
 CREATE INDEX IF NOT EXISTS ix_stall_audio_assets_stall_id ON stall_audio_assets(stall_id);
 CREATE INDEX IF NOT EXISTS ix_stall_audio_assets_language_id ON stall_audio_assets(language_id);
 CREATE INDEX IF NOT EXISTS ix_stall_update_requests_stall_id ON stall_update_requests(stall_id);

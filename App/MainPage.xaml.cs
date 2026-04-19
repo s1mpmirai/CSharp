@@ -61,6 +61,7 @@ namespace FoodStreetAudioGuide
         private bool _isScriptExpanded;
         private bool _isOpeningMap;
         private bool _isOpeningQr;
+        private int? _lastQrScannedStallId;
         private bool _isSubscribedToConnectivityChanges;
         private List<StallItem> _visibleStallSource = new();
         private int _currentPoiPage = 1;
@@ -71,6 +72,7 @@ namespace FoodStreetAudioGuide
         private DateTime _lastSyncCheckUtc = DateTime.MinValue;
         private bool _isRefreshingFromServer;
         private bool _isSubmittingRating;
+        private bool _isChoosingPoi;
         private CancellationTokenSource? _backgroundSyncCts;
         private CancellationTokenSource? _deferredAudioPreloadCts;
         private readonly HashSet<int> _ratedStallIds = new();
@@ -1460,18 +1462,60 @@ namespace FoodStreetAudioGuide
             IReadOnlyCollection<StallItem> stalls,
             CancellationToken cancellationToken = default)
         {
-            var enteredPoi = _poiGeofenceEngine.Evaluate(userLocation, stalls, DateTime.UtcNow);
-            if (enteredPoi is null || cancellationToken.IsCancellationRequested)
+            var geofenceResult = _poiGeofenceEngine.Evaluate(userLocation, stalls, DateTime.UtcNow);
+            if (geofenceResult is null || cancellationToken.IsCancellationRequested)
             {
                 return;
             }
 
-            if (ScriptPopupOverlay.IsVisible || _currentPopupStall is not null)
+            if (ScriptPopupOverlay.IsVisible || _currentPopupStall is not null || _isChoosingPoi)
             {
                 return;
             }
 
-            await MainThread.InvokeOnMainThreadAsync(() => ShowScriptPopupAsync(enteredPoi));
+            await MainThread.InvokeOnMainThreadAsync(() => ShowDetectedPoiAsync(geofenceResult));
+        }
+
+        private async Task ShowDetectedPoiAsync(PoiGeofenceResult geofenceResult)
+        {
+            var text = AppText.Get(_selectedLanguage);
+            var candidates = geofenceResult.CandidateStalls
+                .Where(stall => stall.Id > 0)
+                .DistinctBy(stall => stall.Id)
+                .ToList();
+
+            if (candidates.Count <= 1)
+            {
+                await ShowScriptPopupAsync(geofenceResult.PrimaryStall);
+                return;
+            }
+
+            _isChoosingPoi = true;
+            try
+            {
+                var options = candidates
+                    .Select(stall => $"{stall.Name} ({stall.DistanceText})")
+                    .ToArray();
+                var selectedLabel = await DisplayActionSheet(
+                    text.PoiChoiceTitle,
+                    text.CancelText,
+                    null,
+                    options);
+                if (string.IsNullOrWhiteSpace(selectedLabel) || selectedLabel == text.CancelText)
+                {
+                    return;
+                }
+
+                var selectedIndex = Array.IndexOf(options, selectedLabel);
+                var selectedStall = selectedIndex >= 0 && selectedIndex < candidates.Count
+                    ? candidates[selectedIndex]
+                    : geofenceResult.PrimaryStall;
+                await ShowScriptPopupAsync(selectedStall);
+            }
+            finally
+            {
+                _isChoosingPoi = false;
+            }
         }
 
         private async Task<Location?> GetBestAvailableLocationAsync(CancellationToken cancellationToken = default)
@@ -1719,7 +1763,23 @@ namespace FoodStreetAudioGuide
             var localMatch = _stallService.TryResolveQrLocally(qrCodeValue, localCandidates);
             if (localMatch is not null)
             {
-                await ShowScriptPopupAsync(LocalizeStall(AttachOfflineFlag(localMatch)));
+                var localizedLocalMatch = LocalizeStall(AttachOfflineFlag(localMatch));
+                if (IsDuplicateConsecutiveQrStall(localizedLocalMatch))
+                {
+                    var shouldReopen = await DisplayAlert(
+                        text.QrTitle,
+                        text.QrReopenConfirmText,
+                        text.QrReopenConfirmAcceptText,
+                        text.QrReopenConfirmCancelText);
+
+                    if (!shouldReopen)
+                    {
+                        return;
+                    }
+                }
+
+                _lastQrScannedStallId = localizedLocalMatch.Id;
+                await ShowScriptPopupAsync(localizedLocalMatch);
                 return;
             }
 
@@ -1735,7 +1795,29 @@ namespace FoodStreetAudioGuide
             }
 
             stall = LocalizeStall(AttachOfflineFlag(stall));
+            if (IsDuplicateConsecutiveQrStall(stall))
+            {
+                var shouldReopen = await DisplayAlert(
+                    text.QrTitle,
+                    text.QrReopenConfirmText,
+                    text.QrReopenConfirmAcceptText,
+                    text.QrReopenConfirmCancelText);
+
+                if (!shouldReopen)
+                {
+                    return;
+                }
+            }
+
+            _lastQrScannedStallId = stall.Id;
             await ShowScriptPopupAsync(stall);
+        }
+
+        private bool IsDuplicateConsecutiveQrStall(StallItem stall)
+        {
+            return stall.Id > 0 &&
+                   _lastQrScannedStallId is int lastScannedId &&
+                   lastScannedId == stall.Id;
         }
 
         private List<StallItem> PrepareMapStalls(IEnumerable<StallItem> stalls)

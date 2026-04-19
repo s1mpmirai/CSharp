@@ -9,6 +9,7 @@ public sealed class QrScannerModalPage : ContentPage
     private readonly TaskCompletionSource<string?> _resultTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly CameraBarcodeReaderView _cameraView;
     private bool _hasHandledResult;
+    private bool _isClosing;
 
     public QrScannerModalPage(LocalizedText text)
     {
@@ -114,6 +115,12 @@ public sealed class QrScannerModalPage : ContentPage
         var rawValue = e.Results.FirstOrDefault()?.Value;
         if (string.IsNullOrWhiteSpace(rawValue))
         {
+            rawValue = null;
+            return;
+        }
+
+        if (rawValue is null)
+        {
             return;
         }
 
@@ -123,17 +130,23 @@ public sealed class QrScannerModalPage : ContentPage
 
     private async Task CloseAsync(string? result)
     {
+        if (_isClosing)
+        {
+            return;
+        }
+
+        _isClosing = true;
         _cameraView.IsDetecting = false;
         _cameraView.BarcodesDetected -= OnBarcodesDetected;
-
-        if (!_resultTcs.Task.IsCompleted)
-        {
-            _resultTcs.TrySetResult(result);
-        }
 
         if (Navigation.ModalStack.LastOrDefault() == this)
         {
             await Navigation.PopModalAsync();
+        }
+
+        if (!_resultTcs.Task.IsCompleted)
+        {
+            _resultTcs.TrySetResult(result);
         }
     }
 }

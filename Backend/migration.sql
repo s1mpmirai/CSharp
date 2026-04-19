@@ -145,5 +145,23 @@ SET reviewed_at = COALESCE(reviewed_at, NOW())
 WHERE status IN ('approved', 'rejected')
   AND reviewed_at IS NULL;
 
+ALTER TABLE listening_logs
+ADD COLUMN IF NOT EXISTS ip_address VARCHAR(64);
+
+CREATE TABLE IF NOT EXISTS qr_scan_logs (
+    id BIGSERIAL PRIMARY KEY,
+    stall_id INTEGER NOT NULL REFERENCES stalls(id) ON DELETE CASCADE,
+    session_id VARCHAR(120),
+    device_id VARCHAR(120),
+    ip_address VARCHAR(64),
+    source VARCHAR(30) NOT NULL DEFAULT 'qr',
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    scanned_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS ix_qr_scan_logs_stall_time
+ON qr_scan_logs(stall_id, scanned_at);
+
 COMMIT;
 
