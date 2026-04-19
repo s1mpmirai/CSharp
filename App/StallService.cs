@@ -480,7 +480,17 @@ namespace FoodStreetAudioGuide
                     return;
                 }
 
-                using var formData = BuildListeningLogFormData(stallId, languageCode, durationSeconds, "app", location);
+                var sessionId = _offlineCache.GetOrCreateSessionId();
+                var deviceId = _offlineCache.GetOrCreateDeviceId();
+                using var formData = BuildListeningLogFormData(
+                    stallId,
+                    languageCode,
+                    durationSeconds,
+                    "app",
+                    sessionId,
+                    deviceId,
+                    location?.Latitude,
+                    location?.Longitude);
                 var response = await _httpClient.PostAsync("logs/listening", formData);
                 if (!response.IsSuccessStatusCode)
                 {

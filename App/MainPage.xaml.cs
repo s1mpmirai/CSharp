@@ -75,6 +75,9 @@ namespace FoodStreetAudioGuide
         private bool _isChoosingPoi;
         private int? _currentAudioPlaybackStallId;
         private string _currentAudioPlaybackLanguageCode = string.Empty;
+        private DateTimeOffset? _currentAudioPlaybackStartedAt;
+        private int _currentAudioPlaybackDurationSeconds;
+        private bool _currentAudioPlaybackLogged;
         private CancellationTokenSource? _backgroundSyncCts;
         private CancellationTokenSource? _deferredAudioPreloadCts;
         private readonly HashSet<int> _ratedStallIds = new();
@@ -2433,6 +2436,9 @@ namespace FoodStreetAudioGuide
 #if ANDROID
             _currentAudioPlaybackStallId = stallId;
             _currentAudioPlaybackLanguageCode = languageCode;
+            _currentAudioPlaybackStartedAt = null;
+            _currentAudioPlaybackDurationSeconds = 0;
+            _currentAudioPlaybackLogged = false;
             _androidMediaPlayer = new MediaPlayer();
             _androidMediaPlayer.SetDataSource(audioPath);
             _androidMediaPlayer.Prepared += OnAndroidMediaPrepared;
@@ -2446,11 +2452,11 @@ namespace FoodStreetAudioGuide
 #if ANDROID
             if (_androidMediaPlayer is null)
             {
-                _currentAudioPlaybackStallId = null;
-                _currentAudioPlaybackLanguageCode = string.Empty;
+                ResetCurrentAudioPlaybackState();
                 return;
             }
 
+            TryLogCurrentAudioPlayback();
             _androidMediaPlayer.Prepared -= OnAndroidMediaPrepared;
             _androidMediaPlayer.Completion -= OnAndroidMediaCompleted;
 
@@ -2469,39 +2475,82 @@ namespace FoodStreetAudioGuide
             _androidMediaPlayer.Release();
             _androidMediaPlayer.Dispose();
             _androidMediaPlayer = null;
-            _currentAudioPlaybackStallId = null;
-            _currentAudioPlaybackLanguageCode = string.Empty;
+            ResetCurrentAudioPlaybackState();
 #endif
         }
 
 #if ANDROID
         private void OnAndroidMediaPrepared(object? sender, EventArgs e)
         {
+            _currentAudioPlaybackStartedAt = DateTimeOffset.UtcNow;
+            try
+            {
+                if (_androidMediaPlayer is not null)
+                {
+                    _currentAudioPlaybackDurationSeconds = Math.Max(0, (int)Math.Round(_androidMediaPlayer.Duration / 1000d));
+                }
+            }
+            catch
+            {
+                _currentAudioPlaybackDurationSeconds = 0;
+            }
+
             _androidMediaPlayer?.Start();
         }
 
         private void OnAndroidMediaCompleted(object? sender, EventArgs e)
         {
-            var durationSeconds = 0;
-            try
-            {
-                if (_androidMediaPlayer is not null)
-                {
-                    durationSeconds = Math.Max(0, (int)Math.Round(_androidMediaPlayer.Duration / 1000d));
-                }
-            }
-            catch
-            {
-                durationSeconds = 0;
-            }
-
+            _currentAudioPlaybackLogged = true;
             var stallId = _currentAudioPlaybackStallId;
             var languageCode = _currentAudioPlaybackLanguageCode;
+            var durationSeconds = ResolveCurrentAudioPlaybackSeconds();
             StopAudioPlayback();
             if (stallId is > 0 && !string.IsNullOrWhiteSpace(languageCode) && durationSeconds > 0)
             {
                 _ = _stallService.LogListeningAsync(stallId.Value, languageCode, durationSeconds, _lastKnownLocation);
             }
+        }
+
+        private void TryLogCurrentAudioPlayback()
+        {
+            if (_currentAudioPlaybackLogged)
+            {
+                return;
+            }
+
+            var stallId = _currentAudioPlaybackStallId;
+            var languageCode = _currentAudioPlaybackLanguageCode;
+            var listenedSeconds = ResolveCurrentAudioPlaybackSeconds();
+            if (stallId is > 0 && !string.IsNullOrWhiteSpace(languageCode) && listenedSeconds > 0)
+            {
+                _currentAudioPlaybackLogged = true;
+                _ = _stallService.LogListeningAsync(stallId.Value, languageCode, listenedSeconds, _lastKnownLocation);
+            }
+        }
+
+        private int ResolveCurrentAudioPlaybackSeconds()
+        {
+            if (!_currentAudioPlaybackStartedAt.HasValue)
+            {
+                return 0;
+            }
+
+            var elapsedSeconds = Math.Max(1, (int)Math.Round((DateTimeOffset.UtcNow - _currentAudioPlaybackStartedAt.Value).TotalSeconds));
+            if (_currentAudioPlaybackDurationSeconds > 0)
+            {
+                return Math.Min(elapsedSeconds, _currentAudioPlaybackDurationSeconds);
+            }
+
+            return elapsedSeconds;
+        }
+
+        private void ResetCurrentAudioPlaybackState()
+        {
+            _currentAudioPlaybackStallId = null;
+            _currentAudioPlaybackLanguageCode = string.Empty;
+            _currentAudioPlaybackStartedAt = null;
+            _currentAudioPlaybackDurationSeconds = 0;
+            _currentAudioPlaybackLogged = false;
         }
 #endif
 
