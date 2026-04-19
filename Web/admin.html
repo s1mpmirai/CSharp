@@ -216,8 +216,8 @@
                     </div>
 
                     <div class="group">
-                        <label for="script_vi">Script tiếng Việt cho TTS</label>
-                        <textarea id="script_vi"></textarea>
+                        <label for="script_vi">Script tiếng Việt cho TTS (tối thiểu 100 chữ)</label>
+                        <textarea id="script_vi" placeholder="Nhập phần giới thiệu quán ăn chi tiết, tối thiểu 100 chữ"></textarea>
                     </div>
 
                     <button id="saveButton" class="btn btn-primary" type="submit">Lưu vào hệ thống</button>
@@ -331,6 +331,15 @@
             return Boolean(openingTime && closingTime) && closingTime > openingTime;
         }
 
+        function countWords(text) {
+            const matches = String(text || "").trim().match(/[\p{L}\p{N}]+/gu);
+            return matches ? matches.length : 0;
+        }
+
+        function hasMinimumScriptWords(text) {
+            return countWords(text) >= 100;
+        }
+
         async function bootstrap() {
             const me = await api("/auth/me");
             if (!me || me.user.role !== "stall_owner") return;
@@ -416,7 +425,9 @@
             if (!document.getElementById("lat").value.trim() || !document.getElementById("lng").value.trim()) return showStatus("Chọn vị trí trên bản đồ trước khi lưu.", true);
             if (!document.getElementById("poi_radius_m").value.trim() || Number(document.getElementById("poi_radius_m").value) <= 0) return showStatus("Nhập bán kính POI lớn hơn 0.", true);
             if (!document.getElementById("specialty_1").value.trim() || !document.getElementById("specialty_2").value.trim() || !document.getElementById("specialty_3").value.trim()) return showStatus("Nhập đủ 3 món đặc sản.", true);
-            if (!document.getElementById("script_vi").value.trim()) return showStatus("Nhập script tiếng Việt cho TTS.", true);
+            const scriptVi = document.getElementById("script_vi").value.trim();
+            if (!scriptVi) return showStatus("Nhập script tiếng Việt cho TTS.", true);
+            if (!hasMinimumScriptWords(scriptVi)) return showStatus("Script giới thiệu quán ăn phải có ít nhất 100 chữ.", true);
 
             const openingTime = document.getElementById("opening_time").value.trim();
             const closingTime = document.getElementById("closing_time").value.trim();
@@ -438,7 +449,7 @@
             formData.append("specialty_1", document.getElementById("specialty_1").value.trim());
             formData.append("specialty_2", document.getElementById("specialty_2").value.trim());
             formData.append("specialty_3", document.getElementById("specialty_3").value.trim());
-            formData.append("script_vi", document.getElementById("script_vi").value.trim());
+            formData.append("script_vi", scriptVi);
 
             if (mode === "edit") {
                 formData.append("is_open", document.getElementById("is_open").value);

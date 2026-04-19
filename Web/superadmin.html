@@ -685,7 +685,7 @@
                     <div class="group"><label for="edit_specialty_1">Món đặc sản 1</label><input id="edit_specialty_1" type="text"></div>
                     <div class="group"><label for="edit_specialty_2">Món đặc sản 2</label><input id="edit_specialty_2" type="text"></div>
                     <div class="group full-span"><label for="edit_specialty_3">Món đặc sản 3</label><input id="edit_specialty_3" type="text"></div>
-                    <div class="group full-span"><label for="edit_script_vi">Script tiếng Việt</label><textarea id="edit_script_vi" rows="5"></textarea></div>
+                    <div class="group full-span"><label for="edit_script_vi">Script tiếng Việt (tối thiểu 100 chữ)</label><textarea id="edit_script_vi" rows="5" placeholder="Nhập phần giới thiệu quán ăn chi tiết, tối thiểu 100 chữ"></textarea></div>
                     <div class="group full-span"><label for="edit_image_file">Ảnh gian hàng mới</label><input id="edit_image_file" type="file" accept="image/*"></div>
                     <div class="group full-span">
                         <label>Ảnh hiện tại</label>
@@ -855,6 +855,15 @@
 
         function isClosingTimeAfterOpeningTime(openingTime, closingTime) {
             return Boolean(openingTime && closingTime) && closingTime > openingTime;
+        }
+
+        function countWords(text) {
+            const matches = String(text || "").trim().match(/[\p{L}\p{N}]+/gu);
+            return matches ? matches.length : 0;
+        }
+
+        function hasMinimumScriptWords(text) {
+            return countWords(text) >= 100;
         }
 
         function hasBrokenNameEncoding(value) {
@@ -1310,7 +1319,9 @@
                 if (!openingTime || !closingTime) return showStatus("editStatus", "Chọn đầy đủ giờ mở cửa và giờ đóng cửa.", true);
                 if (!isClosingTimeAfterOpeningTime(openingTime, closingTime)) return showStatus("editStatus", "Giờ đóng cửa phải muộn hơn giờ mở cửa.", true);
                 if (!document.getElementById("edit_specialty_1").value.trim() || !document.getElementById("edit_specialty_2").value.trim() || !document.getElementById("edit_specialty_3").value.trim()) return showStatus("editStatus", "Nhập đủ 3 món đặc sản.", true);
-                if (!document.getElementById("edit_script_vi").value.trim()) return showStatus("editStatus", "Nhập script tiếng Việt.", true);
+                const editScriptVi = document.getElementById("edit_script_vi").value.trim();
+                if (!editScriptVi) return showStatus("editStatus", "Nhập script tiếng Việt.", true);
+                if (!hasMinimumScriptWords(editScriptVi)) return showStatus("editStatus", "Script giới thiệu quán ăn phải có ít nhất 100 chữ.", true);
             }
 
             const formData = new FormData();

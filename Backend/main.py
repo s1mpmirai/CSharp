@@ -51,6 +51,7 @@ SUPPORTED_TRANSLATIONS = {
     "zh-CN": "zh-CN",
 }
 AUDIO_PROFILE_VERSION = "gtts-v2"
+MIN_STALL_SCRIPT_WORDS = 100
 LEGACY_REVIEWER_NAME = "__legacy_rating_backfill__"
 LEGACY_REVIEW_COMMENT = "Synthetic review row created to preserve legacy aggregate rating data."
 LISTEN_DEDUP_WINDOW_SECONDS = 10
@@ -499,6 +500,22 @@ def validate_password_input(password: Optional[str], *, required: bool = False) 
     return normalized
 
 
+def count_words(text: Optional[str]) -> int:
+    return len(re.findall(r"\b\w+\b", text or "", flags=re.UNICODE))
+
+
+def require_minimum_stall_script(value: Optional[str]) -> str:
+    normalized = re.sub(r"\s+", " ", (value or "").strip())
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Vui lòng nhập script tiếng Việt")
+    if count_words(normalized) < MIN_STALL_SCRIPT_WORDS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Script giới thiệu quán ăn phải có ít nhất {MIN_STALL_SCRIPT_WORDS} chữ"
+        )
+    return normalized
+
+
 def get_home_redirect_for_user(user: Optional[User]) -> str:
     if not user or not user.role:
         return "/login"
@@ -629,6 +646,46 @@ def require_specialties(*values: Optional[str]) -> tuple[str, str, str]:
     if len(items) != 3:
         raise HTTPException(status_code=400, detail="Vui lòng nhập đủ 3 món đặc sản")
     return items[0], items[1], items[2]
+
+
+def format_specialties_text(specialties: list[str]) -> str:
+    items = [item.strip() for item in specialties if item and item.strip()]
+    if not items:
+        return "những món đặc trưng của quán"
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} và {items[1]}"
+    return f"{', '.join(items[:-1])} và {items[-1]}"
+
+
+def build_verbose_stall_intro(
+    stall_name: str,
+    category_name: str,
+    specialties: list[str],
+    opening_hours: str,
+    poi_radius_m: float
+) -> str:
+    clean_name = (stall_name or "Gian hàng này").strip() or "Gian hàng này"
+    clean_category = (category_name or "ẩm thực địa phương").strip() or "ẩm thực địa phương"
+    specialties_text = format_specialties_text(specialties)
+    opening_text = (opening_hours or "").strip() or "khung giờ phục vụ được cập nhật tại quầy"
+    radius_text = int(round(float(poi_radius_m or 30)))
+
+    text = (
+        f"{clean_name} là một điểm dừng chân đáng chú ý dành cho thực khách muốn khám phá {clean_category} "
+        f"trong không gian gần gũi, dễ tiếp cận và phù hợp cho cả khách đi lần đầu lẫn khách quen trong khu vực. "
+        f"Khi ghé quán, bạn có thể ưu tiên trải nghiệm các món nổi bật như {specialties_text}, bởi đây là những lựa "
+        f"chọn thể hiện rõ hương vị đặc trưng, cách nêm nếm riêng và sự chỉn chu của gian hàng trong từng phần ăn. "
+        f"Điểm đáng chú ý của quán nằm ở cách kết hợp nguyên liệu quen thuộc với cách chế biến ổn định, giúp món ăn "
+        f"giữ được độ nóng, mùi thơm và cảm giác tròn vị ngay cả vào những khung giờ đông khách. Bên cạnh chất lượng "
+        f"món chính, quán còn tạo thiện cảm nhờ nhịp phục vụ linh hoạt, không khí thân thiện và trải nghiệm dùng bữa "
+        f"phù hợp cho bữa sáng, bữa trưa hoặc một lần ghé nhanh để thưởng thức đặc sản trong ngày. Gian hàng hiện mở "
+        f"cửa theo khung giờ {opening_text}, đồng thời khu vực kích hoạt audio guide được thiết lập khoảng {radius_text} mét "
+        f"để khách dễ nhận nội dung thuyết minh khi đến gần. Nếu bạn muốn hiểu nhanh về phong cách món ăn, khẩu vị gợi ý "
+        f"và những lựa chọn nên thử trước, phần giới thiệu này sẽ giúp bạn có hình dung rõ ràng hơn trước khi gọi món."
+    )
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def require_poi_radius(value: Optional[float]) -> float:
@@ -1426,6 +1483,59 @@ def ensure_stall_translation_coverage():
         db.close()
 
 
+def ensure_minimum_stall_script_length():
+    db = SessionLocal()
+    try:
+        changed = False
+
+        stalls = (
+            db.query(Stall)
+            .options(
+                joinedload(Stall.category),
+                joinedload(Stall.translations).joinedload(StallTranslation.language)
+            )
+            .filter(Stall.is_deleted == False)
+            .all()
+        )
+        for stall in stalls:
+            current_script_vi = translations_to_dict(stall).get("vi", "").strip()
+            if count_words(current_script_vi) >= MIN_STALL_SCRIPT_WORDS:
+                continue
+
+            rebuilt_script_vi = build_verbose_stall_intro(
+                stall.name or "",
+                stall.category.name if stall.category else "",
+                serialize_specialties(stall),
+                stall.opening_hours or "",
+                stall.poi_radius_m or 30
+            )
+            upsert_stall_translations(db, stall, stall.name or "", rebuilt_script_vi)
+            changed = True
+
+        requests = (
+            db.query(StallUpdateRequest)
+            .options(joinedload(StallUpdateRequest.category))
+            .all()
+        )
+        for row in requests:
+            if count_words((row.script_vi or "").strip()) >= MIN_STALL_SCRIPT_WORDS:
+                continue
+
+            row.script_vi = build_verbose_stall_intro(
+                row.name or "",
+                row.category.name if row.category else "",
+                serialize_specialties(row),
+                row.opening_hours or "",
+                row.poi_radius_m or 30
+            )
+            changed = True
+
+        if changed:
+            db.commit()
+    finally:
+        db.close()
+
+
 def repair_reference_data_clean():
     db = SessionLocal()
     try:
@@ -1481,6 +1591,7 @@ def repair_reference_data_clean():
 ensure_seed_data()
 ensure_default_web_users()
 ensure_stall_translation_coverage()
+ensure_minimum_stall_script_length()
 normalize_reference_data()
 repair_reference_data_clean()
 
@@ -1981,6 +2092,7 @@ async def owner_create_stall(
 ):
     user = require_auth_page(request, db)
     require_role(user, "stall_owner")
+    script_vi = require_minimum_stall_script(script_vi)
 
     existing_active_stall = get_owner_stall(db, user.id)
     if existing_active_stall:
@@ -2106,6 +2218,7 @@ async def owner_update_request(
 ):
     user = require_auth_page(request, db)
     require_role(user, "stall_owner")
+    script_vi = require_minimum_stall_script(script_vi)
 
     stall = get_owner_stall(db, user.id)
     if not stall:
@@ -2599,15 +2712,13 @@ async def admin_manage_user(
         stall = get_owner_stall(db, target_user.id)
         if stall:
             clean_name = stall_name.strip()
-            clean_script = script_vi.strip()
+            clean_script = require_minimum_stall_script(script_vi)
             if not clean_name:
                 raise HTTPException(status_code=400, detail="Vui lòng nhập tên gian hàng")
             if category_id is None:
                 raise HTTPException(status_code=400, detail="Vui lòng chọn danh mục")
             if lat is None or lng is None:
                 raise HTTPException(status_code=400, detail="Vui lòng nhập đầy đủ tọa độ")
-            if not clean_script:
-                raise HTTPException(status_code=400, detail="Vui lòng nhập script tiếng Việt")
 
             specialty_1, specialty_2, specialty_3 = require_specialties(specialty_1, specialty_2, specialty_3)
             poi_radius_m = require_poi_radius(poi_radius_m)
