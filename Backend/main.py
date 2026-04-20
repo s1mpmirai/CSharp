@@ -2405,7 +2405,7 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
             "average_listen_seconds": round(float(average_listen_seconds or 0), 1),
             "unique_sessions": int(unique_sessions or 0),
             "unique_devices": int(unique_devices or 0),
-            "active_users_5m": len(active_user_keys)
+            "active_users_5m": len(active_user_keys) #kiểm tra số lượng người online
         },
         "top_stalls": [{"name": row[0], "listens": row[1], "avg_duration": round(float(row[2] or 0), 1)} for row in top_rows],
         "poi_stats": [
