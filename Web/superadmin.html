@@ -1036,7 +1036,7 @@
                     return;
                 }
 
-                loadDashboard().catch(() => {});
+                loadDashboard().catch(() => { });
             }, DASHBOARD_REFRESH_INTERVAL_MS);
         }
 
@@ -1057,7 +1057,7 @@
                 try {
                     const parsed = new URL(raw);
                     if (parsed.pathname) return `${parsed.pathname}${parsed.search || ""}`;
-                } catch {}
+                } catch { }
                 return raw;
             }
             if (raw.startsWith("/uploads/")) return raw;
@@ -1191,6 +1191,7 @@
             await Promise.all([loadDashboard(), loadUsers(), loadRequests(), loadNotificationModule()]);
         }
 
+        //Thay đổi set cứng ở FE ở đây nếu muốn thêm/bớt thông số hiển thị trên dashboard. (Không liên quan đến BE)
         async function loadDashboard() {
             const data = await api("/admin/dashboard");
             document.getElementById("m1").textContent = data.metrics.total_stalls;
@@ -1445,15 +1446,15 @@
             });
 
             document.getElementById("requestDetailGrid").innerHTML = `
-                <div class="compare-card">
-                    <h4>Bản hiện tại</h4>
-                    ${currentRows.join("")}
-                </div>
-                <div class="compare-card">
-                    <h4>Bản sau chỉnh sửa</h4>
-                    ${requestedRows.join("")}
-                </div>
-            `;
+                    <div class="compare-card">
+                        <h4>Bản hiện tại</h4>
+                        ${currentRows.join("")}
+                    </div>
+                    <div class="compare-card">
+                        <h4>Bản sau chỉnh sửa</h4>
+                        ${requestedRows.join("")}
+                    </div>
+                `;
 
             requestDetailDialog.showModal();
         }
@@ -1474,7 +1475,7 @@
                 setRequestDetailState("Đã duyệt yêu cầu thành công.");
                 notifyAdminAction("Đã duyệt yêu cầu thành công.");
                 await Promise.all([loadDashboard(), loadRequests()]);
-                loadUsers().catch(() => {});
+                loadUsers().catch(() => { });
                 setTimeout(() => closeRequestDetailModal(), 500);
             } catch (error) {
                 setRequestDetailState(error.message, true);
@@ -1503,7 +1504,7 @@
                 }
                 notifyAdminAction("Đã từ chối yêu cầu.");
                 await Promise.all([loadDashboard(), loadRequests()]);
-                loadUsers().catch(() => {});
+                loadUsers().catch(() => { });
                 if (currentRequestDetail && currentRequestDetail.id === id) {
                     setTimeout(() => closeRequestDetailModal(), 500);
                 }
