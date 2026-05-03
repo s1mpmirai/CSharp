@@ -14,6 +14,7 @@ public sealed class PoiMapPage : ContentPage
     private readonly Label _subtitleLabel;
     private StallItem? _selectedStall;
 
+    // Hàm khởi tạo `PoiMapPage`: thiết lập trạng thái ban đầu cho đối tượng trong file hiện tại.
     public PoiMapPage(
         IReadOnlyList<StallItem> stalls,
         Location? userLocation,
@@ -131,6 +132,7 @@ public sealed class PoiMapPage : ContentPage
         };
     }
 
+    // Hàm `OnMapNavigating`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
     private void OnMapNavigating(object? sender, WebNavigatingEventArgs e)
     {
         if (string.IsNullOrWhiteSpace(e.Url) || !e.Url.StartsWith("foodstreet://stall/", StringComparison.OrdinalIgnoreCase))
@@ -156,6 +158,7 @@ public sealed class PoiMapPage : ContentPage
         _detailCard.IsVisible = true;
     }
 
+    // Hàm `OnOpenStallClicked`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
     private async void OnOpenStallClicked(object? sender, EventArgs e)
     {
         if (_selectedStall is null)
@@ -166,6 +169,7 @@ public sealed class PoiMapPage : ContentPage
         await Navigation.PopModalAsync();
         await _openStallAsync(_selectedStall);
     }
+    // Hàm `GetNearestStallId`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
     private static int? GetNearestStallId(IReadOnlyList<StallItem> stalls, Location? userLocation)
     {
         var candidates = stalls.Where(item => item.Lat != 0 && item.Lng != 0).ToList();

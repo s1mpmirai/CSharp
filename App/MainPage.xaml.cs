@@ -24,75 +24,142 @@ namespace FoodStreetAudioGuide
 {
     public partial class MainPage : ContentPage
     {
+        // Service chịu trách nhiệm gọi API, QR, nearby, search và review.
         private readonly StallService _stallService;
+        // Service quản lý cache audio để phát nhanh và hỗ trợ offline.
         private readonly AudioCacheService _audioCacheService;
+        // Stall đang mở popup hoặc đang được tương tác ở UI hiện tại.
         private StallItem? _currentPopupStall;
+        // Ngôn ngữ hiện tại của app dùng cho UI và audio.
         private string _selectedLanguage;
+        // Nhãn hiển thị khi người dùng đang ở ngoài vùng POI.
         private string _awayLabel = "AWAY";
+        // Nhãn hiển thị khi app đang hoạt động offline.
         private string _offlineBadgeLabel = "OFFLINE";
+        // Token hủy cho phiên phát audio/TTS hiện tại.
         private CancellationTokenSource? _speechCts;
+        // Token hủy cho vòng lặp monitor POI theo GPS.
         private CancellationTokenSource? _poiMonitorCts;
+        // Engine quyết định vào/ra POI dựa trên vị trí và bán kính stall.
         private readonly PoiGeofenceEngine _poiGeofenceEngine = new();
+        // Policy quyết định ngưỡng di chuyển để refresh UI và nearby stalls.
         private readonly GpsMonitoringPolicy _gpsMonitoringPolicy = new();
+        // Đánh dấu đã load dữ liệu ban đầu của trang chưa.
         private bool _hasLoadedInitially;
+        // Độ trễ trước khi bật monitor POI khi vừa vào trang.
         private static readonly TimeSpan PoiMonitorInitialDelay = TimeSpan.FromSeconds(3);
+        // Chu kỳ quét GPS/POI. Giảm xuống thì app phản ứng nhanh hơn nhưng hao pin hơn.
         private static readonly TimeSpan PoiMonitorInterval = TimeSpan.FromSeconds(5);
+        // Cửa sổ vị trí cache còn được coi là mới cho monitor POI.
         private static readonly TimeSpan PoiMonitorCachedLocationWindow = TimeSpan.FromSeconds(2);
+        // Timeout lấy vị trí active cho một vòng monitor POI.
         private static readonly TimeSpan PoiMonitorActiveLocationTimeout = TimeSpan.FromSeconds(4);
+        // Sai số GPS tối đa chấp nhận cho monitor POI.
         private const double PoiMonitorAcceptedAccuracyMeters = 20;
+        // Timeout khi cố lấy vị trí chính xác để refresh nearby/map.
         private static readonly TimeSpan PreciseLocationTimeout = TimeSpan.FromSeconds(5);
+        // Khoảng nghỉ giữa các mẫu GPS chính xác.
         private static readonly TimeSpan PreciseLocationSampleDelay = TimeSpan.FromMilliseconds(250);
+        // Số mẫu vị trí dùng để chọn điểm tốt hơn.
         private const int PreciseLocationSampleCount = 2;
+        // Mức chính xác GPS mục tiêu khi xử lý POI.
         private const double DesiredPoiAccuracyMeters = 12;
+        // Cửa sổ để tái dùng last known location mới.
         private static readonly TimeSpan FreshLastKnownLocationWindow = TimeSpan.FromSeconds(10);
+        // Sai số tối đa chấp nhận cho last known location mới.
         private const double AcceptableLastKnownAccuracyMeters = 18;
+        // Cửa sổ cho nhánh refresh nhanh để giảm độ trễ.
         private static readonly TimeSpan FastRefreshLocationWindow = TimeSpan.FromMinutes(2);
+        // Sai số GPS tối đa chấp nhận cho nhánh refresh nhanh.
         private const double FastRefreshAcceptedAccuracyMeters = 50;
+        // Cửa sổ cho nhánh refresh mềm nhằm giảm chi phí lấy GPS chính xác.
         private static readonly TimeSpan SoftRefreshLocationWindow = TimeSpan.FromMinutes(10);
+        // Sai số GPS tối đa chấp nhận cho nhánh refresh mềm.
         private const double SoftRefreshAcceptedAccuracyMeters = 150;
+        // Đánh dấu đã gắn event cập nhật cache ảnh hay chưa.
         private bool _isSubscribedToImageCacheUpdates;
+        // Danh sách stall gần bạn đang dùng cho màn hình chính.
         private List<StallItem> _nearbyStalls = new();
+        // Kết quả search trả về từ backend.
         private List<StallItem> _remoteSearchStalls = new();
+        // Nội dung người dùng đang gõ ở ô tìm kiếm.
         private string _searchText = string.Empty;
+        // Nội dung tìm kiếm gần nhất đã gửi backend để tránh request dư.
         private string _lastRemoteSearchText = string.Empty;
+        // Token hủy cho debounce tìm kiếm.
         private CancellationTokenSource? _searchDebounceCts;
+        // Vị trí cuối cùng app biết được.
         private Location? _lastKnownLocation;
+        // Vị trí dùng cho lần fetch nearby gần nhất.
         private Location? _lastNearbyFetchLocation;
+        // Trạng thái mở rộng/thu gọn script trong popup stall.
         private bool _isScriptExpanded;
+        // Khóa chống mở map nhiều lần song song.
         private bool _isOpeningMap;
+        // Khóa chống mở QR scanner nhiều lần song song.
         private bool _isOpeningQr;
+        // Stall vừa scan QR gần nhất để giảm xử lý lặp.
         private int? _lastQrScannedStallId;
+        // Đánh dấu đã gắn listener connectivity hay chưa.
         private bool _isSubscribedToConnectivityChanges;
+        // Nguồn stall hiện đang hiển thị trên màn hình sau filter/search.
         private List<StallItem> _visibleStallSource = new();
+        // Trang POI hiện tại trong danh sách phân trang của app.
         private int _currentPoiPage = 1;
+        // Ngôn ngữ snapshot localize gần nhất.
         private string _localizedSnapshotLanguage = string.Empty;
+        // Số lượng item của snapshot localize gần nhất.
         private int _localizedSnapshotCount = -1;
+        // Snapshot nearby đã localize để tránh tính lại liên tục.
         private List<StallItem> _localizedNearbySnapshot = new();
+        // Version sync backend cuối cùng app biết được.
         private string? _lastKnownSyncVersion;
+        // Thời điểm kiểm tra sync version gần nhất.
         private DateTime _lastSyncCheckUtc = DateTime.MinValue;
+        // Chặn nhiều tác vụ refresh server chạy chồng nhau.
         private bool _isRefreshingFromServer;
+        // Chặn submit đánh giá nhiều lần liên tiếp.
         private bool _isSubmittingRating;
+        // Trạng thái đang chọn POI trên bản đồ.
         private bool _isChoosingPoi;
-        private int? _currentAudioPlaybackStallId;
-        private string _currentAudioPlaybackLanguageCode = string.Empty;
-        private DateTimeOffset? _currentAudioPlaybackStartedAt;
-        private int _currentAudioPlaybackDurationSeconds;
-        private bool _currentAudioPlaybackLogged;
+        // Token hủy cho vòng sync nền.
         private CancellationTokenSource? _backgroundSyncCts;
+        // Token hủy cho preload audio trì hoãn.
         private CancellationTokenSource? _deferredAudioPreloadCts;
+        // Các stall mà thiết bị này đã đánh giá sao.
         private readonly HashSet<int> _ratedStallIds = new();
+        // Chu kỳ sync nền với backend. Giảm xuống sẽ cập nhật nhanh hơn nhưng gọi API nhiều hơn.
         private static readonly TimeSpan BackgroundSyncInterval = TimeSpan.FromSeconds(8);
+        // Độ trễ trước khi preload audio cho trải nghiệm nghe mượt hơn.
         private static readonly TimeSpan DeferredAudioPreloadDelay = TimeSpan.FromMilliseconds(900);
+        // Số POI hiển thị mỗi trang trong app.
         private const int PoiPageSize = 5;
+        // Key lưu local preference các stall đã được chấm sao.
         private const string RatedStallIdsPreferenceKey = "rated_stall_ids";
 #if ANDROID
+        // Stall hiện đang phát audio.
+        private int? _currentAudioPlaybackStallId;
+        // Mã ngôn ngữ của audio đang phát.
+        private string _currentAudioPlaybackLanguageCode = string.Empty;
+        // Mốc thời gian bắt đầu phát audio hiện tại.
+        private DateTimeOffset? _currentAudioPlaybackStartedAt;
+        // Thời lượng audio đã phát để gửi log nghe.
+        private int _currentAudioPlaybackDurationSeconds;
+        // Đánh dấu log nghe cho audio hiện tại đã gửi chưa.
+        private bool _currentAudioPlaybackLogged;
+        // MediaPlayer native để phát MP3 backend trên Android.
         private MediaPlayer? _androidMediaPlayer;
+        // Android TTS native để đọc text trực tiếp trên thiết bị.
         private AndroidTextToSpeech? _androidTts;
+        // TaskCompletionSource chờ TTS Android khởi tạo xong.
         private TaskCompletionSource<bool>? _androidTtsInitTcs;
+        // TaskCompletionSource chờ lượt speak hiện tại kết thúc.
         private TaskCompletionSource<bool>? _androidTtsSpeakTcs;
+        // ID của utterance đang phát để map callback Android TTS.
         private string? _androidTtsUtteranceId;
 #endif
 
+        // Collection bind thẳng ra danh sách stall trên UI.
         public RangeObservableCollection<StallItem> Stalls { get; } = new();
 
         public string AwayLabel
@@ -127,6 +194,7 @@ namespace FoodStreetAudioGuide
 
         public Command BackCommand { get; }
 
+        // Hàm khởi tạo `MainPage`: thiết lập trạng thái ban đầu cho đối tượng trong file hiện tại.
         public MainPage(
             StallService stallService,
             AudioCacheService audioCacheService,
@@ -153,6 +221,7 @@ namespace FoodStreetAudioGuide
             ApplyLanguage(_selectedLanguage);
         }
 
+        // Hàm `OnAppearing`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         protected override async void OnAppearing()
         {
             base.OnAppearing();
@@ -179,6 +248,7 @@ namespace FoodStreetAudioGuide
             _ = LoadDataFromServer();
         }
 
+        // Hàm `OnDisappearing`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         protected override void OnDisappearing()
         {
             App.AppMovedToBackground -= HandleAppMovedToBackground;
@@ -196,11 +266,13 @@ namespace FoodStreetAudioGuide
             base.OnDisappearing();
         }
 
+        // Hàm `HandleAppMovedToBackground`: xử lý tác vụ hoặc callback liên quan trong file hiện tại.
         private void HandleAppMovedToBackground()
         {
             MainThread.BeginInvokeOnMainThread(StopSpeechAndHidePopup);
         }
 
+        // Hàm `LoadCachedDataAsync`: tải dữ liệu hoặc trạng thái cần thiết trong file hiện tại.
         private async Task LoadCachedDataAsync()
         {
             try
@@ -219,6 +291,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `LoadDataFromServer`: tải dữ liệu hoặc trạng thái cần thiết trong file hiện tại.
         private async Task LoadDataFromServer(bool preferResponsiveLocation = false)
         {
             if (_isRefreshingFromServer)
@@ -340,6 +413,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `LoadMockData`: tải dữ liệu hoặc trạng thái cần thiết trong file hiện tại.
         private void LoadMockData()
         {
             var mock = new List<StallItem>
@@ -443,6 +517,7 @@ namespace FoodStreetAudioGuide
             Debug.WriteLine("--- DA TAI DU LIEU MOCK THANH CONG");
         }
 
+        // Hàm `DisplayStalls`: xử lý logic liên quan trong file hiện tại.
         private void DisplayStalls(IEnumerable<StallItem> stalls)
         {
             _nearbyStalls = stalls
@@ -465,6 +540,7 @@ namespace FoodStreetAudioGuide
             RefreshCurrentPopupIfNeeded();
         }
 
+        // Hàm `EnsureImageCacheSubscription`: đảm bảo trạng thái hoặc đăng ký cần thiết trong file hiện tại.
         private void EnsureImageCacheSubscription()
         {
             if (_isSubscribedToImageCacheUpdates)
@@ -476,6 +552,7 @@ namespace FoodStreetAudioGuide
             _isSubscribedToImageCacheUpdates = true;
         }
 
+        // Hàm `RemoveImageCacheSubscription`: gỡ trạng thái, dữ liệu hoặc đăng ký liên quan trong file hiện tại.
         private void RemoveImageCacheSubscription()
         {
             if (!_isSubscribedToImageCacheUpdates)
@@ -487,6 +564,7 @@ namespace FoodStreetAudioGuide
             _isSubscribedToImageCacheUpdates = false;
         }
 
+        // Hàm `OnImageCacheUpdated`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private void OnImageCacheUpdated(IReadOnlyList<StallItem> refreshedStalls)
         {
             MainThread.BeginInvokeOnMainThread(() =>
@@ -537,6 +615,7 @@ namespace FoodStreetAudioGuide
             });
         }
 
+        // Hàm `UpdateSourceListImages`: cập nhật dữ liệu hoặc giao diện liên quan trong file hiện tại.
         private static void UpdateSourceListImages(List<StallItem> source, IReadOnlyDictionary<int, StallItem> updatesById)
         {
             for (var index = 0; index < source.Count; index++)
@@ -555,27 +634,32 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `ShowInitialLoading`: hiển thị nội dung hoặc trạng thái liên quan trong file hiện tại.
         private void ShowInitialLoading()
         {
             InitialLoadingOverlay.IsVisible = true;
         }
 
+        // Hàm `HideInitialLoading`: ẩn nội dung hoặc trạng thái liên quan trong file hiện tại.
         private void HideInitialLoading()
         {
             InitialLoadingOverlay.IsVisible = false;
         }
 
+        // Hàm `AttachOfflineFlag`: xử lý logic liên quan trong file hiện tại.
         private StallItem AttachOfflineFlag(StallItem stall)
         {
             var languageCode = GetLanguageCode(_selectedLanguage);
             return stall with { HasOfflineAudio = _audioCacheService.HasCachedAudio(stall, languageCode) };
         }
 
+        // Hàm `LocalizeStall`: nội địa hóa dữ liệu hoặc nội dung liên quan trong file hiện tại.
         private StallItem LocalizeStall(StallItem stall)
         {
             return stall.WithLocalizedCuisine(GetLanguageCode(_selectedLanguage));
         }
 
+        // Hàm `OnStallTapped`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private async void OnStallTapped(object sender, TappedEventArgs e)
         {
             DismissSearchKeyboard();
@@ -585,6 +669,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `ShowScriptPopupAsync`: hiển thị nội dung hoặc trạng thái liên quan trong file hiện tại.
         private async Task ShowScriptPopupAsync(StallItem stall)
         {
             DismissSearchKeyboard();
@@ -665,6 +750,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `PlaySpeechAsync`: phát nội dung âm thanh hoặc thao tác liên quan trong file hiện tại.
         private async Task PlaySpeechAsync(
             StallItem stall,
             string content,
@@ -702,6 +788,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `ApplyLanguage`: áp dụng cấu hình hoặc trạng thái liên quan trong file hiện tại.
         private void ApplyLanguage(string selectedLanguage)
         {
             var text = AppText.Get(selectedLanguage);
@@ -733,11 +820,13 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `OnClosePopupClicked`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private void OnClosePopupClicked(object sender, EventArgs e)
         {
             StopSpeechAndHidePopup();
         }
 
+        // Hàm `OnNavigateToStallClicked`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private async void OnNavigateToStallClicked(object sender, EventArgs e)
         {
             DismissSearchKeyboard();
@@ -751,28 +840,33 @@ namespace FoodStreetAudioGuide
             await OpenMapForStallAsync(selectedStall);
         }
 
+        // Hàm `OnToggleScriptExpandedClicked`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private void OnToggleScriptExpandedClicked(object sender, EventArgs e)
         {
             _isScriptExpanded = !_isScriptExpanded;
             UpdateScriptExpansionUi();
         }
 
+        // Hàm `OnPopupBackdropTapped`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private void OnPopupBackdropTapped(object sender, TappedEventArgs e)
         {
             DismissSearchKeyboard();
             StopSpeechAndHidePopup();
         }
 
+        // Hàm `OnPopupCardTapped`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private void OnPopupCardTapped(object sender, TappedEventArgs e)
         {
             DismissSearchKeyboard();
         }
 
+        // Hàm `OnSavedTapped`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private async void OnSavedTapped(object sender, TappedEventArgs e)
         {
             await Navigation.PushAsync(new DownloadedAudioPage(_audioCacheService));
         }
 
+        // Hàm `OnQrScanTapped`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private async void OnQrScanTapped(object sender, TappedEventArgs e)
         {
             if (_isOpeningQr)
@@ -812,11 +906,13 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `OnMapOpenTapped`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private async void OnMapOpenTapped(object sender, TappedEventArgs e)
         {
             await OpenMapForStallAsync();
         }
 
+        // Hàm `OnRefreshDataClicked`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private async void OnRefreshDataClicked(object sender, EventArgs e)
         {
             if (_isRefreshingFromServer)
@@ -835,6 +931,7 @@ namespace FoodStreetAudioGuide
             await LoadDataFromServer(preferResponsiveLocation: true);
         }
 
+        // Hàm `OpenMapForStallAsync`: mở màn hình, tài nguyên hoặc luồng liên quan trong file hiện tại.
         private async Task OpenMapForStallAsync(StallItem? preferredStall = null)
         {
             if (_isOpeningMap)
@@ -877,6 +974,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `OnSearchTextChanged`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
         {
             _searchText = e.NewTextValue ?? string.Empty;
@@ -909,6 +1007,7 @@ namespace FoodStreetAudioGuide
             _ = DebouncedBackendSearchAsync(_searchText, newCts.Token);
         }
 
+        // Hàm `ApplySearchPreview`: áp dụng cấu hình hoặc trạng thái liên quan trong file hiện tại.
         private void ApplySearchPreview()
         {
             if (_nearbyStalls.Count == 0)
@@ -928,6 +1027,7 @@ namespace FoodStreetAudioGuide
             DisplayVisibleStalls(filtered, resetPage: true);
         }
 
+        // Hàm `DebouncedBackendSearchAsync`: xử lý logic liên quan trong file hiện tại.
         private async Task DebouncedBackendSearchAsync(string query, CancellationToken cancellationToken)
         {
             try
@@ -981,6 +1081,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `DisplayVisibleStalls`: xử lý logic liên quan trong file hiện tại.
         private void DisplayVisibleStalls(IEnumerable<StallItem> stalls, bool resetPage = false)
         {
             _visibleStallSource = stalls
@@ -996,6 +1097,7 @@ namespace FoodStreetAudioGuide
             RenderVisibleStallsPage();
         }
 
+        // Hàm `RenderVisibleStallsPage`: kết xuất nội dung cần hiển thị trong file hiện tại.
         private void RenderVisibleStallsPage()
         {
             var totalPages = Math.Max(1, (int)Math.Ceiling(_visibleStallSource.Count / (double)PoiPageSize));
@@ -1015,6 +1117,7 @@ namespace FoodStreetAudioGuide
             UpdatePoiPagination(totalPages);
         }
 
+        // Hàm `UpdatePoiPagination`: cập nhật dữ liệu hoặc giao diện liên quan trong file hiện tại.
         private void UpdatePoiPagination(int totalPages)
         {
             PoiPaginationBar.IsVisible = _visibleStallSource.Count > PoiPageSize;
@@ -1066,6 +1169,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `BuildPoiPaginationItems`: tạo nội dung hoặc cấu trúc cần dùng trong file hiện tại.
         private IEnumerable<int?> BuildPoiPaginationItems(int totalPages)
         {
             if (totalPages <= 3)
@@ -1111,6 +1215,7 @@ namespace FoodStreetAudioGuide
             yield return null;
         }
 
+        // Hàm `GoToPoiPage`: xử lý logic liên quan trong file hiện tại.
         private void GoToPoiPage(int page)
         {
             if (page <= 0 || page == _currentPoiPage)
@@ -1122,6 +1227,7 @@ namespace FoodStreetAudioGuide
             RenderVisibleStallsPage();
         }
 
+        // Hàm `OnPoiPrevClicked`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private void OnPoiPrevClicked(object sender, EventArgs e)
         {
             if (_currentPoiPage <= 1)
@@ -1133,6 +1239,7 @@ namespace FoodStreetAudioGuide
             RenderVisibleStallsPage();
         }
 
+        // Hàm `OnPoiNextClicked`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private void OnPoiNextClicked(object sender, EventArgs e)
         {
             var totalPages = Math.Max(1, (int)Math.Ceiling(_visibleStallSource.Count / (double)PoiPageSize));
@@ -1145,6 +1252,7 @@ namespace FoodStreetAudioGuide
             RenderVisibleStallsPage();
         }
 
+        // Hàm `AreVisibleStallsEquivalent`: xử lý logic liên quan trong file hiện tại.
         private bool AreVisibleStallsEquivalent(IReadOnlyList<StallItem> candidate)
         {
             if (candidate.Count != Stalls.Count)
@@ -1174,16 +1282,19 @@ namespace FoodStreetAudioGuide
             return true;
         }
 
+        // Hàm `OnSearchButtonPressed`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private void OnSearchButtonPressed(object sender, EventArgs e)
         {
             DismissSearchKeyboard();
         }
 
+        // Hàm `OnPageBackgroundTapped`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private void OnPageBackgroundTapped(object sender, TappedEventArgs e)
         {
             DismissSearchKeyboard();
         }
 
+        // Hàm `DismissSearchKeyboard`: xử lý logic liên quan trong file hiện tại.
         private void DismissSearchKeyboard()
         {
             if (SearchBarControl.IsFocused)
@@ -1192,6 +1303,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `MatchesSearch`: xử lý logic liên quan trong file hiện tại.
         private static bool MatchesSearch(StallItem stall, IReadOnlyList<string> queryTerms)
         {
             if (queryTerms.Count == 0)
@@ -1208,6 +1320,7 @@ namespace FoodStreetAudioGuide
                 normalizedTokens.Any(token => token.Contains(term, StringComparison.Ordinal)));
         }
 
+        // Hàm `BuildSearchCorpus`: tạo nội dung hoặc cấu trúc cần dùng trong file hiện tại.
         private static IReadOnlyList<string> BuildSearchCorpus(StallItem stall)
         {
             var tokens = new List<string>
@@ -1225,12 +1338,14 @@ namespace FoodStreetAudioGuide
             return tokens;
         }
 
+        // Hàm `SplitSearchTerms`: xử lý logic liên quan trong file hiện tại.
         private static IReadOnlyList<string> SplitSearchTerms(string query)
         {
             return NormalizeForSearch(query)
                 .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         }
 
+        // Hàm `ApplyHighlight`: áp dụng cấu hình hoặc trạng thái liên quan trong file hiện tại.
         private static StallItem ApplyHighlight(StallItem stall, string query)
         {
             return stall with
@@ -1240,6 +1355,7 @@ namespace FoodStreetAudioGuide
             };
         }
 
+        // Hàm `BuildHighlightedText`: tạo nội dung hoặc cấu trúc cần dùng trong file hiện tại.
         private static FormattedString BuildHighlightedText(
             string? source,
             string query,
@@ -1284,6 +1400,7 @@ namespace FoodStreetAudioGuide
             return formatted;
         }
 
+        // Hàm `FindHighlightRange`: xử lý logic liên quan trong file hiện tại.
         private static (int Start, int Length)? FindHighlightRange(string source, IReadOnlyList<string> queryTerms)
         {
             var matches = queryTerms
@@ -1297,6 +1414,7 @@ namespace FoodStreetAudioGuide
             return matches.Count == 0 ? null : matches[0];
         }
 
+        // Hàm `FindHighlightRange`: xử lý logic liên quan trong file hiện tại.
         private static (int Start, int Length)? FindHighlightRange(string source, string normalizedTerm)
         {
             if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(normalizedTerm))
@@ -1329,6 +1447,7 @@ namespace FoodStreetAudioGuide
             return (originalStart, originalEnd - originalStart + 1);
         }
 
+        // Hàm `NormalizeForSearch`: xử lý logic liên quan trong file hiện tại.
         private static string NormalizeForSearch(string? value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -1354,6 +1473,7 @@ namespace FoodStreetAudioGuide
                 .ToLowerInvariant();
         }
 
+        // Hàm `StopSpeechAndHidePopup`: dừng tiến trình hoặc tác vụ liên quan trong file hiện tại.
         private void StopSpeechAndHidePopup()
         {
             DismissSearchKeyboard();
@@ -1365,6 +1485,7 @@ namespace FoodStreetAudioGuide
             ScriptPopupOverlay.IsVisible = false;
         }
 
+        // Hàm `StartPoiMonitoring`: khởi động tiến trình hoặc tác vụ liên quan trong file hiện tại.
         private void StartPoiMonitoring()
         {
             StopPoiMonitoring();
@@ -1372,6 +1493,7 @@ namespace FoodStreetAudioGuide
             _ = MonitorPoiAsync(_poiMonitorCts.Token);
         }
 
+        // Hàm `StopPoiMonitoring`: dừng tiến trình hoặc tác vụ liên quan trong file hiện tại.
         private void StopPoiMonitoring()
         {
             if (_poiMonitorCts is not null)
@@ -1384,6 +1506,7 @@ namespace FoodStreetAudioGuide
             _poiGeofenceEngine.Reset();
         }
 
+        // Hàm `MonitorPoiAsync`: xử lý logic liên quan trong file hiện tại.
         private async Task MonitorPoiAsync(CancellationToken cancellationToken)
         {
             try
@@ -1461,6 +1584,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `CheckPoiForLocationAsync`: xử lý logic liên quan trong file hiện tại.
         private async Task CheckPoiForLocationAsync(
             Location userLocation,
             IReadOnlyCollection<StallItem> stalls,
@@ -1480,6 +1604,7 @@ namespace FoodStreetAudioGuide
             await MainThread.InvokeOnMainThreadAsync(() => ShowDetectedPoiAsync(geofenceResult));
         }
 
+        // Hàm `ShowDetectedPoiAsync`: hiển thị nội dung hoặc trạng thái liên quan trong file hiện tại.
         private async Task ShowDetectedPoiAsync(PoiGeofenceResult geofenceResult)
         {
             var text = AppText.Get(_selectedLanguage);
@@ -1522,6 +1647,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `GetBestAvailableLocationAsync`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         private async Task<Location?> GetBestAvailableLocationAsync(CancellationToken cancellationToken = default)
         {
             try
@@ -1576,6 +1702,7 @@ namespace FoodStreetAudioGuide
             return bestLocation;
         }
 
+        // Hàm `GetResponsiveLocationAsync`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         private async Task<Location?> GetResponsiveLocationAsync(CancellationToken cancellationToken = default)
         {
             if (IsAcceptableLocation(_lastKnownLocation, FastRefreshLocationWindow, FastRefreshAcceptedAccuracyMeters))
@@ -1613,6 +1740,7 @@ namespace FoodStreetAudioGuide
             return _lastKnownLocation;
         }
 
+        // Hàm `GetMonitoringLocationAsync`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         private async Task<Location?> GetMonitoringLocationAsync(CancellationToken cancellationToken = default)
         {
             Location? fallbackLocation = null;
@@ -1665,6 +1793,7 @@ namespace FoodStreetAudioGuide
             return fallbackLocation;
         }
 
+        // Hàm `IsAcceptableLocation`: kiểm tra trạng thái liên quan trong file hiện tại.
         private static bool IsAcceptableLocation(Location? location, TimeSpan maxAge, double maxAccuracyMeters)
         {
             if (location is null)
@@ -1685,6 +1814,7 @@ namespace FoodStreetAudioGuide
             return (location.Accuracy ?? double.MaxValue) <= maxAccuracyMeters;
         }
 
+        // Hàm `IsBetterLocation`: kiểm tra trạng thái liên quan trong file hiện tại.
         private static bool IsBetterLocation(Location candidate, Location? currentBest)
         {
             if (currentBest is null)
@@ -1708,6 +1838,7 @@ namespace FoodStreetAudioGuide
             return false;
         }
 
+        // Hàm `ScheduleNearbyAudioPreload`: xử lý logic liên quan trong file hiện tại.
         private void ScheduleNearbyAudioPreload(IEnumerable<StallItem> stalls)
         {
             _deferredAudioPreloadCts?.Cancel();
@@ -1729,6 +1860,7 @@ namespace FoodStreetAudioGuide
             _ = PreloadNearbyAudioAsync(snapshot, cts.Token);
         }
 
+        // Hàm `PreloadNearbyAudioAsync`: tải trước dữ liệu hoặc tài nguyên liên quan trong file hiện tại.
         private async Task PreloadNearbyAudioAsync(IEnumerable<StallItem> stalls, CancellationToken cancellationToken)
         {
             try
@@ -1750,6 +1882,7 @@ namespace FoodStreetAudioGuide
             MainThread.BeginInvokeOnMainThread(() => RefreshOfflineFlags(cachedIds));
         }
 
+        // Hàm `HandleQrScanResultAsync`: xử lý tác vụ hoặc callback liên quan trong file hiện tại.
         private async Task HandleQrScanResultAsync(string rawValue)
         {
             var text = AppText.Get(_selectedLanguage);
@@ -1818,6 +1951,7 @@ namespace FoodStreetAudioGuide
             await ShowScriptPopupAsync(stall);
         }
 
+        // Hàm `IsDuplicateConsecutiveQrStall`: kiểm tra trạng thái liên quan trong file hiện tại.
         private bool IsDuplicateConsecutiveQrStall(StallItem stall)
         {
             return stall.Id > 0 &&
@@ -1825,6 +1959,7 @@ namespace FoodStreetAudioGuide
                    lastScannedId == stall.Id;
         }
 
+        // Hàm `PrepareMapStalls`: xử lý logic liên quan trong file hiện tại.
         private List<StallItem> PrepareMapStalls(IEnumerable<StallItem> stalls)
         {
             if (ReferenceEquals(stalls, _nearbyStalls))
@@ -1848,6 +1983,7 @@ namespace FoodStreetAudioGuide
                 .ToList();
         }
 
+        // Hàm `InvalidateLocalizedSnapshots`: xử lý logic liên quan trong file hiện tại.
         private void InvalidateLocalizedSnapshots()
         {
             _localizedSnapshotLanguage = string.Empty;
@@ -1855,6 +1991,7 @@ namespace FoodStreetAudioGuide
             _localizedNearbySnapshot = new List<StallItem>();
         }
 
+        // Hàm `RefreshFromServerIfChangedAsync`: làm mới dữ liệu hoặc giao diện liên quan trong file hiện tại.
         private async Task RefreshFromServerIfChangedAsync()
         {
             if (_isRefreshingFromServer || !CanAttemptBackendRequest())
@@ -1890,6 +2027,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `StartBackgroundSync`: khởi động tiến trình hoặc tác vụ liên quan trong file hiện tại.
         private void StartBackgroundSync()
         {
             if (_backgroundSyncCts is not null)
@@ -1901,6 +2039,7 @@ namespace FoodStreetAudioGuide
             _ = RunBackgroundSyncLoopAsync(_backgroundSyncCts.Token);
         }
 
+        // Hàm `StopBackgroundSync`: dừng tiến trình hoặc tác vụ liên quan trong file hiện tại.
         private void StopBackgroundSync()
         {
             _backgroundSyncCts?.Cancel();
@@ -1908,6 +2047,7 @@ namespace FoodStreetAudioGuide
             _backgroundSyncCts = null;
         }
 
+        // Hàm `RunBackgroundSyncLoopAsync`: xử lý logic liên quan trong file hiện tại.
         private async Task RunBackgroundSyncLoopAsync(CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
@@ -1932,6 +2072,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `EnsureConnectivitySubscription`: đảm bảo trạng thái hoặc đăng ký cần thiết trong file hiện tại.
         private void EnsureConnectivitySubscription()
         {
             if (_isSubscribedToConnectivityChanges)
@@ -1943,6 +2084,7 @@ namespace FoodStreetAudioGuide
             _isSubscribedToConnectivityChanges = true;
         }
 
+        // Hàm `RemoveConnectivitySubscription`: gỡ trạng thái, dữ liệu hoặc đăng ký liên quan trong file hiện tại.
         private void RemoveConnectivitySubscription()
         {
             if (!_isSubscribedToConnectivityChanges)
@@ -1954,6 +2096,7 @@ namespace FoodStreetAudioGuide
             _isSubscribedToConnectivityChanges = false;
         }
 
+        // Hàm `OnConnectivityChanged`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private void OnConnectivityChanged(object? sender, ConnectivityChangedEventArgs e)
         {
             if (e.NetworkAccess != NetworkAccess.Internet)
@@ -1965,6 +2108,7 @@ namespace FoodStreetAudioGuide
             MainThread.BeginInvokeOnMainThread(() => _ = RefreshFromServerIfChangedAsync());
         }
 
+        // Hàm `ExtractQrCodeValue`: xử lý logic liên quan trong file hiện tại.
         private static string? ExtractQrCodeValue(string rawValue)
         {
             if (string.IsNullOrWhiteSpace(rawValue))
@@ -1996,6 +2140,7 @@ namespace FoodStreetAudioGuide
             return null;
         }
 
+        // Hàm `GetQueryParameter`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         private static string? GetQueryParameter(string query, string key)
         {
             if (string.IsNullOrWhiteSpace(query))
@@ -2015,11 +2160,13 @@ namespace FoodStreetAudioGuide
             return null;
         }
 
+        // Hàm `RefreshOfflineFlag`: làm mới dữ liệu hoặc giao diện liên quan trong file hiện tại.
         private void RefreshOfflineFlag(int stallId)
         {
             RefreshOfflineFlags(new[] { stallId });
         }
 
+        // Hàm `RefreshOfflineFlags`: làm mới dữ liệu hoặc giao diện liên quan trong file hiện tại.
         private void RefreshOfflineFlags(IEnumerable<int> stallIds)
         {
             var targetIds = stallIds.Distinct().ToHashSet();
@@ -2044,6 +2191,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `PopulateSpecialties`: xử lý logic liên quan trong file hiện tại.
         private void PopulateSpecialties(IReadOnlyList<string> specialties)
         {
             ScriptPopupSpecialtiesContainer.Children.Clear();
@@ -2066,6 +2214,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `RenderScriptPopup`: kết xuất nội dung cần hiển thị trong file hiện tại.
         private void RenderScriptPopup(StallItem stall, LocalizedText text, string languageCode)
         {
             var content = stall.GetScript(languageCode);
@@ -2089,6 +2238,7 @@ namespace FoodStreetAudioGuide
             MainThread.BeginInvokeOnMainThread(async () => await ScriptPopupScrollView.ScrollToAsync(0, 0, false));
         }
 
+        // Hàm `ResolvePopupImageSource`: xử lý logic liên quan trong file hiện tại.
         private static string? ResolvePopupImageSource(StallItem stall)
         {
             if (!string.IsNullOrWhiteSpace(stall.ThumbnailUrl))
@@ -2099,6 +2249,7 @@ namespace FoodStreetAudioGuide
             return string.IsNullOrWhiteSpace(stall.ImageUrl) ? null : stall.ImageUrl;
         }
 
+        // Hàm `UpdatePopupRatingSummary`: cập nhật dữ liệu hoặc giao diện liên quan trong file hiện tại.
         private void UpdatePopupRatingSummary(StallItem stall)
         {
             var ratingValue = stall.GetRatingValue();
@@ -2108,6 +2259,7 @@ namespace FoodStreetAudioGuide
             ScriptPopupRatingSummaryLabel.Text = $"{stars} {ratingValue:0.0} ({reviewsCount})";
         }
 
+        // Hàm `UpdatePopupRatingButtons`: cập nhật dữ liệu hoặc giao diện liên quan trong file hiện tại.
         private void UpdatePopupRatingButtons()
         {
             var text = AppText.Get(_selectedLanguage);
@@ -2123,6 +2275,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `UpdateRefreshButtonState`: cập nhật dữ liệu hoặc giao diện liên quan trong file hiện tại.
         private void UpdateRefreshButtonState()
         {
             var text = AppText.Get(_selectedLanguage);
@@ -2131,6 +2284,7 @@ namespace FoodStreetAudioGuide
             RefreshDataButton.Opacity = _isRefreshingFromServer ? 0.75 : 1;
         }
 
+        // Hàm `GetLatestStallSnapshot`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         private StallItem? GetLatestStallSnapshot(StallItem stall)
         {
             if (stall.Id <= 0)
@@ -2143,6 +2297,7 @@ namespace FoodStreetAudioGuide
                 ?? Stalls.FirstOrDefault(item => item.Id == stall.Id);
         }
 
+        // Hàm `UpdateNearbySnapshot`: cập nhật dữ liệu hoặc giao diện liên quan trong file hiện tại.
         private void UpdateNearbySnapshot(StallItem refreshed)
         {
             var nearbyIndex = _nearbyStalls.FindIndex(item => item.Id == refreshed.Id);
@@ -2176,6 +2331,7 @@ namespace FoodStreetAudioGuide
             InvalidateLocalizedSnapshots();
         }
 
+        // Hàm `RefreshCurrentPopupIfNeeded`: làm mới dữ liệu hoặc giao diện liên quan trong file hiện tại.
         private void RefreshCurrentPopupIfNeeded()
         {
             if (!ScriptPopupOverlay.IsVisible || _currentPopupStall is null)
@@ -2203,6 +2359,7 @@ namespace FoodStreetAudioGuide
             RenderScriptPopup(refreshed, AppText.Get(_selectedLanguage), languageCode);
         }
 
+        // Hàm `OnRatePopupClicked`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private async void OnRatePopupClicked(object sender, EventArgs e)
         {
             if (_currentPopupStall is null || _isSubmittingRating || sender is not Button button)
@@ -2270,11 +2427,13 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `HasRatedCurrentPopupStall`: kiểm tra trạng thái hoặc dữ liệu liên quan trong file hiện tại.
         private bool HasRatedCurrentPopupStall()
         {
             return _currentPopupStall is { Id: > 0 } stall && HasRatedStall(stall.Id);
         }
 
+        // Hàm `PreserveDistanceIfMissing`: xử lý logic liên quan trong file hiện tại.
         private static StallItem PreserveDistanceIfMissing(StallItem currentStall, StallItem refreshedStall)
         {
             if (refreshedStall.Distance > 0 || !string.IsNullOrWhiteSpace(refreshedStall.DistanceText))
@@ -2289,6 +2448,7 @@ namespace FoodStreetAudioGuide
             };
         }
 
+        // Hàm `RefreshDistancesAndOrdering`: làm mới dữ liệu hoặc giao diện liên quan trong file hiện tại.
         private void RefreshDistancesAndOrdering(Location location)
         {
             _nearbyStalls = _nearbyStalls
@@ -2316,11 +2476,13 @@ namespace FoodStreetAudioGuide
             RefreshCurrentPopupIfNeeded();
         }
 
+        // Hàm `UpdateDistanceFromCurrentLocation`: cập nhật dữ liệu hoặc giao diện liên quan trong file hiện tại.
         private StallItem UpdateDistanceFromCurrentLocation(StallItem stall)
         {
             return _lastKnownLocation is null ? stall : UpdateDistanceForLocation(stall, _lastKnownLocation);
         }
 
+        // Hàm `UpdateDistanceForLocation`: cập nhật dữ liệu hoặc giao diện liên quan trong file hiện tại.
         private static StallItem UpdateDistanceForLocation(StallItem stall, Location location)
         {
             if (stall.Lat == 0 || stall.Lng == 0)
@@ -2336,6 +2498,7 @@ namespace FoodStreetAudioGuide
             };
         }
 
+        // Hàm `CalculateDistanceKm`: tính toán giá trị cần dùng trong file hiện tại.
         private static double CalculateDistanceKm(double lat1, double lng1, double lat2, double lng2)
         {
             const double earthRadiusKm = 6371d;
@@ -2350,6 +2513,7 @@ namespace FoodStreetAudioGuide
 
         private static double DegreesToRadians(double degrees) => degrees * Math.PI / 180d;
 
+        // Hàm `FormatDistanceText`: định dạng dữ liệu hoặc nội dung liên quan trong file hiện tại.
         private static string FormatDistanceText(double distanceKm)
         {
             if (distanceKm <= 0)
@@ -2366,11 +2530,13 @@ namespace FoodStreetAudioGuide
             return $"{distanceKm:0.0}km";
         }
 
+        // Hàm `HasRatedStall`: kiểm tra trạng thái hoặc dữ liệu liên quan trong file hiện tại.
         private bool HasRatedStall(int stallId)
         {
             return stallId > 0 && _ratedStallIds.Contains(stallId);
         }
 
+        // Hàm `MarkStallAsRated`: xử lý logic liên quan trong file hiện tại.
         private void MarkStallAsRated(int stallId)
         {
             if (stallId <= 0 || !_ratedStallIds.Add(stallId))
@@ -2381,6 +2547,7 @@ namespace FoodStreetAudioGuide
             Preferences.Default.Set(RatedStallIdsPreferenceKey, string.Join(",", _ratedStallIds.OrderBy(id => id)));
         }
 
+        // Hàm `LoadRatedStallIds`: tải dữ liệu hoặc trạng thái cần thiết trong file hiện tại.
         private void LoadRatedStallIds()
         {
             _ratedStallIds.Clear();
@@ -2399,6 +2566,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `IsDuplicateRatingMessage`: kiểm tra trạng thái liên quan trong file hiện tại.
         private static bool IsDuplicateRatingMessage(string message)
         {
             if (string.IsNullOrWhiteSpace(message))
@@ -2411,6 +2579,7 @@ namespace FoodStreetAudioGuide
                 || message.Contains("rate this stall once", StringComparison.OrdinalIgnoreCase);
         }
 
+        // Hàm `StopSpeech`: dừng tiến trình hoặc tác vụ liên quan trong file hiện tại.
         private void StopSpeech()
         {
             if (_speechCts is not null)
@@ -2430,6 +2599,7 @@ namespace FoodStreetAudioGuide
 #endif
         }
 
+        // Hàm `PlayCachedAudio`: phát nội dung âm thanh hoặc thao tác liên quan trong file hiện tại.
         private void PlayCachedAudio(string audioPath, int stallId, string languageCode)
         {
             StopAudioPlayback();
@@ -2447,6 +2617,7 @@ namespace FoodStreetAudioGuide
 #endif
         }
 
+        // Hàm `StopAudioPlayback`: dừng tiến trình hoặc tác vụ liên quan trong file hiện tại.
         private void StopAudioPlayback()
         {
 #if ANDROID
@@ -2480,6 +2651,7 @@ namespace FoodStreetAudioGuide
         }
 
 #if ANDROID
+        // Hàm `OnAndroidMediaPrepared`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private void OnAndroidMediaPrepared(object? sender, EventArgs e)
         {
             _currentAudioPlaybackStartedAt = DateTimeOffset.UtcNow;
@@ -2498,6 +2670,7 @@ namespace FoodStreetAudioGuide
             _androidMediaPlayer?.Start();
         }
 
+        // Hàm `OnAndroidMediaCompleted`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private void OnAndroidMediaCompleted(object? sender, EventArgs e)
         {
             _currentAudioPlaybackLogged = true;
@@ -2511,6 +2684,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `TryLogCurrentAudioPlayback`: xử lý logic liên quan trong file hiện tại.
         private void TryLogCurrentAudioPlayback()
         {
             if (_currentAudioPlaybackLogged)
@@ -2528,6 +2702,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `ResolveCurrentAudioPlaybackSeconds`: xử lý logic liên quan trong file hiện tại.
         private int ResolveCurrentAudioPlaybackSeconds()
         {
             if (!_currentAudioPlaybackStartedAt.HasValue)
@@ -2544,6 +2719,7 @@ namespace FoodStreetAudioGuide
             return elapsedSeconds;
         }
 
+        // Hàm `ResetCurrentAudioPlaybackState`: đặt lại dữ liệu hoặc trạng thái liên quan trong file hiện tại.
         private void ResetCurrentAudioPlaybackState()
         {
             _currentAudioPlaybackStallId = null;
@@ -2554,6 +2730,7 @@ namespace FoodStreetAudioGuide
         }
 #endif
 
+        // Hàm `UpdateAudioStatusUi`: cập nhật dữ liệu hoặc giao diện liên quan trong file hiện tại.
         private void UpdateAudioStatusUi(StallItem stall, LocalizedText text, string languageCode)
         {
             var hasCachedAudio = _audioCacheService.HasCachedAudio(stall, languageCode);
@@ -2564,6 +2741,7 @@ namespace FoodStreetAudioGuide
             ScriptPopupDownloadButton.IsEnabled = stall.Id > 0;
         }
 
+        // Hàm `ConfigureScriptExpansion`: xử lý logic liên quan trong file hiện tại.
         private void ConfigureScriptExpansion(string content, LocalizedText text)
         {
             var shouldShowToggle = !string.IsNullOrWhiteSpace(content) && content.Length > 220;
@@ -2574,6 +2752,7 @@ namespace FoodStreetAudioGuide
             ScriptPopupFadeOverlay.IsVisible = shouldShowToggle;
         }
 
+        // Hàm `UpdateScriptExpansionUi`: cập nhật dữ liệu hoặc giao diện liên quan trong file hiện tại.
         private void UpdateScriptExpansionUi()
         {
             var text = AppText.Get(_selectedLanguage);
@@ -2582,6 +2761,7 @@ namespace FoodStreetAudioGuide
             ScriptPopupFadeOverlay.IsVisible = !_isScriptExpanded && ScriptPopupReadMoreButton.IsVisible;
         }
 
+        // Hàm `OnDownloadAudioClicked`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private async void OnDownloadAudioClicked(object sender, EventArgs e)
         {
             if (_currentPopupStall is null)
@@ -2610,6 +2790,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `GetLanguageCode`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         private static string GetLanguageCode(string selectedLanguage) => selectedLanguage switch
         {
             AppText.English => "en",
@@ -2619,6 +2800,7 @@ namespace FoodStreetAudioGuide
             _ => "vi"
         };
 
+        // Hàm `GetLocaleCode`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         private static string GetLocaleCode(string selectedLanguage) => selectedLanguage switch
         {
             AppText.English => "en-US",
@@ -2628,6 +2810,7 @@ namespace FoodStreetAudioGuide
             _ => "vi-VN"
         };
 
+        // Hàm `BuildSpeechOptionsAsync`: tạo nội dung hoặc cấu trúc cần dùng trong file hiện tại.
         private static async Task<SpeechOptions> BuildSpeechOptionsAsync(string selectedLanguage)
         {
             var localeCode = GetLocaleCode(selectedLanguage);
@@ -2645,12 +2828,14 @@ namespace FoodStreetAudioGuide
             };
         }
 
+        // Hàm `CanAttemptBackendRequest`: kiểm tra điều kiện liên quan trong file hiện tại.
         private static bool CanAttemptBackendRequest()
         {
             return Connectivity.Current.NetworkAccess != NetworkAccess.None;
         }
 
 #if ANDROID
+        // Hàm `SpeakWithAndroidTtsAsync`: xử lý logic liên quan trong file hiện tại.
         private async Task SpeakWithAndroidTtsAsync(string content, string localeCode, CancellationToken cancellationToken)
         {
             var tts = await EnsureAndroidTtsAsync(cancellationToken);
@@ -2689,6 +2874,7 @@ namespace FoodStreetAudioGuide
             await speakTcs.Task;
         }
 
+        // Hàm `EnsureAndroidTtsAsync`: đảm bảo trạng thái hoặc đăng ký cần thiết trong file hiện tại.
         private async Task<AndroidTextToSpeech> EnsureAndroidTtsAsync(CancellationToken cancellationToken)
         {
             if (_androidTts is not null)
@@ -2709,11 +2895,13 @@ namespace FoodStreetAudioGuide
         {
             private readonly MainPage _page;
 
+            // Hàm khởi tạo `AndroidTtsInitListener`: thiết lập trạng thái ban đầu cho đối tượng trong file hiện tại.
             public AndroidTtsInitListener(MainPage page)
             {
                 _page = page;
             }
 
+            // Hàm `OnInit`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
             public void OnInit(AndroidTtsOperationResult status)
             {
                 if (status == AndroidTtsOperationResult.Success)
@@ -2730,15 +2918,18 @@ namespace FoodStreetAudioGuide
         {
             private readonly MainPage _page;
 
+            // Hàm khởi tạo `AndroidTtsProgressListener`: thiết lập trạng thái ban đầu cho đối tượng trong file hiện tại.
             public AndroidTtsProgressListener(MainPage page)
             {
                 _page = page;
             }
 
+            // Hàm `OnStart`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
             public override void OnStart(string? utteranceId)
             {
             }
 
+            // Hàm `OnDone`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
             public override void OnDone(string? utteranceId)
             {
                 if (utteranceId == _page._androidTtsUtteranceId)
@@ -2748,6 +2939,7 @@ namespace FoodStreetAudioGuide
             }
 
             [Obsolete]
+            // Hàm `OnError`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
             public override void OnError(string? utteranceId)
             {
                 if (utteranceId == _page._androidTtsUtteranceId)
@@ -2758,6 +2950,7 @@ namespace FoodStreetAudioGuide
 
         }
 
+        // Hàm `EnsureAndroidBackgroundTracking`: đảm bảo trạng thái hoặc đăng ký cần thiết trong file hiện tại.
         private static void EnsureAndroidBackgroundTracking()
         {
             var context = Android.App.Application.Context;
@@ -2765,6 +2958,7 @@ namespace FoodStreetAudioGuide
             StartAndroidBackgroundTracking(context, intent);
         }
 
+        // Hàm `StartAndroidBackgroundTracking`: khởi động tiến trình hoặc tác vụ liên quan trong file hiện tại.
         private static void StartAndroidBackgroundTracking(Android.Content.Context context, Intent intent)
         {
             if (OperatingSystem.IsAndroidVersionAtLeast(26))
@@ -2777,12 +2971,14 @@ namespace FoodStreetAudioGuide
         }
 
         [SupportedOSPlatform("android26.0")]
+        // Hàm `StartAndroidForegroundService`: khởi động tiến trình hoặc tác vụ liên quan trong file hiện tại.
         private static void StartAndroidForegroundService(Android.Content.Context context, Intent intent)
         {
             context.StartForegroundService(intent);
         }
 #endif
 
+        // Hàm `NavigateBackAsync`: điều hướng tới màn hình hoặc luồng liên quan trong file hiện tại.
         private async Task NavigateBackAsync()
         {
             if (Navigation.NavigationStack.Count > 1)

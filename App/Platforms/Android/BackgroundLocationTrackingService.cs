@@ -13,6 +13,7 @@ public sealed class BackgroundLocationTrackingService : Service
 
     public override IBinder? OnBind(Intent? intent) => null;
 
+    // Hàm `OnStartCommand`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
     public override StartCommandResult OnStartCommand(Intent? intent, StartCommandFlags flags, int startId)
     {
         StartForeground(1001, BuildNotification());
@@ -26,6 +27,7 @@ public sealed class BackgroundLocationTrackingService : Service
         return StartCommandResult.Sticky;
     }
 
+    // Hàm `OnDestroy`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
     public override void OnDestroy()
     {
         _cts?.Cancel();
@@ -34,6 +36,7 @@ public sealed class BackgroundLocationTrackingService : Service
         base.OnDestroy();
     }
 
+    // Hàm `BuildNotification`: tạo nội dung hoặc cấu trúc cần dùng trong file hiện tại.
     private Notification BuildNotification()
     {
         return OperatingSystem.IsAndroidVersionAtLeast(26)
@@ -42,6 +45,7 @@ public sealed class BackgroundLocationTrackingService : Service
     }
 
     [SupportedOSPlatform("android26.0")]
+    // Hàm `BuildNotificationApi26`: tạo nội dung hoặc cấu trúc cần dùng trong file hiện tại.
     private Notification BuildNotificationApi26()
     {
         var manager = (NotificationManager?)GetSystemService(NotificationService);
@@ -63,6 +67,7 @@ public sealed class BackgroundLocationTrackingService : Service
     }
 
     [UnsupportedOSPlatform("android26.0")]
+    // Hàm `BuildNotificationLegacy`: tạo nội dung hoặc cấu trúc cần dùng trong file hiện tại.
     private Notification BuildNotificationLegacy()
     {
         return new Notification.Builder(this)
@@ -73,6 +78,7 @@ public sealed class BackgroundLocationTrackingService : Service
             .Build();
     }
 
+    // Hàm `RunAsync`: xử lý logic liên quan trong file hiện tại.
     private static async Task RunAsync(CancellationToken cancellationToken)
     {
         using var httpClient = new HttpClient

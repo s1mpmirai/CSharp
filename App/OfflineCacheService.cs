@@ -5,6 +5,7 @@ namespace FoodStreetAudioGuide
 {
     public class OfflineCacheService
     {
+        // Hàm `new`: xử lý logic liên quan trong file hiện tại.
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
             PropertyNameCaseInsensitive = true,
@@ -23,6 +24,7 @@ namespace FoodStreetAudioGuide
         private bool _stallsLoaded;
         private const int CurrentStallsCacheVersion = 2;
 
+        // Hàm khởi tạo `OfflineCacheService`: thiết lập trạng thái ban đầu cho đối tượng trong file hiện tại.
         public OfflineCacheService()
         {
             _cacheRoot = Path.Combine(FileSystem.AppDataDirectory, "offline-cache");
@@ -38,6 +40,7 @@ namespace FoodStreetAudioGuide
             Directory.CreateDirectory(_imagesDirectory);
         }
 
+        // Hàm `SaveStallsAsync`: lưu dữ liệu hoặc trạng thái liên quan trong file hiện tại.
         public async Task SaveStallsAsync(IReadOnlyCollection<StallItem> stalls)
         {
             await EnsureStallsCacheReadyAsync();
@@ -47,6 +50,7 @@ namespace FoodStreetAudioGuide
             await JsonSerializer.SerializeAsync(stream, stalls, JsonOptions);
         }
 
+        // Hàm `LoadStallsAsync`: tải dữ liệu hoặc trạng thái cần thiết trong file hiện tại.
         public async Task<List<StallItem>> LoadStallsAsync()
         {
             await EnsureStallsCacheReadyAsync();
@@ -80,6 +84,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `ClearStallsCacheAsync`: xử lý logic liên quan trong file hiện tại.
         public async Task ClearStallsCacheAsync()
         {
             if (File.Exists(_stallsCacheFile))
@@ -92,6 +97,7 @@ namespace FoodStreetAudioGuide
             await WriteStallsCacheVersionAsync();
         }
 
+        // Hàm `SaveImageAsync`: lưu dữ liệu hoặc trạng thái liên quan trong file hiện tại.
         public async Task<string> SaveImageAsync(int stallId, string originalUrl, byte[] bytes, string variant = "full")
         {
             var extension = GetImageExtension(originalUrl);
@@ -100,6 +106,7 @@ namespace FoodStreetAudioGuide
             return filePath;
         }
 
+        // Hàm `TryGetCachedImagePath`: xử lý logic liên quan trong file hiện tại.
         public string? TryGetCachedImagePath(int stallId, string originalUrl, string variant = "full")
         {
             var extension = GetImageExtension(originalUrl);
@@ -107,6 +114,7 @@ namespace FoodStreetAudioGuide
             return File.Exists(filePath) ? filePath : null;
         }
 
+        // Hàm `LoadPendingListeningLogsAsync`: tải dữ liệu hoặc trạng thái cần thiết trong file hiện tại.
         public async Task<List<PendingListeningLog>> LoadPendingListeningLogsAsync()
         {
             if (!File.Exists(_pendingLogsFile))
@@ -119,6 +127,7 @@ namespace FoodStreetAudioGuide
             return logs ?? new List<PendingListeningLog>();
         }
 
+        // Hàm `QueueListeningLogAsync`: xử lý logic liên quan trong file hiện tại.
         public async Task QueueListeningLogAsync(PendingListeningLog log)
         {
             var logs = await LoadPendingListeningLogsAsync();
@@ -126,12 +135,14 @@ namespace FoodStreetAudioGuide
             await SavePendingListeningLogsAsync(logs);
         }
 
+        // Hàm `SavePendingListeningLogsAsync`: lưu dữ liệu hoặc trạng thái liên quan trong file hiện tại.
         public async Task SavePendingListeningLogsAsync(IReadOnlyCollection<PendingListeningLog> logs)
         {
             await using var stream = File.Create(_pendingLogsFile);
             await JsonSerializer.SerializeAsync(stream, logs, JsonOptions);
         }
 
+        // Hàm `LoadPendingLocationLogsAsync`: tải dữ liệu hoặc trạng thái cần thiết trong file hiện tại.
         public async Task<List<PendingLocationLog>> LoadPendingLocationLogsAsync()
         {
             if (!File.Exists(_pendingLocationFile))
@@ -144,6 +155,7 @@ namespace FoodStreetAudioGuide
             return logs ?? new List<PendingLocationLog>();
         }
 
+        // Hàm `QueueLocationLogAsync`: xử lý logic liên quan trong file hiện tại.
         public async Task QueueLocationLogAsync(PendingLocationLog log)
         {
             var logs = await LoadPendingLocationLogsAsync();
@@ -151,12 +163,14 @@ namespace FoodStreetAudioGuide
             await SavePendingLocationLogsAsync(logs);
         }
 
+        // Hàm `SavePendingLocationLogsAsync`: lưu dữ liệu hoặc trạng thái liên quan trong file hiện tại.
         public async Task SavePendingLocationLogsAsync(IReadOnlyCollection<PendingLocationLog> logs)
         {
             await using var stream = File.Create(_pendingLocationFile);
             await JsonSerializer.SerializeAsync(stream, logs, JsonOptions);
         }
 
+        // Hàm `GetOrCreateDeviceId`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         public string GetOrCreateDeviceId()
         {
             if (File.Exists(_deviceIdFile))
@@ -173,6 +187,7 @@ namespace FoodStreetAudioGuide
             return newValue;
         }
 
+        // Hàm `GetOrCreateSessionId`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         public string GetOrCreateSessionId()
         {
             if (File.Exists(_sessionIdFile))
@@ -189,6 +204,7 @@ namespace FoodStreetAudioGuide
             return newValue;
         }
 
+        // Hàm `GetImageExtension`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         private static string GetImageExtension(string originalUrl)
         {
             if (Uri.TryCreate(originalUrl, UriKind.Absolute, out var uri))
@@ -203,6 +219,7 @@ namespace FoodStreetAudioGuide
             return ".jpg";
         }
 
+        // Hàm `EnsureStallsCacheReadyAsync`: đảm bảo trạng thái hoặc đăng ký cần thiết trong file hiện tại.
         private async Task EnsureStallsCacheReadyAsync()
         {
             var storedVersion = await ReadStallsCacheVersionAsync();
@@ -221,6 +238,7 @@ namespace FoodStreetAudioGuide
             await WriteStallsCacheVersionAsync();
         }
 
+        // Hàm `ReadStallsCacheVersionAsync`: xử lý logic liên quan trong file hiện tại.
         private async Task<int?> ReadStallsCacheVersionAsync()
         {
             if (!File.Exists(_stallsCacheVersionFile))
@@ -232,6 +250,7 @@ namespace FoodStreetAudioGuide
             return int.TryParse(raw.Trim(), out var version) ? version : null;
         }
 
+        // Hàm `WriteStallsCacheVersionAsync`: xử lý logic liên quan trong file hiện tại.
         private Task WriteStallsCacheVersionAsync()
         {
             return File.WriteAllTextAsync(_stallsCacheVersionFile, CurrentStallsCacheVersion.ToString());

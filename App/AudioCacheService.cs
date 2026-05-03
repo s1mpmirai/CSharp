@@ -15,6 +15,7 @@ namespace FoodStreetAudioGuide
         private readonly ConcurrentDictionary<string, Task<string?>> _inflightAudioDownloads = new();
         private readonly string _audioProfileVersion;
 
+        // Hàm khởi tạo `AudioCacheService`: thiết lập trạng thái ban đầu cho đối tượng trong file hiện tại.
         public AudioCacheService(HttpClient httpClient)
         {
             _httpClient = httpClient;
@@ -24,6 +25,7 @@ namespace FoodStreetAudioGuide
             DeleteStaleAudioFiles();
         }
 
+        // Hàm `GetPlayableAudioPathAsync`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         public async Task<string?> GetPlayableAudioPathAsync(StallItem stall, string languageCode)
         {
             var localPath = GetAudioPath(stall.Id, languageCode, stall.GetScript(languageCode));
@@ -53,6 +55,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `DownloadAudioAsync`: xử lý logic liên quan trong file hiện tại.
         private async Task<string?> DownloadAudioAsync(string localPath, int stallId, string languageCode, string scriptText)
         {
             try
@@ -77,18 +80,21 @@ namespace FoodStreetAudioGuide
             return File.Exists(localPath) ? localPath : null;
         }
 
+        // Hàm `HasCachedAudio`: kiểm tra trạng thái hoặc dữ liệu liên quan trong file hiện tại.
         public bool HasCachedAudio(StallItem stall, string languageCode)
         {
             DeleteOlderAudioVariants(stall.Id, languageCode, stall.GetScript(languageCode));
             return File.Exists(GetAudioPath(stall.Id, languageCode, stall.GetScript(languageCode)));
         }
 
+        // Hàm `PreloadAudioAsync`: tải trước dữ liệu hoặc tài nguyên liên quan trong file hiện tại.
         public async Task<bool> PreloadAudioAsync(StallItem stall, string languageCode)
         {
             var path = await GetPlayableAudioPathAsync(stall, languageCode);
             return !string.IsNullOrWhiteSpace(path) && File.Exists(path);
         }
 
+        // Hàm `PreloadTopStallsAsync`: tải trước dữ liệu hoặc tài nguyên liên quan trong file hiện tại.
         public async Task<IReadOnlyList<int>> PreloadTopStallsAsync(IEnumerable<StallItem> stalls, string languageCode, int limit = 5, CancellationToken cancellationToken = default)
         {
             var cachedIds = new List<int>();
@@ -132,6 +138,7 @@ namespace FoodStreetAudioGuide
             return cachedIds;
         }
 
+        // Hàm `GetDownloadedAudioItems`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         public List<DownloadedAudioItem> GetDownloadedAudioItems()
         {
             if (!Directory.Exists(_audioDirectory))
@@ -153,6 +160,7 @@ namespace FoodStreetAudioGuide
                 .ToList();
         }
 
+        // Hàm `DeleteCachedAudio`: xóa dữ liệu hoặc trạng thái liên quan trong file hiện tại.
         public bool DeleteCachedAudio(string filePath)
         {
             if (!File.Exists(filePath))
@@ -164,6 +172,7 @@ namespace FoodStreetAudioGuide
             return true;
         }
 
+        // Hàm `GetAudioPath`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         private string GetAudioPath(int stallId, string languageCode, string scriptText)
         {
             var safeLanguageCode = SanitizeLanguageCode(languageCode);
@@ -171,6 +180,7 @@ namespace FoodStreetAudioGuide
             return Path.Combine(_audioDirectory, $"stall-{stallId}-{safeLanguageCode}-{_audioProfileVersion}-{scriptFingerprint}.mp3");
         }
 
+        // Hàm `DeleteStaleAudioFiles`: xóa dữ liệu hoặc trạng thái liên quan trong file hiện tại.
         private void DeleteStaleAudioFiles()
         {
             foreach (var path in Directory.GetFiles(_audioDirectory, "stall-*-*.mp3"))
@@ -183,6 +193,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `DeleteOlderAudioVariants`: xóa dữ liệu hoặc trạng thái liên quan trong file hiện tại.
         private void DeleteOlderAudioVariants(int stallId, string languageCode, string currentScriptText)
         {
             var safeLanguageCode = SanitizeLanguageCode(languageCode);
@@ -196,6 +207,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `TryDelete`: xử lý logic liên quan trong file hiện tại.
         private static void TryDelete(string path)
         {
             try
@@ -208,16 +220,19 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `SanitizeSegment`: xử lý logic liên quan trong file hiện tại.
         private static string SanitizeSegment(string value)
         {
             return value.Replace("/", "-").Replace("\\", "-").Replace(":", "-").Trim();
         }
 
+        // Hàm `SanitizeLanguageCode`: xử lý logic liên quan trong file hiện tại.
         private static string SanitizeLanguageCode(string value)
         {
             return SanitizeSegment(value).Replace("-", "_");
         }
 
+        // Hàm `BuildScriptFingerprint`: tạo nội dung hoặc cấu trúc cần dùng trong file hiện tại.
         private string BuildScriptFingerprint(string scriptText, string languageCode)
         {
             var normalized = $"{_audioProfileVersion}:{languageCode}:{scriptText ?? string.Empty}";
@@ -225,6 +240,7 @@ namespace FoodStreetAudioGuide
             return Convert.ToHexString(bytes)[..16].ToLowerInvariant();
         }
 
+        // Hàm `CanAttemptBackendRequest`: kiểm tra điều kiện liên quan trong file hiện tại.
         private static bool CanAttemptBackendRequest()
         {
             return Connectivity.Current.NetworkAccess != NetworkAccess.None;

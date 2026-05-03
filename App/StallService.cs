@@ -7,21 +7,34 @@ namespace FoodStreetAudioGuide
 {
     public class StallService
     {
+        // Thời gian sống của cache dữ liệu bản đồ.
+        // Tăng giá trị này sẽ giảm gọi API map nhưng dữ liệu POI trên bản đồ cũ lâu hơn.
         private static readonly TimeSpan MapCacheLifetime = TimeSpan.FromSeconds(45);
+        // Số ảnh stall tối đa được preload sau mỗi lần refresh dữ liệu.
+        // Tăng giá trị này sẽ làm app mượt hơn nhưng tiêu tốn mạng và bộ nhớ hơn.
         private const int MaxPrimedImagesPerRefresh = 12;
+        // Số ảnh được tải song song tối đa khi prime cache.
+        // Tăng lên có thể nhanh hơn nhưng dễ tạo tải mạng mạnh hơn.
         private const int MaxConcurrentImageDownloads = 4;
+        // HttpClient dùng cho toàn bộ request từ app sang backend.
         private readonly HttpClient _httpClient;
+        // Cache offline để app vẫn có dữ liệu khi backend/mạng lỗi.
         private readonly OfflineCacheService _offlineCache;
+        // Cache danh sách stall cho màn hình bản đồ.
         private List<StallItem>? _cachedMapStalls;
+        // Thời điểm cache bản đồ hiện tại được tạo.
         private DateTime _cachedMapStallsAtUtc;
+        // Event để UI biết cache ảnh đã đổi và cần refresh preview.
         public event Action<IReadOnlyList<StallItem>>? ImageCacheUpdated;
 
+        // Hàm khởi tạo `StallService`: thiết lập trạng thái ban đầu cho đối tượng trong file hiện tại.
         public StallService(HttpClient httpClient, OfflineCacheService offlineCache)
         {
             _httpClient = httpClient;
             _offlineCache = offlineCache;
         }
 
+        // Hàm `GetNearbyStallsAsync`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         public async Task<List<StallItem>> GetNearbyStallsAsync(double lat, double lng)
         {
             if (!CanAttemptBackendRequest())
@@ -72,6 +85,7 @@ namespace FoodStreetAudioGuide
             return await _offlineCache.LoadStallsAsync();
         }
 
+        // Hàm `GetMapStallsAsync`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         public async Task<List<StallItem>> GetMapStallsAsync(double? lat = null, double? lng = null)
         {
             if (TryGetFreshMapCache(out var cachedMapStalls))
@@ -131,6 +145,7 @@ namespace FoodStreetAudioGuide
             return fallbackStalls;
         }
 
+        // Hàm `TryResolveQrLocally`: xử lý logic liên quan trong file hiện tại.
         public StallItem? TryResolveQrLocally(string qrCodeValue, IEnumerable<StallItem> candidates)
         {
             if (!TryExtractQrStallId(qrCodeValue, out var stallId))
@@ -141,11 +156,13 @@ namespace FoodStreetAudioGuide
             return candidates.FirstOrDefault(item => item.Id == stallId);
         }
 
+        // Hàm `LoadCachedStallsAsync`: tải dữ liệu hoặc trạng thái cần thiết trong file hiện tại.
         public Task<List<StallItem>> LoadCachedStallsAsync()
         {
             return _offlineCache.LoadStallsAsync();
         }
 
+        // Hàm `GetSyncVersionAsync`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         public async Task<string?> GetSyncVersionAsync(CancellationToken cancellationToken = default)
         {
             if (!CanAttemptBackendRequest())
@@ -174,6 +191,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `SearchStallsAsync`: xử lý logic liên quan trong file hiện tại.
         public async Task<List<StallItem>> SearchStallsAsync(
             string query,
             double? lat = null,
@@ -227,6 +245,7 @@ namespace FoodStreetAudioGuide
             return new List<StallItem>();
         }
 
+        // Hàm `ResolveQrAsync`: xử lý logic liên quan trong file hiện tại.
         public async Task<StallItem?> ResolveQrAsync(string qrCodeValue, double? lat = null, double? lng = null)
         {
             if (string.IsNullOrWhiteSpace(qrCodeValue))
@@ -298,6 +317,7 @@ namespace FoodStreetAudioGuide
             return null;
         }
 
+        // Hàm `GetStallDetailAsync`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         public async Task<StallItem?> GetStallDetailAsync(int stallId, double? lat = null, double? lng = null)
         {
             if (stallId <= 0 || !CanAttemptBackendRequest())
@@ -354,6 +374,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `SubmitRatingAsync`: gửi dữ liệu hoặc yêu cầu liên quan trong file hiện tại.
         public async Task<StallItem?> SubmitRatingAsync(int stallId, int rating, Location? location = null)
         {
             if (stallId <= 0 || rating is < 1 or > 5 || !CanAttemptBackendRequest())
@@ -398,6 +419,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `TryGetFreshMapCache`: xử lý logic liên quan trong file hiện tại.
         private bool TryGetFreshMapCache(out List<StallItem> stalls)
         {
             if (_cachedMapStalls is { Count: > 0 } &&
@@ -411,6 +433,7 @@ namespace FoodStreetAudioGuide
             return false;
         }
 
+        // Hàm `CacheMapStalls`: xử lý logic liên quan trong file hiện tại.
         private void CacheMapStalls(List<StallItem> stalls)
         {
             if (stalls.Count == 0)
@@ -422,6 +445,7 @@ namespace FoodStreetAudioGuide
             _cachedMapStallsAtUtc = DateTime.UtcNow;
         }
 
+        // Hàm `MergeIntoMapCache`: xử lý logic liên quan trong file hiện tại.
         private void MergeIntoMapCache(StallItem stall)
         {
             if (_cachedMapStalls is null || _cachedMapStalls.Count == 0)
@@ -443,6 +467,7 @@ namespace FoodStreetAudioGuide
             _cachedMapStallsAtUtc = DateTime.UtcNow;
         }
 
+        // Hàm `TryExtractQrStallId`: xử lý logic liên quan trong file hiện tại.
         private static bool TryExtractQrStallId(string qrCodeValue, out int stallId)
         {
             stallId = 0;
@@ -465,6 +490,7 @@ namespace FoodStreetAudioGuide
             public string? Version { get; set; }
         }
 
+        // Hàm `LogListeningAsync`: xử lý logic liên quan trong file hiện tại.
         public async Task LogListeningAsync(int stallId, string languageCode, int durationSeconds, Location? location = null)
         {
             if (stallId <= 0 || string.IsNullOrWhiteSpace(languageCode))
@@ -504,6 +530,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `LogLocationPingAsync`: xử lý logic liên quan trong file hiện tại.
         public async Task LogLocationPingAsync(Location location)
         {
             try
@@ -528,6 +555,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `NormalizeStalls`: xử lý logic liên quan trong file hiện tại.
         private List<StallItem> NormalizeStalls(List<StallItem> stalls)
         {
             var normalized = new List<StallItem>(stalls.Count);
@@ -557,6 +585,7 @@ namespace FoodStreetAudioGuide
             return normalized;
         }
 
+        // Hàm `PrimeImageCacheAsync`: xử lý logic liên quan trong file hiện tại.
         private async Task PrimeImageCacheAsync(List<StallItem> stalls)
         {
             var changed = 0;
@@ -602,6 +631,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `BuildAbsoluteUrl`: tạo nội dung hoặc cấu trúc cần dùng trong file hiện tại.
         private string BuildAbsoluteUrl(string imageUrl)
         {
             if (Uri.TryCreate(imageUrl, UriKind.Absolute, out _))
@@ -617,6 +647,7 @@ namespace FoodStreetAudioGuide
             return new Uri(_httpClient.BaseAddress, imageUrl.TrimStart('/')).ToString();
         }
 
+        // Hàm `MergeStallIntoOfflineCacheAsync`: xử lý logic liên quan trong file hiện tại.
         private async Task MergeStallIntoOfflineCacheAsync(StallItem refreshedStall)
         {
             try
@@ -642,6 +673,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `TryReadErrorDetailAsync`: xử lý logic liên quan trong file hiện tại.
         private static async Task<string?> TryReadErrorDetailAsync(HttpResponseMessage response)
         {
             try
@@ -666,6 +698,7 @@ namespace FoodStreetAudioGuide
             }
         }
 
+        // Hàm `QueueListeningLogAsync`: xử lý logic liên quan trong file hiện tại.
         private async Task QueueListeningLogAsync(int stallId, string languageCode, int durationSeconds, Location? location)
         {
             var sessionId = _offlineCache.GetOrCreateSessionId();
@@ -681,6 +714,7 @@ namespace FoodStreetAudioGuide
                 location?.Longitude));
         }
 
+        // Hàm `FlushPendingListeningLogsAsync`: xử lý logic liên quan trong file hiện tại.
         private async Task FlushPendingListeningLogsAsync()
         {
             var pendingLogs = await _offlineCache.LoadPendingListeningLogsAsync();
@@ -719,6 +753,7 @@ namespace FoodStreetAudioGuide
             await _offlineCache.SavePendingListeningLogsAsync(remainingLogs);
         }
 
+        // Hàm `QueueLocationLogAsync`: xử lý logic liên quan trong file hiện tại.
         private async Task QueueLocationLogAsync(Location location)
         {
             await _offlineCache.QueueLocationLogAsync(new PendingLocationLog(
@@ -730,6 +765,7 @@ namespace FoodStreetAudioGuide
                 DateTime.UtcNow));
         }
 
+        // Hàm `FlushPendingLocationLogsAsync`: xử lý logic liên quan trong file hiện tại.
         private async Task FlushPendingLocationLogsAsync()
         {
             var pendingLogs = await _offlineCache.LoadPendingLocationLogsAsync();
@@ -760,6 +796,7 @@ namespace FoodStreetAudioGuide
             await _offlineCache.SavePendingLocationLogsAsync(remainingLogs);
         }
 
+        // Hàm `BuildListeningLogFormData`: tạo nội dung hoặc cấu trúc cần dùng trong file hiện tại.
         private static MultipartFormDataContent BuildListeningLogFormData(
             int stallId,
             string languageCode,
@@ -778,6 +815,7 @@ namespace FoodStreetAudioGuide
                 location?.Longitude);
         }
 
+        // Hàm `BuildListeningLogFormData`: tạo nội dung hoặc cấu trúc cần dùng trong file hiện tại.
         private static MultipartFormDataContent BuildListeningLogFormData(
             int stallId,
             string languageCode,
@@ -823,6 +861,7 @@ namespace FoodStreetAudioGuide
             return formData;
         }
 
+        // Hàm `BuildLocationLogFormData`: tạo nội dung hoặc cấu trúc cần dùng trong file hiện tại.
         private MultipartFormDataContent BuildLocationLogFormData(Location location, string source)
         {
             return BuildLocationLogFormData(new PendingLocationLog(
@@ -834,6 +873,7 @@ namespace FoodStreetAudioGuide
                 DateTime.UtcNow));
         }
 
+        // Hàm `BuildLocationLogFormData`: tạo nội dung hoặc cấu trúc cần dùng trong file hiện tại.
         private static MultipartFormDataContent BuildLocationLogFormData(PendingLocationLog log)
         {
             return new MultipartFormDataContent
@@ -847,6 +887,7 @@ namespace FoodStreetAudioGuide
             };
         }
 
+        // Hàm `CanAttemptBackendRequest`: kiểm tra điều kiện liên quan trong file hiện tại.
         private static bool CanAttemptBackendRequest()
         {
             return Connectivity.Current.NetworkAccess != NetworkAccess.None;

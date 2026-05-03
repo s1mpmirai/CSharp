@@ -4,6 +4,7 @@ namespace FoodStreetAudioGuide;
 
 internal static class PoiMapHtmlFactory
 {
+    // Hàm `Create`: xử lý logic liên quan trong file hiện tại.
     public static string Create(
         IEnumerable<object> stallsPayload,
         double? userLat,

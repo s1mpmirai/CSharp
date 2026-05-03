@@ -1,4 +1,4 @@
- namespace FoodStreetAudioGuide
+namespace FoodStreetAudioGuide
 {
     internal static class ApiSettings
     {

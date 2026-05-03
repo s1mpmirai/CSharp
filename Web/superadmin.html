@@ -7,12 +7,14 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root {
+            /* Bộ màu tổng thể của dashboard superadmin. Đổi sẽ làm đổi tông toàn bộ trang quản trị. */
             --bg: #f8f6f2;
             --card: rgba(255, 255, 255, 0.92);
             --card-solid: #ffffff;
             --ink: #1d1814;
             --muted: #7d6e61;
             --line: rgba(141, 119, 97, 0.18);
+            /* Màu hành động chính/phụ cho nút và trạng thái quản trị. */
             --primary: #e07828;
             --primary-dark: #b85712;
             --primary-soft: rgba(224, 120, 40, 0.12);
@@ -710,6 +712,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
     <script>
+        // Các node gốc của layout và dialog quản trị.
         const shell = document.getElementById("shell");
         const sidebar = document.getElementById("sidebar");
         const createOwnerDialog = document.getElementById("createOwnerDialog");
@@ -717,28 +720,51 @@
         const requestDetailDialog = document.getElementById("requestDetailDialog");
         const requestApproveButton = document.getElementById("requestApproveButton");
         const requestRejectButton = document.getElementById("requestRejectButton");
+        // Giới hạn bản đồ quản trị trong phạm vi TP.HCM.
         const HCMC_BOUNDS = L.latLngBounds([[10.34, 106.22], [11.15, 107.02]]);
+        // Tâm mặc định của bản đồ heatmap.
         const HCMC_CENTER = [10.7626, 106.7045];
+        // Số user hiển thị mỗi trang. Tăng sẽ làm bảng dài hơn nhưng ít phải bấm chuyển trang hơn.
         const USERS_PER_PAGE = 10;
+        // Số dòng POI stats hiển thị mỗi trang.
         const POI_STATS_PER_PAGE = 10;
+        // Chu kỳ tự refresh dashboard superadmin. Giảm xuống thì số liệu/heatmap mới hơn nhưng tải API cao hơn.
         const DASHBOARD_REFRESH_INTERVAL_MS = 10000;
+        // Timer thu gọn sidebar.
         let collapseTimer = null;
+        // Cache danh sách owner/user đang dùng cho bảng và form.
         let cachedUsers = [];
+        // Cache thống kê POI để phân trang phía client.
         let cachedPoiStats = [];
+        // Cache danh mục để tái sử dụng trong form sửa stall.
         let cachedCategories = [];
+        // Instance map heatmap chính.
         let heatmapMap = null;
+        // Heat layer biểu diễn mật độ người dùng hoạt động.
         let heatLayer = null;
+        // Marker/layer phụ cho heatmap.
         let heatMarkers = null;
+        // Marker vị trí người dùng đang hoạt động gần đây.
         let activeUserMarkers = null;
+        // Request detail hiện đang được admin xem/xử lý.
         let currentRequestDetail = null;
+        // Cờ chặn thao tác approve/reject trùng lặp.
         let requestActionInFlight = false;
+        // Loại thao tác đang xử lý: approve hay reject.
         let requestActionType = "";
+        // Trang hiện tại của bảng users.
         let currentUsersPage = 1;
+        // Trang hiện tại của bảng POI stats.
         let currentPoiPage = 1;
+        // Timer định kỳ refresh dashboard.
         let dashboardRefreshTimer = null;
+        // Blob URL tạm dùng cho preview ảnh trong form edit.
         let editPreviewObjectUrl = "";
+        // Cache danh sách owner có thể nhận thông báo.
         let cachedNotificationRecipients = [];
+        // Cache lịch sử thông báo admin.
         let cachedNotificationHistory = [];
+        // Tập user id đang được chọn làm người nhận thông báo.
         let selectedRecipientIds = new Set();
 
         document.getElementById("createOwnerForm").addEventListener("submit", createOwner);
@@ -756,11 +782,13 @@
         wireDialogDismiss(editUserDialog, closeEditUserModal);
         wireDialogDismiss(requestDetailDialog, closeRequestDetailModal);
 
+        // Hàm `openSidebar`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function openSidebar() {
             clearTimeout(collapseTimer);
             shell.classList.add("sidebar-open");
         }
 
+        // Hàm `scheduleSidebarClose`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function scheduleSidebarClose() {
             clearTimeout(collapseTimer);
             if (!sidebar.matches(":hover") && !sidebar.contains(document.activeElement)) {
@@ -768,12 +796,14 @@
             }
         }
 
+        // Hàm `vietHoaVaiTro`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function vietHoaVaiTro(role) {
             if (role === "super_admin") return "Quản trị hệ thống";
             if (role === "stall_owner") return "Chủ gian hàng";
             return role || "";
         }
 
+        // Hàm `showView`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function showView(viewName, button = null) {
             document.querySelectorAll(".view").forEach(item => item.classList.remove("active"));
             document.getElementById(`view-${viewName}`).classList.add("active");
@@ -785,14 +815,17 @@
             }
         }
 
+        // Hàm `openCreateOwnerModal`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function openCreateOwnerModal() {
             showView("danh-sach-nguoi-dung");
             document.getElementById("createStatus").className = "status";
             createOwnerDialog.showModal();
         }
 
+        // Hàm `closeCreateOwnerModal`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function closeCreateOwnerModal() { createOwnerDialog.close(); }
 
+        // Hàm `openEditUserModal`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function openEditUserModal(userId) {
             const user = cachedUsers.find(item => item.id === userId);
             if (!user) return;
@@ -848,11 +881,13 @@
             editUserDialog.showModal();
         }
 
+        // Hàm `closeEditUserModal`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function closeEditUserModal() {
             updateEditImagePreview();
             editUserDialog.close();
         }
 
+        // Hàm `splitOpeningHours`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function splitOpeningHours(value) {
             const normalized = (value || "").trim().replace(/\s*[–—-]\s*/g, "-");
             if (!normalized) return { openingTime: "", closingTime: "" };
@@ -861,23 +896,28 @@
             return { openingTime: normalized, closingTime: "" };
         }
 
+        // Hàm `isClosingTimeAfterOpeningTime`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function isClosingTimeAfterOpeningTime(openingTime, closingTime) {
             return Boolean(openingTime && closingTime) && closingTime > openingTime;
         }
 
+        // Hàm `countWords`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function countWords(text) {
             const matches = String(text || "").trim().match(/[\p{L}\p{N}]+/gu);
             return matches ? matches.length : 0;
         }
 
+        // Hàm `hasMinimumScriptWords`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function hasMinimumScriptWords(text) {
             return countWords(text) >= 100;
         }
 
+        // Hàm `hasBrokenNameEncoding`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function hasBrokenNameEncoding(value) {
             return /Ã|á»|áº|Ä|Å|Æ|ç|ñ/.test(String(value || ""));
         }
 
+        // Hàm `formatOwnerFullName`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function formatOwnerFullName(user, index = 0) {
             const rawName = String(user?.full_name || "").trim();
             const stallName = String(user?.stall_name || user?.stall?.name || "").trim();
@@ -898,6 +938,7 @@
             return `Chủ gian hàng ${index + 1}`;
         }
 
+        // Hàm `renderUsersTable`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function renderUsersTable() {
             const totalUsers = cachedUsers.length;
             const totalPages = Math.max(1, Math.ceil(totalUsers / USERS_PER_PAGE));
@@ -933,6 +974,7 @@
             nextButton.disabled = currentUsersPage >= totalPages;
         }
 
+        // Hàm `changeUsersPage`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function changeUsersPage(offset) {
             const totalPages = Math.max(1, Math.ceil(cachedUsers.length / USERS_PER_PAGE));
             const nextPage = currentUsersPage + offset;
@@ -944,6 +986,7 @@
             renderUsersTable();
         }
 
+        // Hàm `renderPoiStatsTable`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function renderPoiStatsTable() {
             const totalRows = cachedPoiStats.length;
             const totalPages = Math.max(1, Math.ceil(totalRows / POI_STATS_PER_PAGE));
@@ -965,6 +1008,7 @@
             nextButton.disabled = currentPoiPage >= totalPages;
         }
 
+        // Hàm `changePoiPage`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function changePoiPage(offset) {
             const totalPages = Math.max(1, Math.ceil(cachedPoiStats.length / POI_STATS_PER_PAGE));
             const nextPage = currentPoiPage + offset;
@@ -976,6 +1020,7 @@
             renderPoiStatsTable();
         }
 
+        // Hàm `api`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function api(path, options = {}) {
             const res = await fetch(path, { ...options, credentials: "include", headers: { ...(options.headers || {}) } });
             const body = await safeJson(res);
@@ -984,10 +1029,12 @@
             return body;
         }
 
+        // Hàm `safeJson`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function safeJson(response) {
             try { return await response.json(); } catch { return null; }
         }
 
+        // Hàm `formatApiError`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function formatApiError(body) {
             const detail = body?.detail;
             if (!detail) return "";
@@ -997,6 +1044,7 @@
             return String(detail);
         }
 
+        // Hàm `wireDialogDismiss`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function wireDialogDismiss(dialog, closeHandler) {
             dialog.addEventListener("click", (event) => {
                 const rect = dialog.getBoundingClientRect();
@@ -1009,12 +1057,14 @@
             });
         }
 
+        // Hàm `setRequestDetailState`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function setRequestDetailState(message = "", isError = false) {
             const note = document.getElementById("requestDetailNote");
             note.textContent = message;
             note.className = message ? `status show ${isError ? "err" : "ok"}` : "status";
         }
 
+        // Hàm `setRequestActionBusy`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function setRequestActionBusy(isBusy, actionType = "") {
             requestActionInFlight = isBusy;
             requestActionType = isBusy ? actionType : "";
@@ -1024,10 +1074,12 @@
             requestRejectButton.textContent = isBusy && actionType === "reject" ? "Đang từ chối..." : "Từ chối";
         }
 
+        // Hàm `notifyAdminAction`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function notifyAdminAction(message) {
             window.alert(message);
         }
 
+        // Hàm `startDashboardAutoRefresh`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function startDashboardAutoRefresh() {
             stopDashboardAutoRefresh();
             dashboardRefreshTimer = setInterval(() => {
@@ -1040,6 +1092,7 @@
             }, DASHBOARD_REFRESH_INTERVAL_MS);
         }
 
+        // Hàm `stopDashboardAutoRefresh`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function stopDashboardAutoRefresh() {
             if (!dashboardRefreshTimer) {
                 return;
@@ -1049,6 +1102,7 @@
             dashboardRefreshTimer = null;
         }
 
+        // Hàm `normalizeImageUrl`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function normalizeImageUrl(value) {
             const raw = String(value || "").trim();
             if (!raw) return "";
@@ -1067,6 +1121,7 @@
             return `/${raw}`;
         }
 
+        // Hàm `updateEditImagePreview`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function updateEditImagePreview(src = "") {
             const preview = document.getElementById("edit_image_preview");
             const normalizedSrc = normalizeImageUrl(src);
@@ -1089,6 +1144,7 @@
             preview.style.display = "block";
         }
 
+        // Hàm `bootstrap`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function bootstrap() {
             const me = await api("/auth/me");
             if (!me || me.user.role !== "super_admin") return;
@@ -1099,12 +1155,14 @@
             startDashboardAutoRefresh();
         }
 
+        // Hàm `renderEditCategoryOptions`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function renderEditCategoryOptions(selectedValue = "") {
             const select = document.getElementById("edit_category_id");
             select.innerHTML = cachedCategories.map(item => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("");
             if (selectedValue !== "") select.value = String(selectedValue);
         }
 
+        // Hàm `ensureHeatmap`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function ensureHeatmap() {
             if (heatmapMap) return;
             heatmapMap = L.map("heatmap", {
@@ -1120,6 +1178,7 @@
             activeUserMarkers = L.layerGroup().addTo(heatmapMap);
         }
 
+        // Hàm `renderHeatmap`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function renderHeatmap(points, activeUsers = []) {
             ensureHeatmap();
 
@@ -1187,11 +1246,15 @@
             document.getElementById("heatmapHint").textContent = `${activeUsers.length} người dùng đang hoạt động trong 5 phút gần nhất`;
         }
 
+        // Hàm `loadAllData`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function loadAllData() {
             await Promise.all([loadDashboard(), loadUsers(), loadRequests(), loadNotificationModule()]);
         }
 
-        //Thay đổi set cứng ở FE ở đây nếu muốn thêm/bớt thông số hiển thị trên dashboard. (Không liên quan đến BE)
+        // Hàm `loadDashboard`: xử lý luồng JavaScript liên quan trong file hiện tại.
+        // Thay đổi set cứng ở FE ở đây nếu muốn thêm/bớt thông số hiển thị trên dashboard. (Không liên quan đến BE)
+        async function loadDashboard() {
+         (Update backend)
         async function loadDashboard() {
             const data = await api("/admin/dashboard");
             document.getElementById("m1").textContent = data.metrics.total_stalls;
@@ -1216,6 +1279,7 @@
             renderHeatmap(data.heatmap_points || [], data.active_user_positions || []);
         }
 
+        // Hàm `loadUsers`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function loadUsers() {
             const data = await api("/admin/users");
             cachedUsers = data.users || [];
@@ -1224,15 +1288,18 @@
             renderUsersTable();
         }
 
+        // Hàm `loadRequests`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function loadRequests() {
             const data = await api("/admin/update-requests");
             document.getElementById("requestsBody").innerHTML = data.items.map(item => `<tr><td>${escapeHtml(item.stall_name)}</td><td>${escapeHtml(item.name)}</td><td>${formatSpecialties(item.specialties)}</td><td>${Math.round(item.poi_radius_m || 0)}m</td><td>${escapeHtml(item.opening_hours || "")}</td><td>${item.is_open ? "Đang mở" : "Đang đóng"}</td><td><div class="action-group"><button class="btn btn-ok btn-small" type="button" onclick="openRequestDetail(${item.id})">Xem chi tiết</button><button class="btn btn-no btn-small" type="button" onclick="rejectRequest(${item.id})">Từ chối</button></div></td></tr>`).join("") || `<tr><td colspan="7">Hiện chưa có yêu cầu chờ duyệt</td></tr>`;
         }
 
+        // Hàm `getSelectedRecipientIds`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function getSelectedRecipientIds() {
             return Array.from(selectedRecipientIds.values());
         }
 
+        // Hàm `handleRecipientCheckboxChange`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function handleRecipientCheckboxChange(checkbox) {
             const recipientId = Number(checkbox?.value || 0);
             if (!recipientId) return;
@@ -1241,6 +1308,7 @@
             updateRecipientSummary();
         }
 
+        // Hàm `updateRecipientSummary`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function updateRecipientSummary() {
             const scope = document.getElementById("notification_scope").value;
             const summary = document.getElementById("recipientSummary");
@@ -1255,6 +1323,7 @@
             summary.textContent = `${getSelectedRecipientIds().length} người nhận được chọn`;
         }
 
+        // Hàm `renderRecipientChooser`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function renderRecipientChooser() {
             const scope = document.getElementById("notification_scope").value;
             const chooser = document.getElementById("recipientChooser");
@@ -1277,6 +1346,7 @@
             updateRecipientSummary();
         }
 
+        // Hàm `renderNotificationHistory`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function renderNotificationHistory() {
             const container = document.getElementById("notificationHistory");
             if (!cachedNotificationHistory.length) {
@@ -1286,6 +1356,7 @@
             container.innerHTML = cachedNotificationHistory.map(item => `<div class="history-card"><strong>${escapeHtml(item.title)}</strong><div class="history-meta">Gửi lúc: ${escapeHtml(formatDateTime(item.created_at))}<br>Người gửi: ${escapeHtml(item.created_by || "Admin")}<br>Đối tượng: ${escapeHtml(formatRecipientScope(item.recipient_scope))}<br>Đã đọc: ${item.read_count}/${item.recipient_count}</div><div class="history-message">${escapeHtml(item.message)}</div><div class="history-meta" style="margin-top:12px;">Người nhận: ${item.recipients.length ? item.recipients.map(recipient => escapeHtml(recipient.full_name || recipient.username)).join(", ") : "Không có"}</div></div>`).join("");
         }
 
+        // Hàm `loadNotificationModule`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function loadNotificationModule() {
             const [recipients, history] = await Promise.all([api("/admin/notification-recipients"), api("/admin/notifications")]);
             cachedNotificationRecipients = recipients?.items || [];
@@ -1295,6 +1366,7 @@
             renderNotificationHistory();
         }
 
+        // Hàm `sendAdminNotification`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function sendAdminNotification(event) {
             event.preventDefault();
             const payload = {
@@ -1320,6 +1392,7 @@
             }
         }
 
+        // Hàm `createOwner`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function createOwner(event) {
             event.preventDefault();
             const payload = {
@@ -1343,6 +1416,7 @@
             }
         }
 
+        // Hàm `updateUser`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function updateUser(event) {
             event.preventDefault();
             const userId = document.getElementById("edit_user_id").value;
@@ -1400,6 +1474,7 @@
             }
         }
 
+        // Hàm `previewEditImage`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function previewEditImage(event) {
             const file = event.target.files[0];
             if (!file) {
@@ -1413,6 +1488,7 @@
             updateEditImagePreview(editPreviewObjectUrl);
         }
 
+        // Hàm `hideUser`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function hideUser(id, displayName) {
             const confirmed = confirm(`Bạn có muốn vô hiệu hóa người dùng ${displayName} không?`);
             if (!confirmed) return;
@@ -1420,6 +1496,7 @@
             await loadAllData();
         }
 
+        // Hàm `activateUser`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function activateUser(id, displayName) {
             const confirmed = confirm(`Bạn có muốn khôi phục người dùng ${displayName} không?`);
             if (!confirmed) return;
@@ -1427,6 +1504,7 @@
             await loadAllData();
         }
 
+        // Hàm `openRequestDetail`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function openRequestDetail(id) {
             const data = await api(`/admin/update-requests/${id}`);
             currentRequestDetail = data?.item || null;
@@ -1459,6 +1537,7 @@
             requestDetailDialog.showModal();
         }
 
+        // Hàm `closeRequestDetailModal`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function closeRequestDetailModal() {
             currentRequestDetail = null;
             setRequestDetailState();
@@ -1466,6 +1545,7 @@
             requestDetailDialog.close();
         }
 
+        // Hàm `approveCurrentRequest`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function approveCurrentRequest() {
             if (!currentRequestDetail || requestActionInFlight) return;
             setRequestActionBusy(true, "approve");
@@ -1485,6 +1565,7 @@
             }
         }
 
+        // Hàm `rejectRequest`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function rejectRequest(id) {
             if (requestActionInFlight) return;
             const confirmed = confirm("Bạn có muốn từ chối yêu cầu này không?");
@@ -1520,22 +1601,26 @@
             }
         }
 
+        // Hàm `rejectCurrentRequest`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function rejectCurrentRequest() {
             if (!currentRequestDetail) return;
             await rejectRequest(currentRequestDetail.id);
         }
 
+        // Hàm `showStatus`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function showStatus(id, message, isError = false) {
             const el = document.getElementById(id);
             el.textContent = message;
             el.className = `status show ${isError ? "err" : "ok"}`;
         }
 
+        // Hàm `logout`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function logout() {
             await fetch("/auth/logout", { method: "POST", credentials: "include" });
             location.href = "/login";
         }
 
+        // Hàm `togglePasswordVisibility`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function togglePasswordVisibility(inputId, button) {
             const input = document.getElementById(inputId);
             if (!input) return;
@@ -1544,10 +1629,12 @@
             button.textContent = nextType === "password" ? "👁" : "🙈";
         }
 
+        // Hàm `isValidEmail`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function isValidEmail(value) {
             return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(String(value || "").trim());
         }
 
+        // Hàm `formatRecipientScope`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function formatRecipientScope(value) {
             if (value === "all_owners") return "Tất cả chủ gian hàng";
             if (value === "active_owners") return "Chủ gian hàng đang hoạt động";
@@ -1555,19 +1642,23 @@
             return value || "";
         }
 
+        // Hàm `escapeHtml`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function escapeHtml(text) {
             return String(text ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
         }
 
+        // Hàm `escapeJs`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function escapeJs(text) {
             return String(text ?? "").replaceAll("\\", "\\\\").replaceAll("'", "\\'");
         }
 
+        // Hàm `formatSpecialties`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function formatSpecialties(items) {
             if (!Array.isArray(items) || !items.length) return "";
             return items.map(item => escapeHtml(item)).join("<br>");
         }
 
+        // Hàm `isImageUrl`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function isImageUrl(value) {
             const normalized = normalizeImageUrl(value).toLowerCase();
             return Boolean(normalized) && (
@@ -1582,6 +1673,7 @@
             );
         }
 
+        // Hàm `formatDetailValue`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function formatDetailValue(value) {
             if (Array.isArray(value)) {
                 return value.length ? value.map(item => `<div>${escapeHtml(item)}</div>`).join("") : "<em>Trống</em>";
@@ -1594,6 +1686,7 @@
             return escapeHtml(String(value));
         }
 
+        // Hàm `formatDateTime`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function formatDateTime(value) {
             if (!value) return "";
             try { return new Date(value).toLocaleString("vi-VN"); } catch { return value; }

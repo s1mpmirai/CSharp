@@ -7,11 +7,13 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root {
+            /* Bộ màu tổng thể của màn hình tạo/cập nhật gian hàng trên web owner. */
             --bg: #f8f6f2;
             --card: rgba(255, 255, 255, 0.92);
             --ink: #1d1814;
             --muted: #7d6e61;
             --line: rgba(141, 119, 97, 0.18);
+            /* Màu nút chính. Đổi sẽ ảnh hưởng trực tiếp các nút lưu/tạo trên web. */
             --primary: #e07828;
             --primary-dark: #b85712;
             --shadow-soft: 0 18px 42px rgba(102, 76, 48, 0.08);
@@ -228,9 +230,13 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        // Giới hạn bản đồ trong phạm vi TP.HCM. Đổi bounds này sẽ đổi khu vực được phép đặt stall.
         const HCMC_BOUNDS = L.latLngBounds([[10.34, 106.22], [11.15, 107.02]]);
+        // Marker hiện tại đại diện cho vị trí gian hàng trên bản đồ.
         let marker = null;
+        // Chế độ biểu mẫu hiện tại: tạo mới hay cập nhật stall.
         let mode = "create";
+        // Instance Leaflet map của màn hình tạo/cập nhật.
         const map = L.map("map", {
             maxBounds: HCMC_BOUNDS,
             maxBoundsViscosity: 1.0,
@@ -246,6 +252,7 @@
         document.getElementById("stallForm").addEventListener("submit", saveStall);
         map.on("click", e => updateMarker(e.latlng.lat, e.latlng.lng));
 
+        // Hàm `api`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function api(path, options = {}) {
             const res = await fetch(path, { ...options, credentials: "include" });
             const body = await safeJson(res);
@@ -258,10 +265,12 @@
             return body;
         }
 
+        // Hàm `safeJson`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function safeJson(response) {
             try { return await response.json(); } catch { return null; }
         }
 
+        // Hàm `safeText`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function safeText(response) {
             try {
                 const clone = response.clone();
@@ -271,6 +280,7 @@
             }
         }
 
+        // Hàm `formatApiError`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function formatApiError(body) {
             const detail = body?.detail;
             if (!detail) return "";
@@ -293,6 +303,7 @@
             return String(detail);
         }
 
+        // Hàm `getFieldLabel`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function getFieldLabel(field) {
             const labels = {
                 name: "Tên gian hàng",
@@ -312,6 +323,7 @@
             return labels[field] || "";
         }
 
+        // Hàm `splitOpeningHours`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function splitOpeningHours(value) {
             const normalized = (value || "").trim().replace(/\s*[–—-]\s*/g, "-");
             if (!normalized) return { openingTime: "", closingTime: "" };
@@ -327,19 +339,23 @@
             return { openingTime: normalized, closingTime: "" };
         }
 
+        // Hàm `isClosingTimeAfterOpeningTime`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function isClosingTimeAfterOpeningTime(openingTime, closingTime) {
             return Boolean(openingTime && closingTime) && closingTime > openingTime;
         }
 
+        // Hàm `countWords`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function countWords(text) {
             const matches = String(text || "").trim().match(/[\p{L}\p{N}]+/gu);
             return matches ? matches.length : 0;
         }
 
+        // Hàm `hasMinimumScriptWords`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function hasMinimumScriptWords(text) {
             return countWords(text) >= 100;
         }
 
+        // Hàm `bootstrap`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function bootstrap() {
             const me = await api("/auth/me");
             if (!me || me.user.role !== "stall_owner") return;
@@ -355,6 +371,7 @@
             }
         }
 
+        // Hàm `fillForm`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function fillForm(stall) {
             document.getElementById("name").value = stall.name || "";
             document.getElementById("category_id").value = String(stall.category_id || "");
@@ -378,6 +395,7 @@
             }
         }
 
+        // Hàm `previewImage`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function previewImage(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -390,6 +408,7 @@
             reader.readAsDataURL(file);
         }
 
+        // Hàm `geocode`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function geocode() {
             const address = document.getElementById("address_search").value.trim();
             if (!address) return showStatus("Nhập địa chỉ trước khi tìm.", true);
@@ -408,6 +427,7 @@
             }
         }
 
+        // Hàm `updateMarker`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function updateMarker(lat, lng) {
             if (!HCMC_BOUNDS.contains([lat, lng])) {
                 showStatus("Vị trí phải nằm trong phạm vi TP.HCM.", true);
@@ -419,6 +439,7 @@
             document.getElementById("lng").value = Number(lng).toFixed(6);
         }
 
+        // Hàm `saveStall`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function saveStall(event) {
             event.preventDefault();
             if (!document.getElementById("name").value.trim()) return showStatus("Nhập tên gian hàng.", true);
@@ -479,12 +500,14 @@
             }
         }
 
+        // Hàm `showStatus`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function showStatus(message, isError = false) {
             const box = document.getElementById("statusBox");
             box.innerHTML = String(message || "").replace(/\n/g, "<br>");
             box.className = `status show ${isError ? "err" : "ok"}`;
         }
 
+        // Hàm `logout`: xử lý luồng JavaScript liên quan trong file hiện tại.
         async function logout() {
             await fetch("/auth/logout", { method: "POST", credentials: "include" });
             location.href = "/login";
