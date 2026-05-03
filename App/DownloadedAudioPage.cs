@@ -10,7 +10,6 @@ namespace FoodStreetAudioGuide
         private readonly CollectionView _collectionView;
         private readonly LocalizedText _text;
 
-        // Hàm khởi tạo `DownloadedAudioPage`: thiết lập trạng thái ban đầu cho đối tượng trong file hiện tại.
         public DownloadedAudioPage(AudioCacheService audioCacheService)
         {
             _audioCacheService = audioCacheService;
@@ -96,14 +95,12 @@ namespace FoodStreetAudioGuide
             };
         }
 
-        // Hàm `OnAppearing`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         protected override void OnAppearing()
         {
             base.OnAppearing();
             _collectionView.ItemsSource = _audioCacheService.GetDownloadedAudioItems();
         }
 
-        // Hàm `OnDeleteClicked`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private void OnDeleteClicked(object? sender, EventArgs e)
         {
             if (sender is not Button button || button.BindingContext is not DownloadedAudioItem item)
@@ -117,7 +114,6 @@ namespace FoodStreetAudioGuide
 
         private sealed class FileNameConverter : IValueConverter
         {
-            // Hàm `Convert`: xử lý logic liên quan trong file hiện tại.
             public object? Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture)
             {
                 var path = value?.ToString() ?? string.Empty;
@@ -131,13 +127,11 @@ namespace FoodStreetAudioGuide
         {
             private readonly LocalizedText _text;
 
-            // Hàm khởi tạo `DownloadedAudioSubtitleConverter`: thiết lập trạng thái ban đầu cho đối tượng trong file hiện tại.
             public DownloadedAudioSubtitleConverter(LocalizedText text)
             {
                 _text = text;
             }
 
-            // Hàm `Convert`: xử lý logic liên quan trong file hiện tại.
             public object? Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture)
             {
                 if (value is not DownloadedAudioItem item)

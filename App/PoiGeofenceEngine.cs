@@ -17,7 +17,6 @@ internal sealed class PoiGeofenceEngine
     public double ExitMarginMeters { get; set; } = 6;
     public int RequiredConsecutiveSamples { get; set; } = 2;
 
-    // Hàm `Evaluate`: xử lý logic liên quan trong file hiện tại.
     public PoiGeofenceResult? Evaluate(Location userLocation, IReadOnlyCollection<StallItem> stalls, DateTime utcNow)
     {
         var accuracyMeters = userLocation.Accuracy ?? double.MaxValue;
@@ -135,7 +134,6 @@ internal sealed class PoiGeofenceEngine
         return null;
     }
 
-    // Hàm `Reset`: xử lý logic liên quan trong file hiện tại.
     public void Reset()
     {
         _insideStalls.Clear();
@@ -143,7 +141,6 @@ internal sealed class PoiGeofenceEngine
         _consecutiveInsideSamples.Clear();
     }
 
-    // Hàm `IsInsideEntryBoundary`: kiểm tra trạng thái liên quan trong file hiện tại.
     private bool IsInsideEntryBoundary(double distanceMeters, double poiRadiusMeters, double accuracyMeters)
     {
         var safetyMargin = Math.Max(
@@ -152,13 +149,11 @@ internal sealed class PoiGeofenceEngine
         return distanceMeters <= Math.Max(1, poiRadiusMeters - safetyMargin);
     }
 
-    // Hàm `IsInsideExitBoundary`: kiểm tra trạng thái liên quan trong file hiện tại.
     private bool IsInsideExitBoundary(double distanceMeters, double poiRadiusMeters)
     {
         return distanceMeters <= poiRadiusMeters + Math.Max(ExitMarginMeters, MinimumEntryMarginMeters);
     }
 
-    // Hàm `AreStallsTooClose`: xử lý logic liên quan trong file hiện tại.
     private static bool AreStallsTooClose(StallItem first, StallItem second)
     {
         if (first.Id == second.Id)

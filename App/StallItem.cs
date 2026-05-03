@@ -26,7 +26,6 @@
         int ReviewsCount = 0
     )
     {
-        // Hàm `GetRatingValue`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         public double GetRatingValue()
         {
             return double.TryParse(Rating, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var ratingValue)
@@ -34,7 +33,6 @@
                 : 0;
         }
 
-        // Hàm `GetReviewsCount`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         public int GetReviewsCount()
         {
             if (ReviewsCount > 0)
@@ -46,7 +44,6 @@
             return int.TryParse(digits, out var parsedCount) ? parsedCount : 0;
         }
 
-        // Hàm `GetDisplayHours`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         public string GetDisplayHours()
         {
             if (!string.IsNullOrWhiteSpace(OpeningHours))
@@ -61,7 +58,6 @@
             return values.Length == 2 ? $"{values[0]} - {values[1]}" : string.Empty;
         }
 
-        // Hàm `GetScript`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         public string GetScript(string languageCode)
         {
             if (Translations is null || string.IsNullOrWhiteSpace(languageCode))
@@ -83,7 +79,6 @@
             return string.Empty;
         }
 
-        // Hàm `GetTopSpecialties`: lấy dữ liệu hoặc giá trị cần dùng trong file hiện tại.
         public IReadOnlyList<string> GetTopSpecialties(string languageCode)
         {
             if (SpecialtyTranslations is not null && !string.IsNullOrWhiteSpace(languageCode))
@@ -123,14 +118,12 @@
             return BuildFallbackSpecialties(languageCode);
         }
 
-        // Hàm `WithLocalizedCuisine`: xử lý logic liên quan trong file hiện tại.
         public StallItem WithLocalizedCuisine(string languageCode)
         {
             var localizedCuisine = CategoryLocalizer.Localize(CategorySlug, languageCode, Cuisine);
             return this with { Cuisine = localizedCuisine };
         }
 
-        // Hàm `BuildFallbackSpecialties`: tạo nội dung hoặc cấu trúc cần dùng trong file hiện tại.
         private IReadOnlyList<string> BuildFallbackSpecialties(string languageCode)
         {
             var normalizedName = Name.ToLowerInvariant();
@@ -184,7 +177,6 @@
             };
         }
 
-        // Hàm `TranslateSpecialty`: xử lý logic liên quan trong file hiện tại.
         private static string TranslateSpecialty(string value, string languageCode)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -236,7 +228,6 @@
                 ["Món nên thử hôm nay"] = Build("Món nên thử hôm nay", "Recommended dish today", "今天推荐尝试的菜", "今日おすすめの一品", "오늘 추천 메뉴")
             };
 
-        // Hàm `Build`: xử lý logic liên quan trong file hiện tại.
         private static IReadOnlyDictionary<string, string> Build(string vi, string en, string zh, string ja, string ko)
             => new Dictionary<string, string>
             {

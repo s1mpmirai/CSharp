@@ -353,7 +353,6 @@
                 }
             };
 
-        // Hàm `Get`: xử lý logic liên quan trong file hiện tại.
         public static LocalizedText Get(string? language)
         {
             if (!string.IsNullOrWhiteSpace(language) && TextByLanguage.TryGetValue(language, out var text))

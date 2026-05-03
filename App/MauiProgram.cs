@@ -7,7 +7,6 @@ public static class MauiProgram
 {
     private static readonly TimeSpan DefaultApiTimeout = TimeSpan.FromSeconds(12);
 
-    // Hàm `CreateMauiApp`: tạo dữ liệu hoặc đối tượng cần dùng trong file hiện tại.
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder();

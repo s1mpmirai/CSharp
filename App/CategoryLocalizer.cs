@@ -15,7 +15,6 @@ namespace FoodStreetAudioGuide
                 ["specialties"] = Build("Đặc sản", "Specialties", "特色美食", "名物料理", "특산 요리"),
             };
 
-        // Hàm `Localize`: xử lý logic liên quan trong file hiện tại.
         public static string Localize(string? slug, string? languageCode, string fallback = "")
         {
             if (string.IsNullOrWhiteSpace(slug) || !NamesBySlug.TryGetValue(slug, out var names))
@@ -32,7 +31,6 @@ namespace FoodStreetAudioGuide
             return names["vi"];
         }
 
-        // Hàm `Build`: xử lý logic liên quan trong file hiện tại.
         private static IReadOnlyDictionary<string, string> Build(string vi, string en, string zhCn, string ja, string ko)
         {
             return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -45,7 +43,6 @@ namespace FoodStreetAudioGuide
             };
         }
 
-        // Hàm `NormalizeLanguageCode`: xử lý logic liên quan trong file hiện tại.
         private static string NormalizeLanguageCode(string? languageCode)
         {
             if (string.IsNullOrWhiteSpace(languageCode))

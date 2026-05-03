@@ -6,7 +6,6 @@ namespace FoodStreetAudioGuide
     {
         private bool _suppressNotifications;
 
-        // Hàm `ReplaceRange`: xử lý logic liên quan trong file hiện tại.
         public void ReplaceRange(IEnumerable<T> items)
         {
             _suppressNotifications = true;
@@ -27,7 +26,6 @@ namespace FoodStreetAudioGuide
                 System.Collections.Specialized.NotifyCollectionChangedAction.Reset));
         }
 
-        // Hàm `AddRange`: xử lý logic liên quan trong file hiện tại.
         public void AddRange(IEnumerable<T> items)
         {
             _suppressNotifications = true;
@@ -47,7 +45,6 @@ namespace FoodStreetAudioGuide
                 System.Collections.Specialized.NotifyCollectionChangedAction.Reset));
         }
 
-        // Hàm `OnCollectionChanged`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         protected override void OnCollectionChanged(System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
         {
             if (_suppressNotifications)

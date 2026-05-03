@@ -14,7 +14,6 @@ namespace FoodStreetAudioGuide.WinUI
         /// Initializes the singleton application object.  This is the first line of authored code
         /// executed, and as such is the logical equivalent of main() or WinMain().
         /// </summary>
-        // Hàm khởi tạo `App`: thiết lập trạng thái ban đầu cho đối tượng trong file hiện tại.
         public App()
         {
             this.InitializeComponent();

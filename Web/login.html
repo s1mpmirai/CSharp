@@ -6,16 +6,13 @@
     <title>Dang nhap</title>
     <style>
         :root {
-            /* Màu khung chính của form đăng nhập. Đổi sẽ làm toàn bộ login page thay đổi nền panel. */
             --panel: rgba(255, 255, 255, 0.92);
             --panel-solid: #ffffff;
             --text: #1a1714;
             --muted: #75685c;
             --line: rgba(133, 112, 90, 0.16);
-            /* Màu nền input và trạng thái focus của input. */
             --field: #f3f0ec;
             --field-focus: #ffffff;
-            /* Gradient thương hiệu của nút đăng nhập và các điểm nhấn trên trang. */
             --brand-start: #9d4300;
             --brand-end: #ff8f3f;
             --shadow: 0 24px 70px rgba(96, 72, 48, 0.12);
@@ -434,15 +431,10 @@
     </div>
 
     <script>
-        // Form chính dùng để gửi yêu cầu đăng nhập lên backend.
         const form = document.getElementById("loginForm");
-        // Ô nhập username. Đổi id HTML mà không cập nhật biến này sẽ làm login thất bại.
         const usernameInput = document.getElementById("username");
-        // Ô nhập mật khẩu.
         const passwordInput = document.getElementById("password");
-        // Hộp hiển thị lỗi/trạng thái ở màn hình đăng nhập.
         const statusBox = document.getElementById("status");
-        // Nút submit để khóa lại trong lúc đang gửi request.
         const submitBtn = document.getElementById("submitBtn");
 
         form.addEventListener("submit", async function (event) {
@@ -487,13 +479,11 @@
             }
         });
 
-        // Hàm `showError`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function showError(message) {
             statusBox.textContent = message;
             statusBox.classList.add("show");
         }
 
-        // Hàm `hideError`: xử lý luồng JavaScript liên quan trong file hiện tại.
         function hideError() {
             statusBox.textContent = "";
             statusBox.classList.remove("show");

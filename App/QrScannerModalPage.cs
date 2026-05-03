@@ -11,7 +11,6 @@ public sealed class QrScannerModalPage : ContentPage
     private bool _hasHandledResult;
     private bool _isClosing;
 
-    // Hàm khởi tạo `QrScannerModalPage`: thiết lập trạng thái ban đầu cho đối tượng trong file hiện tại.
     public QrScannerModalPage(LocalizedText text)
     {
         Title = text.QrTitle;
@@ -94,21 +93,18 @@ public sealed class QrScannerModalPage : ContentPage
 
     public Task<string?> WaitForResultAsync() => _resultTcs.Task;
 
-    // Hàm `OnAppearing`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
     protected override void OnAppearing()
     {
         base.OnAppearing();
         _cameraView.IsDetecting = true;
     }
 
-    // Hàm `OnDisappearing`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
     protected override void OnDisappearing()
     {
         _cameraView.IsDetecting = false;
         base.OnDisappearing();
     }
 
-    // Hàm `OnBarcodesDetected`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
     private void OnBarcodesDetected(object? sender, BarcodeDetectionEventArgs e)
     {
         if (_hasHandledResult)
@@ -132,7 +128,6 @@ public sealed class QrScannerModalPage : ContentPage
         MainThread.BeginInvokeOnMainThread(async () => await CloseAsync(rawValue.Trim()));
     }
 
-    // Hàm `CloseAsync`: đóng màn hình, tài nguyên hoặc luồng liên quan trong file hiện tại.
     private async Task CloseAsync(string? result)
     {
         if (_isClosing)

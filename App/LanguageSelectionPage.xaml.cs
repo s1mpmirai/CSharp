@@ -10,7 +10,6 @@ namespace FoodStreetAudioGuide
         private readonly AudioCacheService _audioCacheService;
         private string _selectedLanguage;
 
-        // Hàm khởi tạo `LanguageSelectionPage`: thiết lập trạng thái ban đầu cho đối tượng trong file hiện tại.
         public LanguageSelectionPage(StallService stallService, AudioCacheService audioCacheService)
         {
             InitializeComponent();
@@ -23,14 +22,12 @@ namespace FoodStreetAudioGuide
             UpdateSelectionUi();
         }
 
-        // Hàm `OnAppearing`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         protected override void OnAppearing()
         {
             base.OnAppearing();
             _ = WarmStartupAsync();
         }
 
-        // Hàm `OnLanguageCardTapped`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private void OnLanguageCardTapped(object sender, TappedEventArgs e)
         {
             if (e.Parameter is not string language)
@@ -43,7 +40,6 @@ namespace FoodStreetAudioGuide
             UpdateSelectionUi();
         }
 
-        // Hàm `OnContinueClicked`: xử lý sự kiện hoặc callback liên quan trong file hiện tại.
         private async void OnContinueClicked(object sender, EventArgs e)
         {
             Preferences.Set(SelectedLanguagePreferenceKey, _selectedLanguage);
@@ -60,7 +56,6 @@ namespace FoodStreetAudioGuide
             }
         }
 
-        // Hàm `WarmStartupAsync`: xử lý logic liên quan trong file hiện tại.
         private async Task WarmStartupAsync()
         {
             try
@@ -72,7 +67,6 @@ namespace FoodStreetAudioGuide
             }
         }
 
-        // Hàm `ApplyPageText`: áp dụng cấu hình hoặc trạng thái liên quan trong file hiện tại.
         private void ApplyPageText()
         {
             var text = AppText.Get(_selectedLanguage);
@@ -83,7 +77,6 @@ namespace FoodStreetAudioGuide
             ChangeAnytimeLabel.Text = text.ChangeAnytimeText;
         }
 
-        // Hàm `UpdateSelectionUi`: cập nhật dữ liệu hoặc giao diện liên quan trong file hiện tại.
         private void UpdateSelectionUi()
         {
             SetCardSelection(EnglishCard, EnglishFlag, EnglishIndicatorOuter, EnglishIndicatorInner, _selectedLanguage == AppText.English);
@@ -93,7 +86,6 @@ namespace FoodStreetAudioGuide
             SetCardSelection(KoreanCard, KoreanFlag, KoreanIndicatorOuter, KoreanIndicatorInner, _selectedLanguage == AppText.Korean);
         }
 
-        // Hàm `SetCardSelection`: cập nhật giá trị hoặc trạng thái liên quan trong file hiện tại.
         private static void SetCardSelection(Border card, Label flag, Ellipse outerIndicator, Ellipse innerIndicator, bool isSelected)
         {
             if (isSelected)
