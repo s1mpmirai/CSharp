@@ -1184,7 +1184,7 @@
             ];
             const bounds = L.latLngBounds(boundsSource);
             heatmapMap.fitBounds(bounds.pad(0.1), { padding: [24, 24] });
-            document.getElementById("heatmapHint").textContent = `19 người dùng đang hoạt động trong 5 phút gần nhất`;
+            document.getElementById("heatmapHint").textContent = `${activeUsers.length} người dùng đang hoạt động trong 5 phút gần nhất`;
         }
 
         async function loadAllData() {
