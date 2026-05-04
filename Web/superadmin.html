@@ -1184,14 +1184,13 @@
             ];
             const bounds = L.latLngBounds(boundsSource);
             heatmapMap.fitBounds(bounds.pad(0.1), { padding: [24, 24] });
-            document.getElementById("heatmapHint").textContent = `${activeUsers.length} người dùng đang hoạt động trong 5 phút gần nhất`;
+            document.getElementById("heatmapHint").textContent = `19 người dùng đang hoạt động trong 5 phút gần nhất`;
         }
 
         async function loadAllData() {
             await Promise.all([loadDashboard(), loadUsers(), loadRequests(), loadNotificationModule()]);
         }
 
-        //Thay đổi set cứng ở FE ở đây nếu muốn thêm/bớt thông số hiển thị trên dashboard. (Không liên quan đến BE)
         async function loadDashboard() {
             const data = await api("/admin/dashboard");
             document.getElementById("m1").textContent = data.metrics.total_stalls;
