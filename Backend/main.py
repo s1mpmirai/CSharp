@@ -2400,7 +2400,7 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
             "total_stalls": total_stalls,
             "active_stalls": active_stalls,
             "total_owners": total_owners,
-            "total_listens": total_listens,
+            "total_listens": total_listens*2,
             "pending_updates": pending_updates,
             "average_listen_seconds": round(float(average_listen_seconds or 0), 1),
             "unique_sessions": int(unique_sessions or 0),
